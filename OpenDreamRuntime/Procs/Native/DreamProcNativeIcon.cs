@@ -107,5 +107,26 @@ namespace OpenDreamRuntime.Procs.Native {
         public static void _NativeProc_TurnInternal(DreamObjectIcon src, float angle) {
             src.Turn(angle);
         }
+
+        [DreamProc("GetPixel")]
+        [DreamProcParameter("x", Type = DreamValueTypeFlag.Float)]
+        [DreamProcParameter("y", Type = DreamValueTypeFlag.Float)]
+        [DreamProcParameter("icon_state", Type = DreamValueTypeFlag.String)]
+        [DreamProcParameter("dir", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
+        [DreamProcParameter("frame", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
+        [DreamProcParameter("moving", Type = DreamValueTypeFlag.Float, DefaultValue = DreamValueType.Null)]
+        public static DreamValue NativeProc_GetPixel(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
+            //TODO Figure out what happens when you pass the wrong types as args
+            bundle.GetArgument(0, "x").TryGetValueAsInteger(out var x);
+            bundle.GetArgument(1, "y").TryGetValueAsInteger(out var y);
+            bundle.GetArgument(2, "icon_state").TryGetValueAsString(out var state);
+            bundle.GetArgument(3, "dir").TryGetValueAsInteger(out var dir);
+            bundle.GetArgument(4, "frame").TryGetValueAsInteger(out var frame);
+            bundle.GetArgument(1, "moving").TryGetValueAsInteger(out var moving);
+
+            var icon_holder = ((DreamObjectIcon)src).Icon.States.TryGetValue(iconState, out DreamIcon.IconState value);
+
+            return new DreamValue(((DreamObjectIcon)src!).Icon.States.TryGetValue()
+        }
     }
 }
