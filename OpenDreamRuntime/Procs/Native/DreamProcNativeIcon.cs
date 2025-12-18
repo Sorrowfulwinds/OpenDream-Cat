@@ -116,6 +116,15 @@ namespace OpenDreamRuntime.Procs.Native {
         [DreamProcParameter("frame", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
         [DreamProcParameter("moving", Type = DreamValueTypeFlag.Float, DefaultValue = DreamValueType.Null)]
         public static DreamValue NativeProc_GetPixel(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
+            //X or Y bigger than sprites gives no return
+            //Non-existent icon_state gives no return, blank string "" targets 'no name' icon first, then the first icon in the dmi otherwise, no input e.g GetPixel(x,y) acts the same.
+            //dir is checked by binary flags, meaning any number of numbers might hit a return. Non-existent dirs seems to cause an exception on launch. ([launched] Child exited with code 0xc0000005.)
+            //frame is 1-indexed, but 0 also counts as 1. Numbers greater than the number of frames give no return
+            /*moving says it defaults to -1, but in text it defaults to null?? X>0 only targets icon_state named icons that are marked as moving. X=0 for non-moving.
+            If you target a moving state that doesnt exist and icon_state is empty-string it targets the first icon in the file irrelevant of movement state, otherwise no return.
+            Null && X<0 target both states, first icon_state in the dmi wins. Any number below 0 works.
+            */
+
             //TODO Figure out what happens when you pass the wrong types as args
             bundle.GetArgument(0, "x").TryGetValueAsInteger(out var x);
             bundle.GetArgument(1, "y").TryGetValueAsInteger(out var y);
@@ -124,7 +133,7 @@ namespace OpenDreamRuntime.Procs.Native {
             bundle.GetArgument(4, "frame").TryGetValueAsInteger(out var frame);
             bundle.GetArgument(1, "moving").TryGetValueAsInteger(out var moving);
 
-            var icon_holder = ((DreamObjectIcon)src).Icon.States.TryGetValue(iconState, out DreamIcon.IconState value);
+            src?.Icon.States.TryGetValue(iconState, out DreamIcon.IconState value);
 
             return new DreamValue(((DreamObjectIcon)src!).Icon.States.TryGetValue()
         }
