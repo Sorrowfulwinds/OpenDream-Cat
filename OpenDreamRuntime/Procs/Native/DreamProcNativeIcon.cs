@@ -111,10 +111,10 @@ namespace OpenDreamRuntime.Procs.Native {
         [DreamProc("GetPixel")]
         [DreamProcParameter("x", Type = DreamValueTypeFlag.Float)]
         [DreamProcParameter("y", Type = DreamValueTypeFlag.Float)]
-        [DreamProcParameter("icon_state", Type = DreamValueTypeFlag.String)]
+        [DreamProcParameter("icon_state", Type = DreamValueTypeFlag.String, DefaultValue = "")]
         [DreamProcParameter("dir", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
-        [DreamProcParameter("frame", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
-        [DreamProcParameter("moving", Type = DreamValueTypeFlag.Float, DefaultValue = DreamValueType.Null)]
+        [DreamProcParameter("frame", Type = DreamValueTypeFlag.Float, DefaultValue = 1)]
+        [DreamProcParameter("moving", Type = DreamValueTypeFlag.Float, DefaultValue = -1)]
         public static DreamValue NativeProc_GetPixel(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
             //X or Y bigger than sprites gives no return
             //Non-existent icon_state gives no return, blank string "" targets 'no name' icon first, then the first icon in the dmi otherwise, no input e.g GetPixel(x,y) acts the same.
@@ -124,18 +124,32 @@ namespace OpenDreamRuntime.Procs.Native {
             If you target a moving state that doesnt exist and icon_state is empty-string it targets the first icon in the file irrelevant of movement state, otherwise no return.
             Null && X<0 target both states, first icon_state in the dmi wins. Any number below 0 works.
             */
+            var x = bundle.GetArgument(0, "x").MustGetValueAsInteger();
+            var y = bundle.GetArgument(1, "y").MustGetValueAsInteger();
+            var iconState = bundle.GetArgument(2, "icon_state").MustGetValueAsString();
+            var dir = bundle.GetArgument(3, "dir").MustGetValueAsInteger();
+            var frame = bundle.GetArgument(4, "frame").MustGetValueAsInteger();
+            if (frame == 0) //1-indexed, but 0 also counts as 1.
+                frame = 1;
+            var moving = -1;
+            if (!bundle.GetArgument(4, "moving").IsNull) { //Null counts as -1, crush arbitrary values to specifics.
+                moving = bundle.GetArgument(5, "moving").MustGetValueAsInteger() switch {
+                    <0 => -1, //Moving & Non-Moving states
+                    0  =>  0, //Non-Moving states
+                    >0 =>  1  //Moving states
+                };
+            }
 
-            //TODO Figure out what happens when you pass the wrong types as args
-            bundle.GetArgument(0, "x").TryGetValueAsInteger(out var x);
-            bundle.GetArgument(1, "y").TryGetValueAsInteger(out var y);
-            bundle.GetArgument(2, "icon_state").TryGetValueAsString(out var state);
-            bundle.GetArgument(3, "dir").TryGetValueAsInteger(out var dir);
-            bundle.GetArgument(4, "frame").TryGetValueAsInteger(out var frame);
-            bundle.GetArgument(1, "moving").TryGetValueAsInteger(out var moving);
+            //Icon > dictionary 'states' of (string, iconstates), width, height
+            //Iconstate > Dictionary<AtomDirection, List<IconFrame>> Directions
+            //List of IconFrame > Image, Width, Height,
+            DreamIcon iconObj = ((DreamObjectIcon)src!).Icon;
+            DreamIcon.IconState iconStatePull = iconObj.States[iconState]; //use .TryGetValue(iconState, out varname)
+            List<DreamIcon.IconFrame> frames = iconStatePull.Frames[dir]; //need helper for int/dreamint > AtomDirection
+            DreamIcon.IconFrame iconFramePull = frames[frame];
+            Image<Rgba32>? theImageWeWant = iconFramePull.Image;
 
-            src?.Icon.States.TryGetValue(iconState, out DreamIcon.IconState value);
-
-            return new DreamValue(((DreamObjectIcon)src!).Icon.States.TryGetValue()
+            return 0;
         }
     }
 }
