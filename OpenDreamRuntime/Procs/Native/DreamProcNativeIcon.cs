@@ -2,6 +2,8 @@ using OpenDreamRuntime.Objects;
 using OpenDreamRuntime.Objects.Types;
 using OpenDreamRuntime.Resources;
 using OpenDreamShared.Dream;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using BlendType = OpenDreamRuntime.Objects.DreamIconOperationBlend.BlendType;
 using DreamValueTypeFlag = OpenDreamRuntime.DreamValue.DreamValueTypeFlag;
 
@@ -116,23 +118,29 @@ namespace OpenDreamRuntime.Procs.Native {
         [DreamProcParameter("frame", Type = DreamValueTypeFlag.Float, DefaultValue = 1)]
         [DreamProcParameter("moving", Type = DreamValueTypeFlag.Float, DefaultValue = -1)]
         public static DreamValue NativeProc_GetPixel(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-            //X or Y bigger than sprites gives no return
+            //X or Y bigger than sprites gives no return, negative values give no return
             //Non-existent icon_state gives no return, blank string "" targets 'no name' icon first, then the first icon in the dmi otherwise, no input e.g GetPixel(x,y) acts the same.
             //dir is checked by binary flags, meaning any number of numbers might hit a return. Non-existent dirs seems to cause an exception on launch. ([launched] Child exited with code 0xc0000005.)
-            //frame is 1-indexed, but 0 also counts as 1. Numbers greater than the number of frames give no return
+            //dir 0 counts as SOUTH (2). Any dirs the icon doesn't have returns nothing.
+            //frame is 1-indexed, but 0 also counts as 1. Numbers greater than the number of frames give no return, Numbers lower than 0 count as 1
             /*moving says it defaults to -1, but in text it defaults to null?? X>0 only targets icon_state named icons that are marked as moving. X=0 for non-moving.
             If you target a moving state that doesnt exist and icon_state is empty-string it targets the first icon in the file irrelevant of movement state, otherwise no return.
             Null && X<0 target both states, first icon_state in the dmi wins. Any number below 0 works.
             */
             var x = bundle.GetArgument(0, "x").MustGetValueAsInteger();
             var y = bundle.GetArgument(1, "y").MustGetValueAsInteger();
+            if (x < 0 || y < 0) //Invalid coordinates
+                return DreamValue.Null;
             var iconState = bundle.GetArgument(2, "icon_state").MustGetValueAsString();
-            var dir = bundle.GetArgument(3, "dir").MustGetValueAsInteger();
+            var dir = bundle.GetArgument(3, "dir").MustGetValueAsInteger().ToIconAtomDirection();
+            if (dir == AtomDirection.None) //Invalid dir
+                return DreamValue.Null;
             var frame = bundle.GetArgument(4, "frame").MustGetValueAsInteger();
-            if (frame == 0) //1-indexed, but 0 also counts as 1.
+            if (frame <= 0) //1-indexed, but 0 or less also counts as 1.
                 frame = 1;
+
             var moving = -1;
-            if (!bundle.GetArgument(4, "moving").IsNull) { //Null counts as -1, crush arbitrary values to specifics.
+            if (!bundle.GetArgument(5, "moving").IsNull) { //Null counts as -1, crush arbitrary values to specifics.
                 moving = bundle.GetArgument(5, "moving").MustGetValueAsInteger() switch {
                     <0 => -1, //Moving & Non-Moving states
                     0  =>  0, //Non-Moving states
@@ -140,16 +148,26 @@ namespace OpenDreamRuntime.Procs.Native {
                 };
             }
 
+            DreamIcon iconObjSelf = ((DreamObjectIcon)src!).Icon;
+            //TODO: The current DreamIcon doesn't save the order of iconstates from a dmi. Which means we can't implement the default behaviour of a blank iconstate.
+            //This only looks for exact matches. RFC for REALLY_STRICT_COMPILER when?
+            if (iconObjSelf.States.TryGetValue(iconState, out var ourState)) {
+                if (ourState.Directions.TryGetValue(dir, out var ourFrames)) {
+                    if (frame > ourFrames.Count)
+                        return DreamValue.Null;
+                    DreamIcon.IconFrame ourIcon = ourFrames[frame-1];
+                    var rgb = ourIcon.Image[x,y];
+                }
+            }
+
             //Icon > dictionary 'states' of (string, iconstates), width, height
             //Iconstate > Dictionary<AtomDirection, List<IconFrame>> Directions
             //List of IconFrame > Image, Width, Height,
-            DreamIcon iconObj = ((DreamObjectIcon)src!).Icon;
-            DreamIcon.IconState iconStatePull = iconObj.States[iconState]; //use .TryGetValue(iconState, out varname)
             List<DreamIcon.IconFrame> frames = iconStatePull.Frames[dir]; //need helper for int/dreamint > AtomDirection
             DreamIcon.IconFrame iconFramePull = frames[frame];
             Image<Rgba32>? theImageWeWant = iconFramePull.Image;
 
-            return 0;
+            return DreamValue.Null;
         }
     }
 }
