@@ -16,6 +16,7 @@ using ParsedDMIFrame = OpenDreamShared.Resources.DMIParser.ParsedDMIFrame;
 namespace OpenDreamRuntime.Objects;
 
 public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager resourceManager) {
+    //TODO CAT: Add movement state!
     private static readonly ArrayPool<Rgba32> PixelArrayPool = ArrayPool<Rgba32>.Shared;
 
     public int Width, Height;
@@ -72,6 +73,7 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
     }
 
     public void CopyFrom(DreamIcon other) {
+        // TODO CAT: Add movement state!
         Width = other.Width;
         Height = other.Height;
 
@@ -162,12 +164,15 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
         _cachedDMI = null;
     }
 
-    public void InsertStates(IconResource icon, DreamValue state, DreamValue dir, DreamValue frame,
+    public void InsertStates(IconResource icon, DreamValue state, DreamValue dir, DreamValue frame, DreamValue moving,
         bool isConstructor = false) {
         bool copyingAllDirs = !dir.TryGetValueAsInteger(out var dirVal);
         bool copyingAllStates = !state.TryGetValueAsString(out var copyingState);
         bool copyingAllFrames = !frame.TryGetValueAsInteger(out var copyingFrame);
-        // TODO: Copy movement states?
+        bool movement = moving.TryGetValueAsInteger(out var copyingMoving);
+        if (movement && copyingMoving == 0) {
+            movement = false;
+        }
 
         AtomDirection copyingDirection = (AtomDirection) dirVal;
         if (!Enum.IsDefined(copyingDirection) || copyingDirection == AtomDirection.None) {
@@ -180,18 +185,28 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
 
         if (copyingAllStates) {
             foreach (var copyStateName in icon.DMI.States.Keys) {
-                InsertState(icon, copyStateName, copyStateName,
-                    copyingAllDirs ? null : copyingDirection, copyingAllFrames ? null : copyingFrame,
+                InsertState(
+                    icon,
+                    copyStateName,
+                    copyStateName,
+                    movement,
+                    copyingAllDirs ? null : copyingDirection,
+                    copyingAllFrames ? null : copyingFrame,
                     forceSouth: false);
             }
         } else {
-            InsertState(icon, isConstructor ? string.Empty : copyingState!, copyingState!,
-                copyingAllDirs ? null : copyingDirection, copyingAllFrames ? null : copyingFrame,
+            InsertState(
+                icon,
+                isConstructor ? string.Empty : copyingState!,
+                copyingState!,
+                movement,
+                copyingAllDirs ? null : copyingDirection,
+                copyingAllFrames ? null : copyingFrame,
                 forceSouth: isConstructor);
         }
     }
 
-    private void InsertState(IconResource icon, string stateName, string copyingState, AtomDirection? dir = null,
+    private void InsertState(IconResource icon, string stateName, string copyingState, bool moving, AtomDirection? dir = null,
         int? frame = null, bool forceSouth = false) {
         ParsedDMIState? inserting = icon.DMI.GetStateOrDefault(copyingState);
         if (inserting == null)

@@ -35,14 +35,13 @@ namespace OpenDreamRuntime.Procs.Native {
             DreamValue frame = bundle.GetArgument(3, "frame");
             DreamValue moving = bundle.GetArgument(4, "moving");
             DreamValue delay = bundle.GetArgument(5, "delay");
-
-            // TODO: moving & delay
+            // TODO: delay
 
             var resourceManager = IoCManager.Resolve<DreamResourceManager>();
             if (!resourceManager.TryLoadIcon(newIcon, out var iconRsc))
                 throw new Exception($"Cannot insert {newIcon}");
 
-            ((DreamObjectIcon)src!).Icon.InsertStates(iconRsc, iconState, dir, frame); // TODO: moving & delay
+            ((DreamObjectIcon)src!).Icon.InsertStates(iconRsc, iconState, dir, frame, moving); // TODO: delay
             return DreamValue.Null;
         }
 
@@ -149,7 +148,7 @@ namespace OpenDreamRuntime.Procs.Native {
             }
 
             DreamIcon iconObjSelf = ((DreamObjectIcon)src!).Icon;
-            //TODO: The current DreamIcon doesn't save the order of iconstates from a dmi. Which means we can't implement the default behaviour of a blank iconstate.
+            //TODO CAT: The current DreamIcon doesn't save the order of iconstates from a dmi. Which means we can't implement the default behaviour of a blank iconstate.
             //This only looks for exact matches. RFC for REALLY_STRICT_COMPILER when?
             if (iconObjSelf.States.TryGetValue(iconState, out var ourState)) {
                 if (ourState.Directions.TryGetValue(dir, out var ourFrames)) {

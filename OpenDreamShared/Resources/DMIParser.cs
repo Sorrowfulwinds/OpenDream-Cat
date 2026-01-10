@@ -26,17 +26,22 @@ public static class DMIParser {
 
     public sealed class ParsedDMIDescription {
         public int Width, Height;
-        public Dictionary<string, ParsedDMIState> States = new();
+        public Dictionary<string, DMISharedStateHolder> States = new();
 
         /// <summary>
         /// Gets the requested state, or the default if it doesn't exist
         /// </summary>
         /// <remarks>The default state could also not exist</remarks>
         /// <param name="stateName">The requested state's name</param>
+        /// <param name="moving">The requested state's moving var</param>
         /// <returns>The requested state, default state, or null</returns>
-        public ParsedDMIState? GetStateOrDefault(string? stateName) {
+        public ParsedDMIState? GetStateOrDefault(string? stateName, bool moving) {
             if (string.IsNullOrEmpty(stateName) || !States.TryGetValue(stateName, out var state)) {
-                States.TryGetValue(string.Empty, out state);
+                if (States.TryGetValue(string.Empty, out state)) {
+                    if (state.TryGetState(moving, out var finalState)) {
+                        return finalState;
+                    }
+                }
             }
 
             return state;
@@ -122,10 +127,36 @@ public static class DMIParser {
         }
     }
 
+    public sealed class DMISharedStateHolder(ParsedDMIState? _nonmoving = null, ParsedDMIState? _moving = null) {
+        public ParsedDMIState? nonmoving = _nonmoving;
+        public ParsedDMIState? moving = _moving;
+
+
+        public void SetNonmoving(ParsedDMIState? state) {
+            nonmoving = state;
+        }
+        public void SetMoving(ParsedDMIState? state) {
+            moving = state;
+        }
+        public bool TryGetState(bool isMoving, out ParsedDMIState? result) {
+            if (isMoving && moving is not null) {
+                result = moving;
+                return true;
+            } else if (!isMoving && nonmoving is not null) {
+                result = nonmoving;
+                return true;
+            } else {
+                result = null;
+                return false;
+            }
+        }
+    }
+
     public sealed class ParsedDMIState(string name) {
         public string Name = name;
         public bool Loop = true;
         public bool Rewind;
+        public bool Movement = false;
 
         // TODO: This can only contain either 1, 4, or 8 directions. Enforcing this could simplify some things.
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
@@ -447,7 +478,8 @@ public static class DMIParser {
                         currentState.Rewind = (int.Parse(value) == 1);
                         break;
                     case "movement":
-                        //TODO
+                        if (currentState is null) break;
+                        currentState.Movement = (int.Parse(value) == 1);
                         break;
                     case "hotspot":
                         //TODO

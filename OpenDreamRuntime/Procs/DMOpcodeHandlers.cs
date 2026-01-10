@@ -3271,7 +3271,7 @@ suffix
             if (!state.Proc.DreamResourceManager.TryLoadIcon(icon, out var from))
                 throw new Exception($"Failed to create an icon from {from}");
 
-            iconObj.Icon.InsertStates(from, DreamValue.Null, DreamValue.Null, DreamValue.Null);
+            iconObj.Icon.InsertStates(from, DreamValue.Null, DreamValue.Null, DreamValue.Null, DreamValue.Null);
             DreamProcNativeIcon.Blend(iconObj.Icon, blend, DreamIconOperationBlend.BlendType.Add, 0, 0);
             return new DreamValue(iconObj);
         }

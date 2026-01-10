@@ -566,7 +566,7 @@ public sealed class DreamValueJsonConverter : JsonConverter<DreamValue> {
                     IconResource resource = _resourceManager.CreateIconResource(iconData);
                     var iconObj = _objectTree.CreateObject<DreamObjectIcon>(_objectTree.Icon);
 
-                    iconObj.Icon.InsertStates(resource, DreamValue.Null, DreamValue.Null, DreamValue.Null);
+                    iconObj.Icon.InsertStates(resource, DreamValue.Null, DreamValue.Null, DreamValue.Null, DreamValue.Null);
                     value = new DreamValue(iconObj);
                 }
 
