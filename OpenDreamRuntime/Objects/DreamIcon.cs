@@ -162,8 +162,9 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
         _cachedDMI = null;
     }
 
+    //TODO CAT: This needs to take moving & delay values and everything attached needs to be updated.
     public void InsertStates(IconResource icon, DreamValue state, DreamValue dir, DreamValue frame,
-        bool isConstructor = false) {
+        DreamValue moving, DreamValue delay, bool isConstructor = false) {
         bool copyingAllDirs = !dir.TryGetValueAsInteger(out var dirVal);
         bool copyingAllStates = !state.TryGetValueAsString(out var copyingState);
         bool copyingAllFrames = !frame.TryGetValueAsInteger(out var copyingFrame);
@@ -191,8 +192,7 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
         }
     }
 
-    private void InsertState(IconResource icon, string stateName, string copyingState, AtomDirection? dir = null,
-        int? frame = null, bool forceSouth = false) {
+    private void InsertState(IconResource icon, string stateName, string copyingState, AtomDirection? dir = null, int? frame = null, bool forceSouth = false) {
         ParsedDMIState? inserting = icon.DMI.GetStateOrDefault(copyingState);
         if (inserting == null)
             return;

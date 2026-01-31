@@ -421,6 +421,7 @@ public static class DMIParser {
                         currentStateFrameCount = 1;
                         currentStateFrameDelays = null;
                         currentState = new ParsedDMIState(stateName);
+                        // TODO CAT: This right here is where movement states with the same statename as non-movement states trample each other. This needs to be moved out and only performed last dependant on the status of "moving".
                         description.States.TryAdd(stateName, currentState);
                         break;
                     case "dirs":
@@ -447,7 +448,7 @@ public static class DMIParser {
                         currentState.Rewind = (int.Parse(value) == 1);
                         break;
                     case "movement":
-                        //TODO
+                        //TODO CAT: implement this empty block stub
                         break;
                     case "hotspot":
                         //TODO

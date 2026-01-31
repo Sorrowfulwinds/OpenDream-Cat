@@ -34,6 +34,7 @@ namespace OpenDreamRuntime.Procs.Native {
             DreamValue moving = bundle.GetArgument(4, "moving");
             DreamValue delay = bundle.GetArgument(5, "delay");
 
+            // TODO CAT: This block here needs moving and delay functionality.
             // TODO: moving & delay
 
             var resourceManager = IoCManager.Resolve<DreamResourceManager>();
