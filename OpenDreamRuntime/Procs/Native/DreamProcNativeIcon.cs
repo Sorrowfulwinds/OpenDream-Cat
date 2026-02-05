@@ -41,7 +41,7 @@ namespace OpenDreamRuntime.Procs.Native {
             if (!resourceManager.TryLoadIcon(newIcon, out var iconRsc))
                 throw new Exception($"Cannot insert {newIcon}");
 
-            ((DreamObjectIcon)src!).Icon.InsertStates(iconRsc, iconState, dir, frame); // TODO: moving & delay
+            ((DreamObjectIcon)src!).Icon.InsertStates(iconRsc, iconState, dir, frame, moving, delay); // TODO: moving & delay
             return DreamValue.Null;
         }
 

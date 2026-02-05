@@ -125,7 +125,8 @@ public static class DMIParser {
     public sealed class ParsedDMIState(string name) {
         public string Name = name;
         public bool Loop = true;
-        public bool Rewind;
+        public bool Rewind = false;
+        public bool Movement = false;
 
         // TODO: This can only contain either 1, 4, or 8 directions. Enforcing this could simplify some things.
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
@@ -160,17 +161,9 @@ public static class DMIParser {
         }
 
         public void ExportAsText(StringBuilder text) {
-            text.Append("state = \"");
-            text.Append(Name);
-            text.AppendLine("\"");
-
-            text.Append("\tdirs = ");
-            text.Append(GetExportedDirectionCount(Directions));
-            text.AppendLine();
-
-            text.Append("\tframes = ");
-            text.Append(FrameCount);
-            text.AppendLine();
+            text.AppendLine($"state = \"{Name}\"");
+            text.AppendLine($"\tdirs = {GetExportedDirectionCount(Directions)}");
+            text.AppendLine($"\tframes = {FrameCount}");
 
             if (Directions.Count > 0) {
                 text.Append("\tdelay = ");
@@ -186,13 +179,11 @@ public static class DMIParser {
                 text.AppendLine();
             }
 
-            if (!Loop) {
-                text.AppendLine("\tloop = 0");
-            }
+            if (!Loop) text.AppendLine("\tloop = 0");
 
-            if (Rewind) {
-                text.AppendLine("\trewind = 1");
-            }
+            if (Rewind) text.AppendLine("\trewind = 1");
+
+            if (Movement) text.AppendLine("\trewind = 1");
         }
 
         /// <summary>
@@ -440,15 +431,17 @@ public static class DMIParser {
 
                         break;
                     case "loop":
-                        if (currentState is null) break;
-                        currentState.Loop = (int.Parse(value) == 0);
+                        if (currentState is not null)
+                            currentState.Loop = (int.Parse(value) == 0);
                         break;
                     case "rewind":
-                        if (currentState is null) break;
-                        currentState.Rewind = (int.Parse(value) == 1);
+                        if (currentState is not null)
+                            currentState.Rewind = (int.Parse(value) == 1);
                         break;
                     case "movement":
                         //TODO CAT: implement this empty block stub
+                        if (currentState is not null)
+                            currentState.Movement = (int.Parse(value) == 1);
                         break;
                     case "hotspot":
                         //TODO
