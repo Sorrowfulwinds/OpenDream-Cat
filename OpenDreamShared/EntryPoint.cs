@@ -1,19 +1,19 @@
 using JetBrains.Annotations;
 using Robust.Shared.ContentPack;
 
-namespace OpenDreamShared {
-    [UsedImplicitly]
-    public sealed class EntryPoint : GameShared {
-        public override void PreInit() {
-            base.PreInit();
-        }
+namespace OpenDreamShared;
 
-        public override void Init() {
-            base.Init();
-        }
+[UsedImplicitly]
+public sealed class EntryPoint : GameShared {
+    public override void PreInit() {
+        base.PreInit();
+    }
 
-        public override void PostInit() {
-            base.PostInit();
-        }
+    public override void Init() {
+        base.Init();
+    }
+
+    public override void PostInit() {
+        base.PostInit();
     }
 }

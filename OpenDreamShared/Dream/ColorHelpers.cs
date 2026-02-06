@@ -28,20 +28,25 @@ public static class ColorHelpers {
     };
 
     public static bool TryParseColor(string color, out Color colorOut, string defaultAlpha = "ff") {
-        if (color.StartsWith("#")) {
-            if (color.Length == 4 || color.Length == 5) { //4-bit color; repeat each digit
+        if (!color.StartsWith('#')) return Colors.TryGetValue(color.ToLower(), out colorOut); //Not a color string
+
+        switch (color.Length)
+        {
+            case 4 or 5:
+            {
+                //4-bit color; repeat each digit
                 string alphaComponent = (color.Length == 5) ? new string(color[4], 2) : defaultAlpha;
 
                 color = new string('#', 1) + new string(color[1], 2) + new string(color[2], 2) +
                         new string(color[3], 2) + alphaComponent;
-            } else if (color.Length == 7) { //Missing alpha
-                color += defaultAlpha;
+                break;
             }
-
-            colorOut = Color.FromHex(color, Color.White);
-            return true;
+            case 7: //Missing alpha
+                color += defaultAlpha;
+                break;
         }
 
-        return Colors.TryGetValue(color.ToLower(), out colorOut);
+        colorOut = Color.FromHex(color, Color.White);
+        return true;
     }
 }

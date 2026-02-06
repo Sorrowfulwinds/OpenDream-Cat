@@ -130,9 +130,9 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             while (Macro(macroSet)) { }
 
             return macroSet;
-        } else {
-            return null;
         }
+
+        return null;
     }
 
     private bool Macro(MacroSetDescriptor macroSet) {

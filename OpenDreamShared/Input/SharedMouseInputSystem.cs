@@ -44,7 +44,7 @@ public class SharedMouseInputSystem : EntitySystem {
 
         // TODO: icon-x and icon-y
         // TODO: ScreenLoc doesn't appear at all in the click params
-        public ClickParams Params { get; } = new(new(0, 0, 32), right, middle, shift, ctrl, alt, 0, 0);
+        public ClickParams Params { get; } = new(new ScreenLocation(0, 0, 32), right, middle, shift, ctrl, alt, 0, 0);
     }
 
     [Serializable, NetSerializable]

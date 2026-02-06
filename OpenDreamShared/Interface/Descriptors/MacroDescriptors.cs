@@ -18,7 +18,6 @@ public sealed partial class MacroSetDescriptor : ElementDescriptor {
 
     [UsedImplicitly]
     public MacroSetDescriptor() {
-
     }
 
     public override MacroDescriptor CreateChildDescriptor(ISerializationManager serializationManager, MappingDataNode attributes) {
@@ -38,6 +37,6 @@ public sealed partial class MacroSetDescriptor : ElementDescriptor {
 
 [UsedImplicitly]
 public sealed partial class MacroDescriptor : ElementDescriptor {
-    [DataField("command")]
+    [DataField]
     public string Command { get; private set; } = default!;
 }

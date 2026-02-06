@@ -23,7 +23,7 @@ public sealed class MsgPromptResponse : NetMessage {
             DreamValueType.Text or DreamValueType.Message => buffer.ReadString(),
             DreamValueType.Num => buffer.ReadSingle(),
             DreamValueType.Color => new Color(buffer.ReadByte(), buffer.ReadByte(), buffer.ReadByte(), buffer.ReadByte()),
-            _ => throw new ArgumentOutOfRangeException()
+            _ => throw new ArgumentOutOfRangeException($"Invalid Dream value type {Type}")
         };
     }
 

@@ -260,7 +260,7 @@ public struct ColorMatrix(
             rM43 = right.c43,
             rM44 = right.c44;
 
-        result = new() {
+        result = new ColorMatrix {
             c11 = lM11 * rM11 + lM12 * rM21 + lM13 * rM31 + lM14 * rM41,
             c12 = lM11 * rM12 + lM12 * rM22 + lM13 * rM32 + lM14 * rM42,
             c13 = lM11 * rM13 + lM12 * rM23 + lM13 * rM33 + lM14 * rM43,

@@ -47,23 +47,23 @@ public sealed class DMFLexer(string source) {
 
         switch (c) {
             case '\0':
-                return new(TokenType.EndOfFile, c);
+                return new Token(TokenType.EndOfFile, c);
             case '\n':
                 Advance();
                 _parsingAttributeName = true;
-                return new(TokenType.Newline, c);
+                return new Token(TokenType.Newline, c);
             case '.':
                 Advance();
                 _parsingAttributeName = true; // Still parsing an attribute name, the last one was actually an element name!
-                return new(TokenType.Period, c);
+                return new Token(TokenType.Period, c);
             case ';':
                 Advance();
                 _parsingAttributeName = true;
-                return new(TokenType.Semicolon, c);
+                return new Token(TokenType.Semicolon, c);
             case '=':
                 Advance();
                 _parsingAttributeName = false;
-                return new(TokenType.Equals, c);
+                return new Token(TokenType.Equals, c);
             case '\'': // TODO: Single-quoted values probably refer to resources and shouldn't be treated as strings
             case '"': {
                 StringBuilder textBuilder = new StringBuilder(c.ToString());
@@ -91,16 +91,16 @@ public sealed class DMFLexer(string source) {
                 string text = textBuilder.ToString();
 
                 // Strings are treated the same un-quoted values except they can use escape codes
-                return new(TokenType.Value, text.Substring(1, text.Length - 2));
+                return new Token(TokenType.Value, text.Substring(1, text.Length - 2));
             }
             case '?':{
                 Advance();
-                return new(TokenType.Ternary, c);
+                return new Token(TokenType.Ternary, c);
             }
             // If _parsingAttributeName is true, we're parsing ":[type].whatever"
             case ':' when _parsingAttributeName == false: {
                 Advance();
-                return new(TokenType.Colon, c);
+                return new Token(TokenType.Colon, c);
             }
             case '[': {
                 Advance();
@@ -116,12 +116,12 @@ public sealed class DMFLexer(string source) {
                 if (GetCurrent() != ']') throw new Exception("Expected ']'");
                 Advance();
                 textBuilder.Append("]]");
-                return new(TokenType.Lookup, textBuilder.ToString());
+                return new Token(TokenType.Lookup, textBuilder.ToString());
             }
             default: {
                 if (!char.IsAscii(c)) {
                     Advance();
-                    return new(TokenType.Error, $"Invalid character: {char.ToString(c)}");
+                    return new Token(TokenType.Error, $"Invalid character: {char.ToString(c)}");
                 }
 
                 var textBuilder = new StringBuilder();
@@ -148,7 +148,7 @@ public sealed class DMFLexer(string source) {
                     _parsingAttributeName = true;
                 }
 
-                return new(tokenType, text);
+                return new Token(tokenType, text);
             }
         }
     }

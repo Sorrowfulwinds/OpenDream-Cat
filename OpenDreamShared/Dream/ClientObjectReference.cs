@@ -40,24 +40,17 @@ public struct ClientObjectReference : IEquatable<ClientObjectReference> {
         if (Type != other.Type)
             return false;
 
-        switch (Type) {
-            case RefType.Client:
-                return true;
-            case RefType.Entity:
-                return Entity == other.Entity;
-            case RefType.Turf:
-                return TurfX == other.TurfX && TurfY == other.TurfY && TurfZ == other.TurfZ;
-        }
-
-        return false;
+        return Type switch {
+            RefType.Client => true,
+            RefType.Entity => Entity == other.Entity,
+            RefType.Turf => TurfX == other.TurfX && TurfY == other.TurfY && TurfZ == other.TurfZ,
+            _ => false
+        };
     }
 
     [Pure]
     public bool Equals(ClientObjectReference? other) {
-        if (other == null)
-            return false;
-
-        return Equals(other.Value);
+        return other != null && Equals(other.Value);
     }
 
     public override bool Equals(object? obj) {
@@ -65,16 +58,12 @@ public struct ClientObjectReference : IEquatable<ClientObjectReference> {
     }
 
     public override string ToString() {
-        switch (Type) {
-            case RefType.Client:
-                return "client";
-            case RefType.Turf:
-                return $"turf{{{TurfX},{TurfY},{TurfZ}}}";
-            case RefType.Entity:
-                return $"entity{{{Entity}}}";
-        }
-
-        return "unknown ClientObjectReference";
+        return Type switch {
+            RefType.Client => "client",
+            RefType.Turf => $"turf{{{TurfX},{TurfY},{TurfZ}}}",
+            RefType.Entity => $"entity{{{Entity}}}",
+            _ => "unknown ClientObjectReference"
+        };
     }
 
     public override int GetHashCode() {

@@ -2,32 +2,32 @@ using Lidgren.Network;
 using Robust.Shared.Network;
 using Robust.Shared.Serialization;
 
-namespace OpenDreamShared.Network.Messages {
-    public sealed class MsgCommandRepeatStart : NetMessage {
-        public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
+namespace OpenDreamShared.Network.Messages;
 
-        public string Command = string.Empty;
+public sealed class MsgCommandRepeatStart : NetMessage {
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
-        public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
-            Command = buffer.ReadString();
-        }
+    public string Command = string.Empty;
 
-        public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
-            buffer.Write(Command);
-        }
+    public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
+        Command = buffer.ReadString();
     }
 
-    public sealed class MsgCommandRepeatStop : NetMessage {
-        public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
+    public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
+        buffer.Write(Command);
+    }
+}
 
-        public string Command = string.Empty;
+public sealed class MsgCommandRepeatStop : NetMessage {
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
-        public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
-            Command = buffer.ReadString();
-        }
+    public string Command = string.Empty;
 
-        public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
-            buffer.Write(Command);
-        }
+    public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
+        Command = buffer.ReadString();
+    }
+
+    public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
+        buffer.Write(Command);
     }
 }

@@ -1,5 +1,4 @@
-﻿using System;
-using Robust.Shared.Configuration;
+﻿using Robust.Shared.Configuration;
 
 namespace OpenDreamShared;
 

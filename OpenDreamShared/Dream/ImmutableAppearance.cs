@@ -189,25 +189,11 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
         if (immutableAppearance.MouseOverPointer != MouseOverPointer) return false;
         if (immutableAppearance.MouseDropPointer != MouseDropPointer) return false;
 
-        for (int i = 0; i < Filters.Length; i++) {
-            if (immutableAppearance.Filters[i] != Filters[i]) return false;
-        }
-
-        for (int i = 0; i < Overlays.Length; i++) {
-            if (!immutableAppearance.Overlays[i].Equals(Overlays[i])) return false;
-        }
-
-        for (int i = 0; i < Underlays.Length; i++) {
-            if (!immutableAppearance.Underlays[i].Equals(Underlays[i])) return false;
-        }
-
-        for (int i = 0; i < VisContents.Length; i++) {
-            if (immutableAppearance.VisContents[i] != VisContents[i]) return false;
-        }
-
-        for (int i = 0; i < Verbs.Length; i++) {
-            if (immutableAppearance.Verbs[i] != Verbs[i]) return false;
-        }
+        if (Filters.Where((filter, i) => immutableAppearance.Filters[i] != filter).Any()) return false;
+        if (Overlays.Where((appearance, i) => !immutableAppearance.Overlays[i].Equals(appearance)).Any()) return false;
+        if (Underlays.Where((appearance, i) => !immutableAppearance.Underlays[i].Equals(appearance)).Any()) return false;
+        if (VisContents.Where((entity, i) => immutableAppearance.VisContents[i] != entity).Any()) return false;
+        if (Verbs.Where((t, i) => immutableAppearance.Verbs[i] != t).Any()) return false;
 
         for (int i = 0; i < 6; i++) {
             if (!immutableAppearance.Transform[i].Equals(Transform[i])) return false;
@@ -369,7 +355,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
                     MouseOpacity = (MouseOpacity)buffer.ReadByte();
                     break;
                 case IconAppearanceProperty.ColorMatrix:
-                    ColorMatrix = new(
+                    ColorMatrix = new ColorMatrix(
                         buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(),
                         buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(),
                         buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(),
@@ -382,7 +368,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
                     var overlaysCount = buffer.ReadVariableInt32();
 
                     Overlays = new ImmutableAppearance[overlaysCount];
-                    _overlayIDs = new(overlaysCount);
+                    _overlayIDs = new List<uint>(overlaysCount);
                     for (int overlaysI = 0; overlaysI < overlaysCount; overlaysI++) {
                         _overlayIDs.Add(buffer.ReadVariableUInt32());
                     }
@@ -393,7 +379,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
                     var underlaysCount = buffer.ReadVariableInt32();
 
                     Underlays = new ImmutableAppearance[underlaysCount];
-                    _underlayIDs = new(underlaysCount);
+                    _underlayIDs = new List<uint>(underlaysCount);
                     for (int underlaysI = 0; underlaysI < underlaysCount; underlaysI++) {
                         _underlayIDs.Add(buffer.ReadVariableUInt32());
                     }

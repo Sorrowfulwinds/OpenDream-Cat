@@ -19,7 +19,7 @@ public sealed class MsgUpdateClientInfo : NetMessage {
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         IconSize = buffer.ReadInt32();
-        View = new(buffer.ReadInt32(), buffer.ReadInt32());
+        View = new ViewRange(buffer.ReadInt32(), buffer.ReadInt32());
         ShowPopupMenus = buffer.ReadBoolean();
         CursorResource = buffer.ReadInt32();
     }

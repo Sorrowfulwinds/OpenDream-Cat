@@ -1,23 +1,22 @@
-﻿using System;
-using Lidgren.Network;
+﻿using Lidgren.Network;
 using Robust.Shared.Network;
 using Robust.Shared.Serialization;
 
-namespace OpenDreamShared.Network.Messages {
-    public sealed class MsgWinSet : NetMessage {
-        public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
+namespace OpenDreamShared.Network.Messages;
 
-        public string ControlId = String.Empty;
-        public string Params = String.Empty;
+public sealed class MsgWinSet : NetMessage {
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
-        public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
-            ControlId = buffer.ReadString();
-            Params = buffer.ReadString();
-        }
+    public string ControlId = string.Empty;
+    public string Params = string.Empty;
 
-        public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
-            buffer.Write(ControlId);
-            buffer.Write(Params);
-        }
+    public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
+        ControlId = buffer.ReadString();
+        Params = buffer.ReadString();
+    }
+
+    public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
+        buffer.Write(ControlId);
+        buffer.Write(Params);
     }
 }

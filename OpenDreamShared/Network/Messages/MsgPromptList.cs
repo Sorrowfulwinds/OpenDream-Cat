@@ -9,9 +9,9 @@ public sealed class MsgPromptList : NetMessage {
     public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public int PromptId;
-    public string Title = String.Empty;
-    public string Message = String.Empty;
-    public string DefaultValue = String.Empty;
+    public string Title = string.Empty;
+    public string Message = string.Empty;
+    public string DefaultValue = string.Empty;
     public bool CanCancel;
     public string[] Values = Array.Empty<string>();
 

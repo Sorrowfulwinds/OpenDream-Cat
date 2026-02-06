@@ -205,7 +205,7 @@ public sealed class GeneratorSquare(Vector2 low, Vector2 high, GeneratorDistribu
                 ? IGenerator.GenerateNum(random, -high.Y, -low.Y, distribution)
                 : IGenerator.GenerateNum(random, low.Y, high.Y, distribution);
 
-        return new(x, y);
+        return new Vector2(x, y);
     }
 
     public Vector3 GenerateVector3(IRobustRandom random) {
@@ -243,7 +243,7 @@ public sealed class GeneratorCube(Vector3 low, Vector3 high, GeneratorDistributi
                 ? IGenerator.GenerateNum(random, -high.Z, -low.Z, distribution)
                 : IGenerator.GenerateNum(random, low.Z, high.Z, distribution);
 
-        return new(x, y, z);
+        return new Vector3(x, y, z);
     }
 
     public override string ToString() {

@@ -13,7 +13,7 @@ public sealed class MsgAllAppearances(Dictionary<uint, ImmutableAppearance> allA
     public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
     public Dictionary<uint, ImmutableAppearance> AllAppearances = allAppearances;
 
-    public MsgAllAppearances() : this(new()) { }
+    public MsgAllAppearances() : this(new Dictionary<uint, ImmutableAppearance>()) { }
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         var compressedData = new MemoryStream(buffer.Data, buffer.PositionInBytes, buffer.LengthBytes - buffer.PositionInBytes);
@@ -26,7 +26,7 @@ public sealed class MsgAllAppearances(Dictionary<uint, ImmutableAppearance> allA
         };
 
         var count = decompressed.ReadInt32();
-        AllAppearances = new(count);
+        AllAppearances = new Dictionary<uint, ImmutableAppearance>(count);
 
         for (int i = 0; i < count; i++) {
             var appearance = new ImmutableAppearance(decompressed, serializer);

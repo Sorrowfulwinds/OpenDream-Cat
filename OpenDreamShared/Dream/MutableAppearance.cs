@@ -3,6 +3,7 @@ using Robust.Shared.ViewVariables;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
 namespace OpenDreamShared.Dream;
 
@@ -102,10 +103,7 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
     }
 
     public static MutableAppearance Get() {
-        if (_mutableAppearancePool.TryPop(out var popped))
-            return popped;
-
-        return new MutableAppearance();
+        return _mutableAppearancePool.TryPop(out var popped) ? popped : new MutableAppearance();
     }
 
     public static MutableAppearance GetCopy(MutableAppearance appearance) {
@@ -200,24 +198,29 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         if (MouseOverPointer != appearance.MouseOverPointer) return false;
         if (MouseDropPointer != appearance.MouseDropPointer) return false;
 
-        for (int i = 0; i < Filters.Count; i++) {
-            if (appearance.Filters[i] != Filters[i]) return false;
+        if (Filters.Where((t, i) => appearance.Filters[i] != t).Any())
+        {
+            return false;
         }
 
-        for (int i = 0; i < Overlays.Count; i++) {
-            if (appearance.Overlays[i] != Overlays[i]) return false;
+        if (Overlays.Where((t, i) => appearance.Overlays[i] != t).Any())
+        {
+            return false;
         }
 
-        for (int i = 0; i < Underlays.Count; i++) {
-            if (appearance.Underlays[i] != Underlays[i]) return false;
+        if (Underlays.Where((t, i) => appearance.Underlays[i] != t).Any())
+        {
+            return false;
         }
 
-        for (int i = 0; i < VisContents.Count; i++) {
-            if (appearance.VisContents[i] != VisContents[i]) return false;
+        if (VisContents.Where((t, i) => appearance.VisContents[i] != t).Any())
+        {
+            return false;
         }
 
-        for (int i = 0; i < Verbs.Count; i++) {
-            if (appearance.Verbs[i] != Verbs[i]) return false;
+        if (Verbs.Where((t, i) => appearance.Verbs[i] != t).Any())
+        {
+            return false;
         }
 
         for (int i = 0; i < 6; i++) {
@@ -240,7 +243,7 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         // anything higher implies trying to render "superblue" or something.
         float diagonalSum = 0f;
         foreach (float diagonalValue in matrix.GetDiagonal()) {
-            if (diagonalValue < 0 || diagonalValue > 1)
+            if (diagonalValue is < 0 or > 1)
                 return false;
             diagonalSum += diagonalValue;
         }

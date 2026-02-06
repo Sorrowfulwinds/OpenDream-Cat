@@ -18,7 +18,6 @@ public sealed partial class MenuDescriptor : ElementDescriptor {
 
     [UsedImplicitly]
     public MenuDescriptor() {
-
     }
 
     public override MenuElementDescriptor CreateChildDescriptor(ISerializationManager serializationManager, MappingDataNode attributes) {
@@ -37,12 +36,10 @@ public sealed partial class MenuDescriptor : ElementDescriptor {
 }
 
 public sealed partial class MenuElementDescriptor : ElementDescriptor {
-
-
-    [DataField("command")]
+    [DataField]
     public DMFPropertyString Command { get; private set; }
 
-    [DataField("category")]
+    [DataField]
     public DMFPropertyString Category { get; private set; }
 
     [DataField("can-check")]
@@ -51,9 +48,10 @@ public sealed partial class MenuElementDescriptor : ElementDescriptor {
     [DataField("is-checked")]
     public DMFPropertyBool IsChecked { get; set; }
 
-    [DataField("group")]
+    [DataField]
     public DMFPropertyString Group { get; private set; }
-    [DataField("index")]
+
+    [DataField]
     public DMFPropertyNum Index { get; private set; }
 
     public MenuElementDescriptor WithCategory(ISerializationManager serialization, DMFPropertyString category) {
