@@ -26,20 +26,29 @@ public static class DMIParser {
 
     public sealed class ParsedDMIDescription {
         public int Width, Height;
-        public Dictionary<string, ParsedDMIState> States = new();
+
+        //The first state added, or the null string state if it exists.
+        private string? defaultState;
+        public Dictionary<string, (ParsedDMIState? staticstate, ParsedDMIState? movingstate)> States = new();
 
         /// <summary>
         /// Gets the requested state, or the default if it doesn't exist
         /// </summary>
         /// <remarks>The default state could also not exist</remarks>
         /// <param name="stateName">The requested state's name</param>
+        /// <param name="moving">The requested state's movement tag</param>
         /// <returns>The requested state, default state, or null</returns>
-        public ParsedDMIState? GetStateOrDefault(string? stateName) {
-            if (string.IsNullOrEmpty(stateName) || !States.TryGetValue(stateName, out var state)) {
-                States.TryGetValue(string.Empty, out state);
+        public ParsedDMIState? GetStateOrDefault(string? stateName, bool moving) {
+            if (string.IsNullOrEmpty(stateName)) stateName = "";
+
+            if (!States.TryGetValue(stateName, out var state)) {
+                //stateName may not be in States, additional check for default state.
+                if (!States.TryGetValue(defaultState ?? string.Empty, out state)) {
+                    return null;
+                }
             }
 
-            return state;
+            return moving ? state.movingstate : state.staticstate;
         }
 
         /// <summary>
@@ -59,7 +68,8 @@ public static class DMIParser {
             text.AppendLine($"\theight = {Height}");
 
             foreach (var state in States.Values) {
-                state.ExportAsText(text);
+                state.staticstate?.ExportAsText(text);
+                state.staticstate?.ExportAsText(text);
             }
 
             text.Append("# END DMI");
@@ -81,7 +91,7 @@ public static class DMIParser {
             };
 
             state.Directions.Add(AtomDirection.South, new [] { frame });
-            desc.States.Add(state.Name, state);
+            desc.States.Add(state.Name, (state, null));
             return desc;
         }
 
@@ -110,7 +120,8 @@ public static class DMIParser {
                     };
 
                     state.Directions.Add(AtomDirection.South, new [] { frame });
-                    desc.States.Add(state.Name, state);
+                    //TODO moving state?
+                    desc.States.Add(state.Name, (state, null));
                 }
             }
 
@@ -341,110 +352,87 @@ public static class DMIParser {
     private static ParsedDMIDescription ParseDMIDescription(string dmiDescription, uint imageWidth) {
         ParsedDMIDescription description = new ParsedDMIDescription();
         ParsedDMIState? currentState = null;
+        string currentStateName = "";
         int currentFrameX = 0;
         int currentFrameY = 0;
         int currentStateDirectionCount = 1;
         int currentStateFrameCount = 1;
-        float[]? currentStateFrameDelays = null;
+        float[] currentStateFrameDelays = Array.Empty<float>();
 
-        var lines = dmiDescription.AsSpan().Split('\n');
+        Span<Range> lines = new Span<Range>();
+        var rawLines = dmiDescription.AsSpan().Split(lines, '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var chunk in lines) {
             var line = dmiDescription.AsSpan(chunk);
 
-            if (line.StartsWith('#') || line.IsWhiteSpace()) continue;
+            if (line.StartsWith('#')) continue;
 
             int equalsIndex = line.IndexOf('=');
 
             if (equalsIndex != -1) {
-                var key = line[..(equalsIndex - 1)].Trim();
-                var value = line[(equalsIndex + 1)..].Trim();
+                var key = line[..(equalsIndex - 1)].TrimEnd();
+                var value = line[(equalsIndex + 1)..].TrimStart();
 
                 switch (key) {
                     case "version":
                         // No need to care about this at the moment
                         break;
+
                     case "width":
                         description.Width = int.Parse(value);
                         break;
+
                     case "height":
                         description.Height = int.Parse(value);
                         break;
+
                     case "state":
-                        string stateName = ParseString(value.ToString());
-
-                        if (currentState != null) {
-                            for (int i = 0; i < currentStateDirectionCount; i++) {
-                                ParsedDMIFrame[] frames = new ParsedDMIFrame[currentStateFrameCount];
-                                AtomDirection direction = DMIFrameDirections[i];
-
-                                currentState.Directions[direction] = frames;
-                            }
-
-                            for (int i = 0; i < currentStateFrameCount; i++) {
-                                for (int j = 0; j < currentStateDirectionCount; j++) {
-                                    AtomDirection direction = DMIFrameDirections[j];
-
-                                    ParsedDMIFrame frame = new ParsedDMIFrame();
-                                    float delay = (currentStateFrameDelays != null)
-                                        ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
-                                        : 100;
-
-                                    frame.X = currentFrameX;
-                                    frame.Y = currentFrameY;
-                                    frame.Delay = TimeSpan.FromMilliseconds(delay);
-                                    currentState.Directions[direction][i] = frame;
-
-                                    currentFrameX += description.Width;
-                                    if (currentFrameX >= imageWidth) {
-                                        currentFrameY += description.Height;
-                                        currentFrameX = 0;
-                                    }
-                                }
-                            }
-
-                            // TODO CAT: This right here is where movement states need to be stored vs nonmovement states
-                            if (currentState.Movement) {
-                                todo();
-                            }
-
-                            description.States.TryAdd(stateName, currentState);
+                        if (currentState != null) { //Do final processing on existing state.
+                            LocalFnProcessState();
                         }
 
+                        currentStateName = ParseString(value.ToString());
                         currentStateFrameCount = 1;
-                        currentStateFrameDelays = null;
-                        currentState = new ParsedDMIState(stateName);
+                        currentStateFrameDelays = [];
+                        currentState = new ParsedDMIState(currentStateName);
                         break;
+
                     case "dirs":
                         currentStateDirectionCount = int.Parse(value);
                         break;
+
                     case "frames":
                         currentStateFrameCount = int.Parse(value);
                         break;
-                    case "delay":
-                        string[] frameDelays = value.ToString().Split(",");
 
-                        currentStateFrameDelays = new float[frameDelays.Length];
-                        for (int i = 0; i < frameDelays.Length; i++) {
-                            currentStateFrameDelays[i] = float.Parse(frameDelays[i], CultureInfo.InvariantCulture);
+                    case "delay":
+                        var frameDelayHolder = new List<float>((value.Length / 2) + 1); //Hopeful guess
+                        foreach (var delayRange in value.Split(',')) {
+                            frameDelayHolder.Add(float.Parse(value[delayRange], CultureInfo.InvariantCulture));
                         }
 
+                        currentStateFrameDelays = frameDelayHolder.ToArray();
                         break;
+
                     case "loop":
                         if (currentState is not null)
                             currentState.Loop = (int.Parse(value) == 0);
                         break;
+
                     case "rewind":
                         if (currentState is not null)
                             currentState.Rewind = (int.Parse(value) == 1);
                         break;
+
                     case "movement":
                         //TODO CAT: implement this empty block stub
                         if (currentState is not null)
                             currentState.Movement = (int.Parse(value) == 1);
                         break;
+
                     case "hotspot":
                         //TODO
                         break;
+
                     default:
                         throw new Exception($"Invalid key \"{key}\" in DMI description");
                 }
@@ -453,38 +441,66 @@ public static class DMIParser {
             }
         }
 
-        if (currentState is null) return description;
-
-        for (int i = 0; i < currentStateDirectionCount; i++) {
-            ParsedDMIFrame[] frames = new ParsedDMIFrame[currentStateFrameCount];
-            AtomDirection direction = DMIFrameDirections[i];
-
-            currentState.Directions[direction] = frames;
-        }
-
-        for (int i = 0; i < currentStateFrameCount; i++) {
-            for (int j = 0; j < currentStateDirectionCount; j++) {
-                AtomDirection direction = DMIFrameDirections[j];
-
-                ParsedDMIFrame frame = new ParsedDMIFrame();
-                float delay = (currentStateFrameDelays != null)
-                    ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
-                    : 100;
-
-                frame.X = currentFrameX;
-                frame.Y = currentFrameY;
-                frame.Delay = TimeSpan.FromMilliseconds(delay);
-                currentState.Directions[direction][i] = frame;
-
-                currentFrameX += description.Width;
-                if (currentFrameX >= imageWidth) {
-                    currentFrameY += description.Height;
-                    currentFrameX = 0;
-                }
-            }
-        }
+        //Push the last state out of queue
+        if (currentState is not null) LocalFnProcessState();
 
         return description;
+
+        //Local (Internal) Function for processing the queued current state into its final product and adding it to ParsedDMIDescription.
+        void LocalFnProcessState() {
+            //Precalculate frame delays
+            TimeSpan[] timespanDelays;
+            if (currentStateFrameDelays is []) { //Default empty to values of 1 decisecond (100 milli)
+                timespanDelays = new TimeSpan[currentStateFrameCount];
+                Array.Fill(timespanDelays, TimeSpan.FromMilliseconds(100));
+            } else { //Convert values from deciseconds to milliseconds
+                timespanDelays = Array.ConvertAll(currentStateFrameDelays,
+                    delay => TimeSpan.FromMilliseconds(delay * 100));
+            }
+
+            //Prefill Directions dictionary with the needed DMIFrame arrays.
+            for (var i = 0; i < currentStateDirectionCount; i++) {
+                currentState.Directions[DMIFrameDirections[i]] = new ParsedDMIFrame[currentStateFrameCount];
+            }
+
+            //For each frame, fill every direction with spritesheet location and delay.
+            for (var f = 0; f < currentStateFrameCount; f++) {
+                var fDelay = timespanDelays[f]; //Cache frame delay
+                foreach(var d in DMIFrameDirections[..currentStateDirectionCount]) {
+                    currentState.Directions[d][f] = new ParsedDMIFrame {
+                        X = currentFrameX,
+                        Y = currentFrameY,
+                        Delay = fDelay
+                    };
+
+                    currentFrameX += description.Width;
+                    //Move to the next row on the spritesheet if we exceed its width
+                    if (currentFrameX < imageWidth) continue;
+                    currentFrameX = 0;
+                    currentFrameY += description.Height;
+                }
+            }
+
+            if (description.States.TryGetValue(currentStateName, out var existingState)) { //State already exists, reuse tuple.
+                switch (currentState.Movement) {
+                    case true:
+                        if (existingState.movingstate == null) {
+                            description.States[currentStateName] = (existingState.staticstate, currentState);
+                        }
+
+                        break;
+
+                    case false:
+                        if (existingState.staticstate == null) {
+                            description.States[currentStateName] = (currentState, existingState.staticstate);
+                        }
+
+                        break;
+                }
+            } else { //State does not exist, make a new tuple.
+                description.States.TryAdd(currentStateName, (currentState.Movement ? null : currentState, currentState.Movement ? currentState : null));
+            }
+        }
     }
 
     private static string ParseString(string value) {
