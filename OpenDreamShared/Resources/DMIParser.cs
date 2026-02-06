@@ -130,7 +130,7 @@ public static class DMIParser {
         /// <summary>
         /// The amount of animation frames this state has
         /// </summary>
-        public int FrameCount => (Directions.Count == 0) ? 0 : Directions.Values.First().Length;
+        int FrameCount => (Directions.Count == 0) ? 0 : Directions.Values.First().Length;
 
         public ParsedDMIFrame[] GetFrames(AtomDirection direction = AtomDirection.South) {
             // Find another direction to use if this one doesn't exist
@@ -347,17 +347,17 @@ public static class DMIParser {
         int currentStateFrameCount = 1;
         float[]? currentStateFrameDelays = null;
 
-        //string[] lines = dmiDescription.Split("\n");
         var lines = dmiDescription.AsSpan().Split('\n');
-        foreach (var segment in lines) {
-            if (lines[segment].StartsWith('#') || string.IsNullOrWhiteSpace(line))
-                continue;
+        foreach (var chunk in lines) {
+            var line = dmiDescription.AsSpan(chunk);
+
+            if (line.StartsWith('#') || line.IsWhiteSpace()) continue;
 
             int equalsIndex = line.IndexOf('=');
 
             if (equalsIndex != -1) {
-                var key = line.AsSpan(0, equalsIndex - 1).Trim();
-                var value = line.AsSpan(equalsIndex + 1).Trim();
+                var key = line[..(equalsIndex - 1)].Trim();
+                var value = line[(equalsIndex + 1)..].Trim();
 
                 switch (key) {
                     case "version":
@@ -401,13 +401,18 @@ public static class DMIParser {
                                     }
                                 }
                             }
+
+                            // TODO CAT: This right here is where movement states need to be stored vs nonmovement states
+                            if (currentState.Movement) {
+                                todo();
+                            }
+
+                            description.States.TryAdd(stateName, currentState);
                         }
 
                         currentStateFrameCount = 1;
                         currentStateFrameDelays = null;
                         currentState = new ParsedDMIState(stateName);
-                        // TODO CAT: This right here is where movement states with the same state name as non-movement states trample each other. This needs to be moved up inside the !null check loop and be stored parallel with moving/nonmoving state
-                        description.States.TryAdd(stateName, currentState);
                         break;
                     case "dirs":
                         currentStateDirectionCount = int.Parse(value);
