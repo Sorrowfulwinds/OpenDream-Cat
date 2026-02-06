@@ -55,12 +55,8 @@ public static class DMIParser {
             // This could either end up compressed or decompressed depending on how large this text ends up being.
             // So go with version 3.0, BYOND doesn't seem to care either way
             text.AppendLine("version = 3.0");
-            text.Append("\twidth = ");
-            text.Append(Width);
-            text.AppendLine();
-            text.Append("\theight = ");
-            text.Append(Height);
-            text.AppendLine();
+            text.AppendLine($"\twidth = {Width}");
+            text.AppendLine($"\theight = {Height}");
 
             foreach (var state in States.Values) {
                 state.ExportAsText(text);
@@ -125,8 +121,8 @@ public static class DMIParser {
     public sealed class ParsedDMIState(string name) {
         public string Name = name;
         public bool Loop = true;
-        public bool Rewind = false;
-        public bool Movement = false;
+        public bool Rewind;
+        public bool Movement;
 
         // TODO: This can only contain either 1, 4, or 8 directions. Enforcing this could simplify some things.
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
@@ -134,14 +130,7 @@ public static class DMIParser {
         /// <summary>
         /// The amount of animation frames this state has
         /// </summary>
-        public int FrameCount {
-            get {
-                if (Directions.Count == 0)
-                    return 0;
-
-                return Directions.Values.First().Length;
-            }
-        }
+        public int FrameCount => (Directions.Count == 0) ? 0 : Directions.Values.First().Length;
 
         public ParsedDMIFrame[] GetFrames(AtomDirection direction = AtomDirection.South) {
             // Find another direction to use if this one doesn't exist
@@ -168,7 +157,7 @@ public static class DMIParser {
             if (Directions.Count > 0) {
                 text.Append("\tdelay = ");
                 var frames = Directions.Values.First(); // Delays should be the same in each direction
-                for (int i = 0; i < frames.Length; i++) {
+                for (var i = 0; i < frames.Length; i++) {
                     var delay = frames[i].Delay.TotalMilliseconds / 100; // Convert back to deciseconds
 
                     text.Append(delay.ToString(CultureInfo.InvariantCulture));
@@ -263,14 +252,18 @@ public static class DMIParser {
         var reader = new BinaryReader(stream);
         var headerSize = reader.ReadUInt32();
         uint width, height;
-        if (headerSize == 12) { // Old DIB header
-            width = reader.ReadUInt16();
-            height = reader.ReadUInt16();
-        } else if (headerSize == 40) { // New DIB header
-            width = reader.ReadUInt32();
-            height = reader.ReadUInt32();
-        } else {
-            throw new Exception($"Unrecognized BMP header (size {headerSize})");
+        switch (headerSize)
+        {
+            case 12: // Old DIB header
+                width = reader.ReadUInt16();
+                height = reader.ReadUInt16();
+                break;
+            case 40: // New DIB header
+                width = reader.ReadUInt32();
+                height = reader.ReadUInt32();
+                break;
+            default:
+                throw new Exception($"Unrecognized BMP header (size {headerSize})");
         }
 
         // TODO: Use CreateSplitStates if world.map_format == TILED_ICON_MAP
@@ -354,16 +347,17 @@ public static class DMIParser {
         int currentStateFrameCount = 1;
         float[]? currentStateFrameDelays = null;
 
-        string[] lines = dmiDescription.Split("\n");
-        foreach (string line in lines) {
-            if (line.StartsWith('#') || string.IsNullOrWhiteSpace(line))
+        //string[] lines = dmiDescription.Split("\n");
+        var lines = dmiDescription.AsSpan().Split('\n');
+        foreach (var segment in lines) {
+            if (lines[segment].StartsWith('#') || string.IsNullOrWhiteSpace(line))
                 continue;
 
             int equalsIndex = line.IndexOf('=');
 
             if (equalsIndex != -1) {
-                string key = line.Substring(0, equalsIndex-1).Trim();
-                string value = line.Substring(equalsIndex + 1).Trim();
+                var key = line.AsSpan(0, equalsIndex - 1).Trim();
+                var value = line.AsSpan(equalsIndex + 1).Trim();
 
                 switch (key) {
                     case "version":
@@ -376,7 +370,7 @@ public static class DMIParser {
                         description.Height = int.Parse(value);
                         break;
                     case "state":
-                        string stateName = ParseString(value);
+                        string stateName = ParseString(value.ToString());
 
                         if (currentState != null) {
                             for (int i = 0; i < currentStateDirectionCount; i++) {
@@ -412,7 +406,7 @@ public static class DMIParser {
                         currentStateFrameCount = 1;
                         currentStateFrameDelays = null;
                         currentState = new ParsedDMIState(stateName);
-                        // TODO CAT: This right here is where movement states with the same statename as non-movement states trample each other. This needs to be moved out and only performed last dependant on the status of "moving".
+                        // TODO CAT: This right here is where movement states with the same state name as non-movement states trample each other. This needs to be moved up inside the !null check loop and be stored parallel with moving/nonmoving state
                         description.States.TryAdd(stateName, currentState);
                         break;
                     case "dirs":
@@ -422,7 +416,7 @@ public static class DMIParser {
                         currentStateFrameCount = int.Parse(value);
                         break;
                     case "delay":
-                        string[] frameDelays = value.Split(",");
+                        string[] frameDelays = value.ToString().Split(",");
 
                         currentStateFrameDelays = new float[frameDelays.Length];
                         for (int i = 0; i < frameDelays.Length; i++) {
@@ -489,7 +483,7 @@ public static class DMIParser {
     }
 
     private static string ParseString(string value) {
-        if (value.StartsWith("\"") && value.EndsWith("\"")) {
+        if (value.StartsWith('"') && value.EndsWith('"')) {
             return value.Substring(1, value.Length - 2);
         } else {
             throw new Exception($"Invalid string in DMI description: {value}");
@@ -498,23 +492,16 @@ public static class DMIParser {
 
     private static bool VerifyPng(Stream stream) {
         stream.Seek(0, SeekOrigin.Begin);
-        foreach (var t in PngHeader) {
-            if (stream.ReadByte() != t) return false;
-        }
-
-        return true;
+        return PngHeader.All(t => (stream.ReadByte() == t));
     }
 
     private static bool VerifyBmp(Stream stream) {
         stream.Seek(0, SeekOrigin.Begin);
-        if (stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D)
-            return true;
-
-        return false;
+        return stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D;
     }
 
     private static uint ReadBigEndianUint32(BinaryReader reader) {
-        byte[] bytes = reader.ReadBytes(4);
+        var bytes = reader.ReadBytes(4);
         Array.Reverse(bytes); //Little to Big-Endian
         return BitConverter.ToUInt32(bytes);
     }
