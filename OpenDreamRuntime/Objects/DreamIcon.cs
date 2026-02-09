@@ -400,7 +400,7 @@ public sealed class DreamIconOperationBlendImage : DreamIconOperationBlend {
         }
 
         _blending = blendingIcon.Texture;
-        _blendingState = blendingIcon.DMI.States.Values.FirstOrDefault();
+        _blendingState = blendingIcon.DMI.States.Values.FirstOrDefault().staticstate;
     }
 
     public override void OnApply(DreamIcon icon) {

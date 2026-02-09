@@ -223,7 +223,7 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
         if(DMI == null || Appearance == null || _animationComplete)
             return;
 
-        DMIParser.ParsedDMIState? dmiState = DMI.Description.GetStateOrDefault(Appearance.IconState);
+        DMIParser.ParsedDMIState? dmiState = DMI.Description.GetStateOrDefault(Appearance.IconState, false);
         if(dmiState == null)
             return;
         DMIParser.ParsedDMIFrame[] frames = dmiState.GetFrames(_direction);

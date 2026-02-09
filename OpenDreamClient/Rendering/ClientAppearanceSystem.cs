@@ -22,7 +22,7 @@ internal sealed class ClientAppearanceSystem : SharedAppearanceSystem {
         private int _animationFrame;
         private long _nextFrame;
 
-        private DMIParser.ParsedDMIFrame[] Frames => Icon.Description.GetStateOrDefault(IconState)?.GetFrames(AtomDirection.South) ?? [];
+        private DMIParser.ParsedDMIFrame[] Frames => Icon.Description.GetStateOrDefault(IconState, false)?.GetFrames(AtomDirection.South) ?? [];
 
         public Flick(DMIResource icon, string? iconState, long startTick) {
             Icon = icon;
