@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using OpenDreamShared.Dream;
 using System.Globalization;
+using System.Numerics;
 
 namespace OpenDreamShared.Resources;
 
@@ -27,8 +28,8 @@ public static class DMIParser {
     public sealed class ParsedDMIDescription {
         public int Width, Height;
 
-        //The first state added, or the null string state if it exists.
-        private string? defaultState;
+        //The first state added, or the empty string state if it exists.
+        public string? DefaultState;
         public Dictionary<string, (ParsedDMIState? staticstate, ParsedDMIState? movingstate)> States = new();
 
         /// <summary>
@@ -43,7 +44,7 @@ public static class DMIParser {
 
             if (!States.TryGetValue(stateName, out var state)) {
                 //stateName may not be in States, additional check for default state.
-                if (!States.TryGetValue(defaultState ?? string.Empty, out state)) {
+                if (!States.TryGetValue(DefaultState ?? string.Empty, out state)) {
                     return null;
                 }
             }
@@ -130,7 +131,10 @@ public static class DMIParser {
     }
 
     public sealed class ParsedDMIState(string name) {
-        public string Name = name;
+        public readonly string Name = name;
+
+        //Loop is Infinite (0) or Specific (1-INF)
+        //TODO: This should be an unsigned integer not a bool.
         public bool Loop = true;
         public bool Rewind;
         public bool Movement;
@@ -180,6 +184,8 @@ public static class DMIParser {
             }
 
             if (!Loop) text.AppendLine("\tloop = 0");
+            // TODO: Loop should be
+            // text.AppendLine("$\tloop = {Loop}");
 
             if (Rewind) text.AppendLine("\trewind = 1");
 
@@ -225,6 +231,7 @@ public static class DMIParser {
     public sealed class ParsedDMIFrame {
         public int X, Y;
         public TimeSpan Delay;
+        public Vector2 Hotspot;
     }
 
     /// <summary>
@@ -358,9 +365,11 @@ public static class DMIParser {
         int currentStateDirectionCount = 1;
         int currentStateFrameCount = 1;
         float[] currentStateFrameDelays = Array.Empty<float>();
+        List<Vector3> currentStateHotspots = new List<Vector3>(0);
 
         Span<Range> lines = new Span<Range>();
-        var rawLines = dmiDescription.AsSpan().Split(lines, '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        dmiDescription.AsSpan().Split(lines, '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
         foreach (var chunk in lines) {
             var line = dmiDescription.AsSpan(chunk);
 
@@ -390,7 +399,11 @@ public static class DMIParser {
                             LocalFnProcessState();
                         }
 
-                        currentStateName = ParseString(value.ToString());
+                        currentStateName = ParseString(value);
+                        //Default state is the first state in the dmi or the empty string state if it exists.
+                        description.DefaultState ??= currentStateName;
+                        if (currentStateName == "")
+                            description.DefaultState = string.Empty;
                         currentStateFrameCount = 1;
                         currentStateFrameDelays = [];
                         currentState = new ParsedDMIState(currentStateName);
@@ -416,6 +429,8 @@ public static class DMIParser {
                     case "loop":
                         if (currentState is not null)
                             currentState.Loop = (int.Parse(value) == 0);
+                            //TODO: Loop should be
+                            //currentState.Loop = int.Parse(value, CultureInfo.InvariantCulture);
                         break;
 
                     case "rewind":
@@ -424,13 +439,26 @@ public static class DMIParser {
                         break;
 
                     case "movement":
-                        //TODO CAT: implement this empty block stub
                         if (currentState is not null)
                             currentState.Movement = (int.Parse(value) == 1);
                         break;
 
                     case "hotspot":
-                        //TODO
+                        //stored as hotspot = x,y,z. Z is frame number matching the order dir's are stored.
+                        //hotspot is stored as a newline for each spot, with 1 for potentially every frame & dir
+                        //Dirs don't seem to be used for pointers, only ever south?
+                        //The hotspot is the point where the icon will be placed on the "click point" the icon moves around this point if it changes.
+                        var hotspotHolder = new List<uint>(3);
+                        foreach (var spotRange in value.Split(',')) {
+                            hotspotHolder.Add(uint.Parse(value[spotRange], CultureInfo.InvariantCulture));
+                        }
+
+                        if (hotspotHolder.Count == 3) {
+                            currentStateHotspots.Add(new Vector3(hotspotHolder[0], hotspotHolder[1], hotspotHolder[2]));
+                        } else {
+                            throw new Exception($"Invalid hotspot in DMI description: {value.ToString()}");
+                        }
+
                         break;
 
                     default:
@@ -492,7 +520,7 @@ public static class DMIParser {
 
                     case false:
                         if (existingState.staticstate == null) {
-                            description.States[currentStateName] = (currentState, existingState.staticstate);
+                            description.States[currentStateName] = (currentState, existingState.movingstate);
                         }
 
                         break;
@@ -503,11 +531,11 @@ public static class DMIParser {
         }
     }
 
-    private static string ParseString(string value) {
-        if (value.StartsWith('"') && value.EndsWith('"')) {
-            return value.Substring(1, value.Length - 2);
+    private static string ParseString(ReadOnlySpan<char> value) {
+        if (value.StartsWith('"') && value.EndsWith('"') && value.Length >= 2) {
+            return value.Slice(1, value.Length - 2).ToString();
         } else {
-            throw new Exception($"Invalid string in DMI description: {value}");
+            throw new Exception($"Invalid string in DMI description: {value.ToString()}");
         }
     }
 
