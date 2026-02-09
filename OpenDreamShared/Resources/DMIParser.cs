@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using OpenDreamShared.Dream;
 using System.Globalization;
-using System.Numerics;
 
 namespace OpenDreamShared.Resources;
 
@@ -231,7 +230,7 @@ public static class DMIParser {
     public sealed class ParsedDMIFrame {
         public int X, Y;
         public TimeSpan Delay;
-        public Vector2 Hotspot;
+        public Vector2u? Hotspot;
     }
 
     /// <summary>
@@ -240,13 +239,16 @@ public static class DMIParser {
     /// </summary>
     public static int GetExportedDirectionCount<T>(Dictionary<AtomDirection, T> directions) {
         // If we have any of these directions then we export 8 directions
-        if (directions.ContainsKey(AtomDirection.Northeast) || directions.ContainsKey(AtomDirection.Southeast) ||
-            directions.ContainsKey(AtomDirection.Southwest) || directions.ContainsKey(AtomDirection.Northwest)) {
+        if (directions.ContainsKey(AtomDirection.Northeast) ||
+            directions.ContainsKey(AtomDirection.Southeast) ||
+            directions.ContainsKey(AtomDirection.Southwest) ||
+            directions.ContainsKey(AtomDirection.Northwest)) {
             return 8;
         }
 
         // Any of these (without the above) means 4 directions
-        if (directions.ContainsKey(AtomDirection.North) || directions.ContainsKey(AtomDirection.East) ||
+        if (directions.ContainsKey(AtomDirection.North) ||
+            directions.ContainsKey(AtomDirection.East) ||
             directions.ContainsKey(AtomDirection.West)) {
             return 4;
         }
@@ -365,7 +367,8 @@ public static class DMIParser {
         int currentStateDirectionCount = 1;
         int currentStateFrameCount = 1;
         float[] currentStateFrameDelays = Array.Empty<float>();
-        List<Vector3> currentStateHotspots = new List<Vector3>(0);
+        //The lack of a Vector3u necessitates goofy tuple time
+        List<(uint X, uint Y, uint Frame)> currentStateHotspots = new(0);
 
         Span<Range> lines = new Span<Range>();
         dmiDescription.AsSpan().Split(lines, '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -444,17 +447,13 @@ public static class DMIParser {
                         break;
 
                     case "hotspot":
-                        //stored as hotspot = x,y,z. Z is frame number matching the order dir's are stored.
-                        //hotspot is stored as a newline for each spot, with 1 for potentially every frame & dir
-                        //Dirs don't seem to be used for pointers, only ever south?
-                        //The hotspot is the point where the icon will be placed on the "click point" the icon moves around this point if it changes.
                         var hotspotHolder = new List<uint>(3);
                         foreach (var spotRange in value.Split(',')) {
                             hotspotHolder.Add(uint.Parse(value[spotRange], CultureInfo.InvariantCulture));
                         }
 
                         if (hotspotHolder.Count == 3) {
-                            currentStateHotspots.Add(new Vector3(hotspotHolder[0], hotspotHolder[1], hotspotHolder[2]));
+                            currentStateHotspots.Add(new ValueTuple<uint, uint, uint>(hotspotHolder[0], hotspotHolder[1], hotspotHolder[2]));
                         } else {
                             throw new Exception($"Invalid hotspot in DMI description: {value.ToString()}");
                         }
@@ -491,14 +490,20 @@ public static class DMIParser {
                 currentState.Directions[DMIFrameDirections[i]] = new ParsedDMIFrame[currentStateFrameCount];
             }
 
-            //For each frame, fill every direction with spritesheet location and delay.
-            for (var f = 0; f < currentStateFrameCount; f++) {
+            //For each frame, fill every direction with spritesheet location, delay, and hotspot.
+            for (uint f = 0; f < currentStateFrameCount; f++) {
                 var fDelay = timespanDelays[f]; //Cache frame delay
                 foreach(var d in DMIFrameDirections[..currentStateDirectionCount]) {
+                    Vector2u? hotspot = null;
+                    foreach (var spot in currentStateHotspots) {
+                        if (spot.Frame == f) hotspot = new Vector2u(spot.X, spot.Y);
+                    }
+
                     currentState.Directions[d][f] = new ParsedDMIFrame {
                         X = currentFrameX,
                         Y = currentFrameY,
-                        Delay = fDelay
+                        Delay = fDelay,
+                        Hotspot = hotspot
                     };
 
                     currentFrameX += description.Width;
