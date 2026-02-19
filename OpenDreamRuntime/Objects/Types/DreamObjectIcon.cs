@@ -19,16 +19,15 @@ public sealed class DreamObjectIcon : DreamObject {
         DreamValue frame = args.GetArgument(3);
         DreamValue moving = args.GetArgument(4);
 
-        if (!icon.IsNull) {
-            if (icon.TryGetValueAsDreamObject<DreamObjectIcon>(out var iconObj)) {
-                // Copy the DreamIcon rather than create the entire DMI from it
-                Icon.CopyFrom(iconObj.Icon);
-            } else {
-                if (!DreamResourceManager.TryLoadIcon(icon, out var iconRsc))
-                    throw new Exception($"Cannot create an icon from {icon}");
+        if (icon.IsNull) return;
+        if (icon.TryGetValueAsDreamObject<DreamObjectIcon>(out var iconObj)) {
+            // Copy the DreamIcon rather than create the entire DMI from it
+            Icon.CopyFrom(iconObj.Icon);
+        } else {
+            if (!DreamResourceManager.TryLoadIcon(icon, out var iconRsc))
+                throw new Exception($"Cannot create an icon from {icon}");
 
-                Icon.InsertStates(iconRsc, state, dir, frame, isConstructor: true);
-            }
+            Icon.InsertStates(iconRsc, state, dir, frame, isConstructor: true);
         }
     }
 
