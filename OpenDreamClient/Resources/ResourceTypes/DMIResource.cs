@@ -13,10 +13,11 @@ public sealed class DMIResource : DreamResource {
     public Vector2i IconSize;
     public DMIParser.ParsedDMIDescription Description;
 
-    private readonly Dictionary<string, State> _states;
+    private readonly Dictionary<string, (State? staticstate, State? movingstate)> _states;
+    private string _defaultState;
 
     public DMIResource(int id, byte[] data) : base(id, data) {
-        _states = new Dictionary<string, State>();
+        _states = new Dictionary<string, (State?, State?)>();
         ProcessDMIData();
     }
 
@@ -35,20 +36,32 @@ public sealed class DMIResource : DreamResource {
         Texture = IoCManager.Resolve<IClyde>().LoadTextureFromImage(image, name: $"DMI Resource #{Id}");
         IconSize = new Vector2i(description.Width, description.Height);
         Description = description;
+        _defaultState = description.DefaultState ?? string.Empty;
 
         _states.Clear();
-        foreach (DMIParser.ParsedDMIState parsedState in description.States.Values) {
-            State state = new State(Texture, parsedState, description.Width, description.Height);
+        foreach ((string name, (DMIParser.ParsedDMIState? staticState, DMIParser.ParsedDMIState? movingState) statePair) in description.States) {
+            State? stateStatic = null;
+            State? stateMoving = null;
 
-            _states.Add(parsedState.Name, state);
+            if (statePair.staticState != null) {
+                stateStatic = new State(Texture, statePair.staticState, description.Width, description.Height);
+            }
+
+            if (statePair.movingState != null) {
+                stateMoving = new State(Texture, statePair.movingState, description.Width, description.Height);
+            }
+
+            _states.Add(name, (stateStatic, stateMoving));
         }
     }
 
-    public State? GetState(string? stateName) {
-        if (stateName == null || !_states.ContainsKey(stateName))
-            return _states.TryGetValue(string.Empty, out var state) ? state : null; // Default state, if one exists
+    public State? GetState(string? stateName, bool moving) {
+        if (stateName == null || !_states.TryGetValue(stateName, out (State? staticstate, State? movingstate) state1)) {
+            //TODO CAT: stuff moving whatever
+        }
+        return _states.TryGetValue(string.Empty, out var state) ? state : null; // Default state, if one exists
 
-        return _states[stateName];
+        return state1;
     }
 
     public Image<Rgba32>? GetStateAsImage(string? stateName, AtomDirection dir) {
