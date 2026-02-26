@@ -122,7 +122,7 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
             var iconState = iconStatePair.Value;
             ParsedDMIState newState = new(iconStatePair.Key) { Loop = false, Rewind = false };
 
-            newDescription.States.Add(newState.Name, newState);
+            newDescription.States.Add(newState.Name, (newState, null));
 
             int exportedDirectionCount = DMIParser.GetExportedDirectionCount(iconState.Directions);
             for (int directionIndex = 0; directionIndex < exportedDirectionCount; directionIndex++) {
@@ -202,7 +202,7 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
     }
 
     private void InsertState(IconResource icon, string stateName, string copyingState, AtomDirection? dir = null, int? frame = null, bool forceSouth = false) {
-        ParsedDMIState? inserting = icon.DMI.GetStateOrDefault(copyingState);
+        ParsedDMIState? inserting = icon.DMI.GetStateOrDefault(copyingState, false);
         if (inserting == null)
             return;
 

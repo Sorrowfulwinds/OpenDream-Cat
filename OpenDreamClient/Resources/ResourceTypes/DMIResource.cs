@@ -55,13 +55,16 @@ public sealed class DMIResource : DreamResource {
         }
     }
 
+    /// <summary>
+    /// Get a specific state by name and moving type.
+    /// </summary>
+    /// <returns>A DMIResource.State or null, if stateName is null it will try to return the default state.</returns>
     public State? GetState(string? stateName, bool moving) {
-        if (stateName == null || !_states.TryGetValue(stateName, out (State? staticstate, State? movingstate) state1)) {
-            //TODO CAT: stuff moving whatever
+        if (_states.TryGetValue(stateName ?? _defaultState, out var states)) {
+            return moving ? states.movingstate : states.staticstate;
         }
-        return _states.TryGetValue(string.Empty, out var state) ? state : null; // Default state, if one exists
 
-        return state1;
+        return null;
     }
 
     public Image<Rgba32>? GetStateAsImage(string? stateName, AtomDirection dir) {
@@ -71,7 +74,7 @@ public sealed class DMIResource : DreamResource {
         dmiStream.Seek(0, SeekOrigin.Begin);
 
         Image<Rgba32> image = Image.Load<Rgba32>(dmiStream);
-        if (!(description.GetStateOrDefault(stateName)?.Directions.TryGetValue(dir, out var state) ?? false))
+        if (!(description.GetStateOrDefault(stateName, false)?.Directions.TryGetValue(dir, out var state) ?? false))
             return null;
 
         var result = image.Clone(clone => {

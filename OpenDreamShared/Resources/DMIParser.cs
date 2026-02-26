@@ -41,14 +41,16 @@ public static class DMIParser {
         public ParsedDMIState? GetStateOrDefault(string? stateName, bool moving) {
             if (string.IsNullOrEmpty(stateName)) stateName = "";
 
-            if (!States.TryGetValue(stateName, out var state)) {
-                //stateName may not be in States, additional check for default state.
-                if (!States.TryGetValue(DefaultState ?? string.Empty, out state)) {
-                    return null;
-                }
+            if (States.TryGetValue(stateName, out var state)) {
+                return moving ? state.movingstate : state.staticstate;
             }
 
-            return moving ? state.movingstate : state.staticstate;
+            //stateName may not be in States, additional check for default state.
+            if (States.TryGetValue(DefaultState ?? string.Empty, out state)) {
+                return moving ? state.movingstate : state.staticstate;
+            }
+
+            return null;
         }
 
         /// <summary>

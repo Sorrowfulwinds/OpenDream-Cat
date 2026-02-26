@@ -101,7 +101,7 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
                 return CachedTexture.Texture;
 
             _textureDirty = false;
-            frame = dmi.GetState(iconState)?.GetFrames(_direction)[animationFrame];
+            frame = dmi.GetState(iconState, false)?.GetFrames(_direction)[animationFrame];
         } else {
             frame = textureOverride;
         }

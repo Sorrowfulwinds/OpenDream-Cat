@@ -516,7 +516,7 @@ public sealed class DreamValueJsonConverter : JsonConverter<DreamValue> {
 
                     // TODO Check what happens with multiple states
                     var resource = icon.Icon.GenerateDMI();
-                    var base64 = Convert.ToBase64String(resource.ResourceData);
+                    var base64 = Convert.ToBase64String(resource.ResourceData ?? Array.Empty<byte>());
                     writer.WriteString("icon-data", base64);
                 }
 
@@ -566,7 +566,7 @@ public sealed class DreamValueJsonConverter : JsonConverter<DreamValue> {
                     IconResource resource = _resourceManager.CreateIconResource(iconData);
                     var iconObj = _objectTree.CreateObject<DreamObjectIcon>(_objectTree.Icon);
 
-                    iconObj.Icon.InsertStates(resource, DreamValue.Null, DreamValue.Null, DreamValue.Null);
+                    iconObj.Icon.InsertStates(resource, DreamValue.Null, DreamValue.Null, DreamValue.Null, DreamValue.Null, DreamValue.Null);
                     value = new DreamValue(iconObj);
                 }
 
@@ -576,7 +576,6 @@ public sealed class DreamValueJsonConverter : JsonConverter<DreamValue> {
         }
 
         reader.Read();
-
         if (reader.TokenType != JsonTokenType.EndObject) throw new Exception("Expected EndObject token");
 
         return value;
