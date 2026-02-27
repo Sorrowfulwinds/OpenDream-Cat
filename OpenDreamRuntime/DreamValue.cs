@@ -516,7 +516,7 @@ public sealed class DreamValueJsonConverter : JsonConverter<DreamValue> {
 
                     // TODO Check what happens with multiple states
                     var resource = icon.Icon.GenerateDMI();
-                    var base64 = Convert.ToBase64String(resource.ResourceData ?? Array.Empty<byte>());
+                    var base64 = Convert.ToBase64String(resource.ResourceData);
                     writer.WriteString("icon-data", base64);
                 }
 

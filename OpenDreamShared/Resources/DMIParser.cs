@@ -71,7 +71,7 @@ public static class DMIParser {
 
             foreach (var state in States.Values) {
                 state.staticstate?.ExportAsText(text);
-                state.staticstate?.ExportAsText(text);
+                state.movingstate?.ExportAsText(text);
             }
 
             text.Append("# END DMI");
@@ -135,7 +135,7 @@ public static class DMIParser {
         public readonly string Name = name;
 
         //Loop is Infinite (0) or Specific (1-INF)
-        //TODO: This should be an unsigned integer not a bool.
+        //TODO: Loop should be an unsigned integer not a bool.
         public bool Loop = true;
         public bool Rewind;
         public bool Movement;
@@ -190,7 +190,7 @@ public static class DMIParser {
 
             if (Rewind) text.AppendLine("\trewind = 1");
 
-            if (Movement) text.AppendLine("\trewind = 1");
+            if (Movement) text.AppendLine("\tmovement = 1");
         }
 
         /// <summary>
@@ -232,7 +232,6 @@ public static class DMIParser {
     public sealed class ParsedDMIFrame {
         public int X, Y;
         public TimeSpan Delay;
-        public Vector2u? Hotspot;
     }
 
     /// <summary>
@@ -369,8 +368,6 @@ public static class DMIParser {
         int currentStateDirectionCount = 1;
         int currentStateFrameCount = 1;
         float[] currentStateFrameDelays = Array.Empty<float>();
-        //The lack of a Vector3u necessitates goofy tuple time
-        List<(uint X, uint Y, uint Frame)> currentStateHotspots = new(0);
 
         Span<Range> lines = new Span<Range>();
         dmiDescription.AsSpan().Split(lines, '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -449,17 +446,7 @@ public static class DMIParser {
                         break;
 
                     case "hotspot":
-                        var hotspotHolder = new List<uint>(3);
-                        foreach (var spotRange in value.Split(',')) {
-                            hotspotHolder.Add(uint.Parse(value[spotRange], CultureInfo.InvariantCulture));
-                        }
-
-                        if (hotspotHolder.Count == 3) {
-                            currentStateHotspots.Add(new ValueTuple<uint, uint, uint>(hotspotHolder[0], hotspotHolder[1], hotspotHolder[2]));
-                        } else {
-                            throw new Exception($"Invalid hotspot in DMI description: {value.ToString()}");
-                        }
-
+                        //TODO
                         break;
 
                     default:
@@ -487,25 +474,19 @@ public static class DMIParser {
                     delay => TimeSpan.FromMilliseconds(delay * 100));
             }
 
-            //Prefill Directions dictionary with the needed DMIFrame arrays.
+            //Prefill Directions dictionary with the needed pre-sized DMIFrame arrays.
             for (var i = 0; i < currentStateDirectionCount; i++) {
                 currentState.Directions[DMIFrameDirections[i]] = new ParsedDMIFrame[currentStateFrameCount];
             }
 
-            //For each frame, fill every direction with spritesheet location, delay, and hotspot.
+            //For each frame, fill every direction with spritesheet location and delay.
             for (uint f = 0; f < currentStateFrameCount; f++) {
                 var fDelay = timespanDelays[f]; //Cache frame delay
                 foreach(var d in DMIFrameDirections[..currentStateDirectionCount]) {
-                    Vector2u? hotspot = null;
-                    foreach (var spot in currentStateHotspots) {
-                        if (spot.Frame == f) hotspot = new Vector2u(spot.X, spot.Y);
-                    }
-
                     currentState.Directions[d][f] = new ParsedDMIFrame {
                         X = currentFrameX,
                         Y = currentFrameY,
                         Delay = fDelay,
-                        Hotspot = hotspot
                     };
 
                     currentFrameX += description.Width;
@@ -557,7 +538,7 @@ public static class DMIParser {
     }
 
     private static uint ReadBigEndianUint32(BinaryReader reader) {
-        var bytes = reader.ReadBytes(4);
+        byte[] bytes = reader.ReadBytes(4);
         Array.Reverse(bytes); //Little to Big-Endian
         return BitConverter.ToUInt32(bytes);
     }
