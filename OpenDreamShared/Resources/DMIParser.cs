@@ -55,12 +55,8 @@ public static class DMIParser {
             // This could either end up compressed or decompressed depending on how large this text ends up being.
             // So go with version 3.0, BYOND doesn't seem to care either way
             text.AppendLine("version = 3.0");
-            text.Append("\twidth = ");
-            text.Append(Width);
-            text.AppendLine();
-            text.Append("\theight = ");
-            text.Append(Height);
-            text.AppendLine();
+            text.AppendLine($"\twidth = {Width}");
+            text.AppendLine($"\theight = {Height}");
 
             foreach (var state in States.Values) {
                 state.ExportAsText(text);
@@ -123,9 +119,12 @@ public static class DMIParser {
     }
 
     public sealed class ParsedDMIState(string name) {
-        public string Name = name;
+        public readonly string Name = name;
+
+        //TODO: Make loop an integer, not a bool.
         public bool Loop = true;
         public bool Rewind;
+        public bool Moving;
 
         // TODO: This can only contain either 1, 4, or 8 directions. Enforcing this could simplify some things.
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
@@ -133,23 +132,17 @@ public static class DMIParser {
         /// <summary>
         /// The amount of animation frames this state has
         /// </summary>
-        public int FrameCount {
-            get {
-                if (Directions.Count == 0)
-                    return 0;
-
-                return Directions.Values.First().Length;
-            }
-        }
+        private int FrameCount => Directions.Count == 0 ? 0 : Directions.Values.First().Length;
 
         public ParsedDMIFrame[] GetFrames(AtomDirection direction = AtomDirection.South) {
             // Find another direction to use if this one doesn't exist
             if (!Directions.ContainsKey(direction)) {
-                // The diagonal directions attempt to use east/west
-                if (direction is AtomDirection.Northeast or AtomDirection.Southeast)
-                    direction = AtomDirection.East;
-                else if (direction is AtomDirection.Northwest or AtomDirection.Southwest)
-                    direction = AtomDirection.West;
+                direction = direction switch {
+                    // The diagonal directions attempt to use east/west
+                    AtomDirection.Northeast or AtomDirection.Southeast => AtomDirection.East,
+                    AtomDirection.Northwest or AtomDirection.Southwest => AtomDirection.West,
+                    _ => direction
+                };
 
                 // Use the south direction if the above still isn't valid
                 if (!Directions.ContainsKey(direction))
@@ -157,42 +150,6 @@ public static class DMIParser {
             }
 
             return Directions[direction];
-        }
-
-        public void ExportAsText(StringBuilder text) {
-            text.Append("state = \"");
-            text.Append(Name);
-            text.AppendLine("\"");
-
-            text.Append("\tdirs = ");
-            text.Append(GetExportedDirectionCount(Directions));
-            text.AppendLine();
-
-            text.Append("\tframes = ");
-            text.Append(FrameCount);
-            text.AppendLine();
-
-            if (Directions.Count > 0) {
-                text.Append("\tdelay = ");
-                var frames = Directions.Values.First(); // Delays should be the same in each direction
-                for (int i = 0; i < frames.Length; i++) {
-                    var delay = frames[i].Delay.TotalMilliseconds / 100; // Convert back to deciseconds
-
-                    text.Append(delay.ToString(CultureInfo.InvariantCulture));
-                    if (i != frames.Length - 1)
-                        text.Append(',');
-                }
-
-                text.AppendLine();
-            }
-
-            if (!Loop) {
-                text.AppendLine("\tloop = 0");
-            }
-
-            if (Rewind) {
-                text.AppendLine("\trewind = 1");
-            }
         }
 
         /// <summary>
@@ -206,9 +163,9 @@ public static class DMIParser {
         public Dictionary<AtomDirection, ParsedDMIFrame[]> GetFrames(AtomDirection? dir = null, int? frame = null, bool asSouth = false) {
             Dictionary<AtomDirection, ParsedDMIFrame[]> directions;
             if (dir == null) { // Get every direction
-                directions = new(Directions);
+                directions = new Dictionary<AtomDirection, ParsedDMIFrame[]>(Directions);
             } else {
-                directions = new(1);
+                directions = new Dictionary<AtomDirection, ParsedDMIFrame[]>(1);
 
                 if (!Directions.TryGetValue(dir.Value, out var frames))
                     frames = Array.Empty<ParsedDMIFrame>();
@@ -229,6 +186,27 @@ public static class DMIParser {
 
             return directions;
         }
+
+        public void ExportAsText(StringBuilder text) {
+            text.AppendLine($"state = \"{Name}\"");
+            text.AppendLine($"\tdirs = {GetExportedDirectionCount(Directions)}");
+            text.AppendLine($"\tframes = {FrameCount}");
+
+            if (Directions.Count > 0) {
+                var frames = Directions.Values.First(); // Delays should be the same in each direction
+                var delayString = string.Join(", ", frames.Select(
+                    f => (f.Delay.TotalMilliseconds / 100).ToString(CultureInfo.InvariantCulture)));
+                text.AppendLine($"\tdelay = {delayString}");
+            }
+
+            if (!Loop) {
+                text.AppendLine("\tloop = 0");
+            }
+
+            if (Rewind) {
+                text.AppendLine("\trewind = 1");
+            }
+        }
     }
 
     public sealed class ParsedDMIFrame {
@@ -242,13 +220,16 @@ public static class DMIParser {
     /// </summary>
     public static int GetExportedDirectionCount<T>(Dictionary<AtomDirection, T> directions) {
         // If we have any of these directions then we export 8 directions
-        if (directions.ContainsKey(AtomDirection.Northeast) || directions.ContainsKey(AtomDirection.Southeast) ||
-            directions.ContainsKey(AtomDirection.Southwest) || directions.ContainsKey(AtomDirection.Northwest)) {
+        if (directions.ContainsKey(AtomDirection.Northeast) ||
+            directions.ContainsKey(AtomDirection.Southeast) ||
+            directions.ContainsKey(AtomDirection.Southwest) ||
+            directions.ContainsKey(AtomDirection.Northwest)) {
             return 8;
         }
 
         // Any of these (without the above) means 4 directions
-        if (directions.ContainsKey(AtomDirection.North) || directions.ContainsKey(AtomDirection.East) ||
+        if (directions.ContainsKey(AtomDirection.North) ||
+            directions.ContainsKey(AtomDirection.East) ||
             directions.ContainsKey(AtomDirection.West)) {
             return 4;
         }
@@ -272,14 +253,18 @@ public static class DMIParser {
         var reader = new BinaryReader(stream);
         var headerSize = reader.ReadUInt32();
         uint width, height;
-        if (headerSize == 12) { // Old DIB header
-            width = reader.ReadUInt16();
-            height = reader.ReadUInt16();
-        } else if (headerSize == 40) { // New DIB header
-            width = reader.ReadUInt32();
-            height = reader.ReadUInt32();
-        } else {
-            throw new Exception($"Unrecognized BMP header (size {headerSize})");
+        switch (headerSize)
+        {
+            case 12: // Old DIB header
+                width = reader.ReadUInt16();
+                height = reader.ReadUInt16();
+                break;
+            case 40: // New DIB header
+                width = reader.ReadUInt32();
+                height = reader.ReadUInt32();
+                break;
+            default:
+                throw new Exception($"Unrecognized BMP header (size {headerSize})");
         }
 
         // TODO: Use CreateSplitStates if world.map_format == TILED_ICON_MAP
@@ -333,7 +318,7 @@ public static class DMIParser {
                         }
 
                         string dmiDescription = Encoding.UTF8.GetString(uncompressedData, 0, uncompressedData.Length);
-                        return ParseDMIDescription(dmiDescription, imageSize.Value.X);
+                        return ParseDMIDescription(dmiDescription.AsSpan(), imageSize.Value.X);
                     }
 
                     // Wasn't the description chunk we were looking for
@@ -354,149 +339,134 @@ public static class DMIParser {
         throw new Exception("PNG is missing an image header");
     }
 
-    private static ParsedDMIDescription ParseDMIDescription(string dmiDescription, uint imageWidth) {
+    private static ParsedDMIDescription ParseDMIDescription(ReadOnlySpan<char> dmiDescription, uint imageWidth) {
         ParsedDMIDescription description = new ParsedDMIDescription();
         ParsedDMIState? currentState = null;
+        string currentStateName = string.Empty;
         int currentFrameX = 0;
         int currentFrameY = 0;
         int currentStateDirectionCount = 1;
         int currentStateFrameCount = 1;
-        float[]? currentStateFrameDelays = null;
+        float[] currentStateFrameDelays = Array.Empty<float>();
 
-        string[] lines = dmiDescription.Split("\n");
-        foreach (string line in lines) {
-            if (line.StartsWith('#') || string.IsNullOrWhiteSpace(line))
-                continue;
+        //Split() with options cannot be directly assigned. I'm forced to make an empty var first.
+        Span<Range> lines = new Span<Range>();
+        dmiDescription.Split(lines, '\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            int equalsIndex = line.IndexOf('=');
+        foreach (var chunk in lines) {
+            if (dmiDescription[chunk].StartsWith('#')) continue;
 
-            if (equalsIndex != -1) {
-                string key = line.Substring(0, equalsIndex-1).Trim();
-                string value = line.Substring(equalsIndex + 1).Trim();
+            int equalsIndex = dmiDescription[chunk].IndexOf('=');
 
-                switch (key) {
-                    case "version":
-                        // No need to care about this at the moment
-                        break;
-                    case "width":
-                        description.Width = int.Parse(value);
-                        break;
-                    case "height":
-                        description.Height = int.Parse(value);
-                        break;
-                    case "state":
-                        string stateName = ParseString(value);
+            if (equalsIndex == -1) {
+                throw new Exception($"Invalid line in DMI description: \"{dmiDescription[chunk]}\"");
+            }
 
-                        if (currentState != null) {
-                            for (int i = 0; i < currentStateDirectionCount; i++) {
-                                ParsedDMIFrame[] frames = new ParsedDMIFrame[currentStateFrameCount];
-                                AtomDirection direction = DMIFrameDirections[i];
+            var key = dmiDescription[chunk][..(equalsIndex - 1)].TrimEnd();
+            var value = dmiDescription[chunk][(equalsIndex + 1)..].TrimStart();
 
-                                currentState.Directions[direction] = frames;
-                            }
+            switch (key) {
+                case "version":
+                    // No need to care about this at the moment
+                    break;
+                case "width":
+                    description.Width = int.Parse(value);
+                    break;
+                case "height":
+                    description.Height = int.Parse(value);
+                    break;
+                case "state":
+                    if (currentState != null) { //Clear existing cache
+                        LocalFnProcessState();
+                    }
 
-                            for (int i = 0; i < currentStateFrameCount; i++) {
-                                for (int j = 0; j < currentStateDirectionCount; j++) {
-                                    AtomDirection direction = DMIFrameDirections[j];
+                    currentStateName = ParseString(value);
+                    currentStateFrameCount = 1;
+                    currentStateFrameDelays = Array.Empty<float>();
+                    currentState = new ParsedDMIState(currentStateName);
+                    break;
+                case "dirs":
+                    currentStateDirectionCount = int.Parse(value);
+                    break;
+                case "frames":
+                    currentStateFrameCount = int.Parse(value);
+                    break;
+                case "delay":
+                    var frameDelayHolder = new List<float>((value.Length / 2) + 1); //Hopeful guess
+                    foreach (var delayRange in value.Split(',')) {
+                        frameDelayHolder.Add(float.Parse(value[delayRange], CultureInfo.InvariantCulture));
+                    }
 
-                                    ParsedDMIFrame frame = new ParsedDMIFrame();
-                                    float delay = (currentStateFrameDelays != null)
-                                        ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
-                                        : 100;
-
-                                    frame.X = currentFrameX;
-                                    frame.Y = currentFrameY;
-                                    frame.Delay = TimeSpan.FromMilliseconds(delay);
-                                    currentState.Directions[direction][i] = frame;
-
-                                    currentFrameX += description.Width;
-                                    if (currentFrameX >= imageWidth) {
-                                        currentFrameY += description.Height;
-                                        currentFrameX = 0;
-                                    }
-                                }
-                            }
-                        }
-
-                        currentStateFrameCount = 1;
-                        currentStateFrameDelays = null;
-                        currentState = new ParsedDMIState(stateName);
-                        description.States.TryAdd(stateName, currentState);
-                        break;
-                    case "dirs":
-                        currentStateDirectionCount = int.Parse(value);
-                        break;
-                    case "frames":
-                        currentStateFrameCount = int.Parse(value);
-                        break;
-                    case "delay":
-                        string[] frameDelays = value.Split(",");
-
-                        currentStateFrameDelays = new float[frameDelays.Length];
-                        for (int i = 0; i < frameDelays.Length; i++) {
-                            currentStateFrameDelays[i] = float.Parse(frameDelays[i], CultureInfo.InvariantCulture);
-                        }
-
-                        break;
-                    case "loop":
-                        if (currentState is null) break;
+                    currentStateFrameDelays = frameDelayHolder.ToArray();
+                    break;
+                case "loop":
+                    if (currentState is not null)
                         currentState.Loop = (int.Parse(value) == 0);
-                        break;
-                    case "rewind":
-                        if (currentState is null) break;
+                    //TODO: Loop should be
+                    //currentState.Loop = int.Parse(value, CultureInfo.InvariantCulture);
+                    break;
+                case "rewind":
+                    if (currentState is not null)
                         currentState.Rewind = (int.Parse(value) == 1);
-                        break;
-                    case "movement":
-                        //TODO
-                        break;
-                    case "hotspot":
-                        //TODO
-                        break;
-                    default:
-                        throw new Exception($"Invalid key \"{key}\" in DMI description");
-                }
-            } else {
-                throw new Exception($"Invalid line in DMI description: \"{line}\"");
+                    break;
+                case "movement":
+                    if (currentState is not null)
+                        currentState.Moving = (int.Parse(value) == 1);
+                    break;
+                case "hotspot":
+                    //TODO
+                    break;
+                default:
+                    throw new Exception($"Invalid key \"{key}\" in DMI description");
             }
         }
 
-        if (currentState is null) return description;
-
-        for (int i = 0; i < currentStateDirectionCount; i++) {
-            ParsedDMIFrame[] frames = new ParsedDMIFrame[currentStateFrameCount];
-            AtomDirection direction = DMIFrameDirections[i];
-
-            currentState.Directions[direction] = frames;
-        }
-
-        for (int i = 0; i < currentStateFrameCount; i++) {
-            for (int j = 0; j < currentStateDirectionCount; j++) {
-                AtomDirection direction = DMIFrameDirections[j];
-
-                ParsedDMIFrame frame = new ParsedDMIFrame();
-                float delay = (currentStateFrameDelays != null)
-                    ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
-                    : 100;
-
-                frame.X = currentFrameX;
-                frame.Y = currentFrameY;
-                frame.Delay = TimeSpan.FromMilliseconds(delay);
-                currentState.Directions[direction][i] = frame;
-
-                currentFrameX += description.Width;
-                if (currentFrameX >= imageWidth) {
-                    currentFrameY += description.Height;
-                    currentFrameX = 0;
-                }
-            }
-        }
+        if (currentState is not null) LocalFnProcessState();
 
         return description;
+
+        //Local (Internal) function for processing the queued current state into its final product and adding it to ParsedDMIDescription.
+        void LocalFnProcessState() {
+            //Precalculate frame delays
+            TimeSpan[] timespanDelays;
+            if (currentStateFrameDelays is []) { //Default empty to values of 1 decisecond (100 milli)
+                timespanDelays = new TimeSpan[currentStateFrameCount];
+                Array.Fill(timespanDelays, TimeSpan.FromMilliseconds(100));
+            } else { //Convert existing values from deciseconds to milliseconds
+                timespanDelays = Array.ConvertAll(currentStateFrameDelays,
+                    delay => TimeSpan.FromMilliseconds(delay * 100));
+            }
+
+            //Prefill Directions dictionary with the needed pre-sized DMIFrame arrays.
+            for (var i = 0; i < currentStateDirectionCount; i++) {
+                currentState.Directions[DMIFrameDirections[i]] = new ParsedDMIFrame[currentStateFrameCount];
+            }
+
+            //For each frame, fill every direction with spritesheet location and delay.
+            for (uint f = 0; f < currentStateFrameCount; f++) {
+                var fDelay = timespanDelays[f]; //Cache frame delay
+                foreach (var d in DMIFrameDirections[..currentStateDirectionCount]) {
+                    currentState.Directions[d][f] = new ParsedDMIFrame {
+                        X = currentFrameX,
+                        Y = currentFrameY,
+                        Delay = fDelay,
+                    };
+
+                    currentFrameX += description.Width;
+                    if (currentFrameX < imageWidth) continue;
+                    //Move to the next row on the spritesheet if we exceed its width
+                    currentFrameX = 0;
+                    currentFrameY += description.Height;
+                }
+            }
+
+            description.States.TryAdd(currentStateName, currentState);
+        }
     }
 
-    private static string ParseString(string value) {
-        if (value.StartsWith("\"") && value.EndsWith("\"")) {
-            return value.Substring(1, value.Length - 2);
+    private static string ParseString(ReadOnlySpan<char> value) {
+        if (value.StartsWith("\"") && value.EndsWith("\"") && value.Length >= 2) {
+            return value.Slice(1, value.Length - 2).ToString();
         } else {
             throw new Exception($"Invalid string in DMI description: {value}");
         }
@@ -504,19 +474,13 @@ public static class DMIParser {
 
     private static bool VerifyPng(Stream stream) {
         stream.Seek(0, SeekOrigin.Begin);
-        foreach (var t in PngHeader) {
-            if (stream.ReadByte() != t) return false;
-        }
-
-        return true;
+        return PngHeader.All(t => stream.ReadByte() == t);
     }
 
     private static bool VerifyBmp(Stream stream) {
         stream.Seek(0, SeekOrigin.Begin);
-        if (stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D)
-            return true;
-
-        return false;
+        //The first 2 bytes of a .bmp should be 66 and 77.
+        return stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D;
     }
 
     private static uint ReadBigEndianUint32(BinaryReader reader) {
