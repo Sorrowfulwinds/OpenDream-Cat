@@ -315,20 +315,7 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Start", Type = DreamValueTypeFlag.Float, DefaultValue = 1)]
     [DreamProcParameter("End", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_copytext(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        bundle.GetArgument(2, "End").TryGetValueAsInteger(out var end); //1-indexed
-
-        if (!bundle.GetArgument(0, "T").TryGetValueAsString(out string? text))
-            return (end == 0) ? DreamValue.Null : DreamValue.EmptyString;
-        if (!bundle.GetArgument(1, "Start").TryGetValueAsInteger(out int start)) //1-indexed
-            return DreamValue.EmptyString;
-
-        if (end <= 0) end += text.Length + 1;
-        else if (end > text.Length + 1) end = text.Length + 1;
-
-        if (start == 0) return DreamValue.EmptyString;
-        else if (start < 0) start += text.Length + 1;
-
-        return new DreamValue(text.Substring(start - 1, end - start));
+        return NativeProc_copytext_char(bundle, src, usr);
     }
 
     [DreamProc("copytext_char")]
@@ -339,20 +326,18 @@ internal static class DreamProcNativeRoot {
         bundle.GetArgument(2, "End").TryGetValueAsInteger(out var end); //1-indexed
 
         if (!bundle.GetArgument(0, "T").TryGetValueAsString(out string? text))
-            return (end == 0) ? DreamValue.Null : DreamValue.EmptyString;
+            return DreamValue.EmptyString;
         if (!bundle.GetArgument(1, "Start").TryGetValueAsInteger(out int start)) //1-indexed
             return DreamValue.EmptyString;
 
         StringInfo textElements = new StringInfo(text);
+        var maxLength = textElements.LengthInTextElements;
 
-        if (end <= 0) end += textElements.LengthInTextElements + 1;
-        else if (end > textElements.LengthInTextElements + 1) end = textElements.LengthInTextElements + 1;
+        if (end <= 0) end += maxLength + 1;
+        else if (end > maxLength + 1) end = maxLength + 1;
 
-        if (start == 0) return DreamValue.EmptyString;
-        else if (start < 0) start += textElements.LengthInTextElements + 1;
-
-        if (start > textElements.LengthInTextElements)
-            return new(string.Empty);
+        if (start == 0 || start >= end) return DreamValue.EmptyString;
+        else if (start < 0) start += maxLength + 1;
 
         return new DreamValue(textElements.SubstringByTextElements(start - 1, end - start));
     }
