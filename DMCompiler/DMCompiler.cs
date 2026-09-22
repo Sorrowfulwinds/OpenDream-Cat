@@ -38,9 +38,9 @@ public class DMCompiler {
     private int _warningCount;
 
     public DMCompiler() {
-        DMCodeTree = new(this);
-        DMObjectTree = new(this);
-        GlobalInitProc = new(this, -1, DMObjectTree.Root, null);
+        DMCodeTree = new DMCodeTree(this);
+        DMObjectTree = new DMObjectTree(this);
+        GlobalInitProc = new DMProc(this, -1, DMObjectTree.Root, astDefinition: null);
         BytecodeOptimizer = new BytecodeOptimizer(this);
         _errorConfig = new Dictionary<WarningCode, ErrorLevel>(CompilerEmission.DefaultErrorConfig);
     }
@@ -116,10 +116,29 @@ public class DMCompiler {
     }
 
     private DMPreprocessor? Preprocess(DMCompiler compiler, List<string> files, Dictionary<string, string>? macroDefines) {
+        if (Settings.DumpPreprocessor) {
+            //Preprocessing is done twice because the output is used up when dumping it
+            var preproc = Build();
+            if (preproc != null) {
+                var result = new StringBuilder();
+                foreach (Token t in preproc) {
+                    result.Append(t.Text);
+                }
+
+                string? outputDir = Path.GetDirectoryName(Settings.Files[0]);
+                string outputPath = Path.Combine(outputDir ?? string.Empty, "preprocessor_dump.dm");
+
+                File.WriteAllText(outputPath, result.ToString());
+                Console.WriteLine($"Preprocessor output dumped to {outputPath}");
+            }
+        }
+
+        return Build();
+
         DMPreprocessor? Build() {
             DMPreprocessor preproc = new DMPreprocessor(compiler, true);
             if (macroDefines != null) {
-                foreach (var (key, value) in macroDefines) {
+                foreach ((string key, string value) in macroDefines) {
                     preproc.DefineMacro(key, value);
                 }
             }
@@ -156,25 +175,6 @@ public class DMCompiler {
 
             return preproc;
         }
-
-        if (Settings.DumpPreprocessor) {
-            //Preprocessing is done twice because the output is used up when dumping it
-            var preproc = Build();
-            if (preproc != null) {
-                var result = new StringBuilder();
-                foreach (Token t in preproc) {
-                    result.Append(t.Text);
-                }
-
-                string? outputDir = Path.GetDirectoryName(Settings.Files[0]);
-                string outputPath = Path.Combine(outputDir ?? string.Empty, "preprocessor_dump.dm");
-
-                File.WriteAllText(outputPath, result.ToString());
-                Console.WriteLine($"Preprocessor output dumped to {outputPath}");
-            }
-        }
-
-        return Build();
     }
 
     private bool Compile(IEnumerable<Token> preprocessedTokens) {
@@ -386,7 +386,7 @@ public class DMCompiler {
 }
 
 public struct DMCompilerSettings {
-    public required List<string> Files;
+    public required IList<string> Files;
     public bool SuppressUnimplementedWarnings = false;
     public bool SuppressUnsupportedAccessWarnings = false;
     public bool NoticesEnabled = false;

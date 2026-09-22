@@ -82,10 +82,10 @@ internal static class Program {
 
     private static bool TryParseArguments(DMCompiler compiler, string[] args, out DMCompilerSettings settings) {
         settings = new DMCompilerSettings {
-            Files = new List<string>()
+            Files = [],
         };
 
-        var skipBad = args.Contains("--skip-bad-args");
+        var skipBad = args.Contains("--skip-bad-args", StringComparer.Ordinal);
 
         foreach (Argument arg in StringArrayToArguments(args)) {
             switch (arg.Name) {

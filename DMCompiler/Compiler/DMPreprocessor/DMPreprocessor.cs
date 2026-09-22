@@ -185,14 +185,14 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
     }
 
     public void DefineMacro(string key, string value) {
-        var lexer = new DMPreprocessorLexer(compiler, null, "<command line>", value);
+        var lexer = new DMPreprocessorLexer(compiler, includeDirectory: null, "<command line>", value);
         var list = new List<Token>();
 
         while (lexer.NextToken() is { Type: not TokenType.EndOfFile } token) {
             list.Add(token);
         }
 
-        _defines.Add(key, new DMMacro(null, list));
+        _defines.Add(key, new DMMacro(parameters: null, list));
     }
 
     // NB: Pushes files to a stack, so call in reverse order if you are

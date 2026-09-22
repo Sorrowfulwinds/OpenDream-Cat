@@ -329,3 +329,4 @@ ehthumbs.db
 # OpenDream-generated files for TestGame
 TestGame/preprocessor_dump.dm
 TestGame/environment.dmd
+/.sonarqube
