@@ -3,9 +3,10 @@
 // If you are modifying this, you must also modify OpenDreamShared.Dream.DreamValueType !!
 // Unfortunately the client needs this and it can't reference DMCompiler due to the sandbox
 
-///<summary>
-///Stores any explicit casting done via the "as" keyword. Also stores compiler hints for DMStandard.<br/>
-///is a [Flags] enum because it's possible for something to have multiple values (especially with the quirky DMStandard ones)
+/// <summary>
+///     Stores any explicit casting done via the "as" keyword. Also stores compiler hints for DMStandard.<br />
+///     is a [Flags] enum because it's possible for something to have multiple values (especially with the quirky
+///     DMStandard ones)
 /// </summary>
 [Flags]
 public enum DMValueType {
@@ -26,14 +27,19 @@ public enum DMValueType {
     Path = 0x2000, // For proc return types
 
     //Byond here be dragons
-    Unimplemented = 0x4000, // Marks that a method or property is not implemented. Throws a compiler warning if accessed.
-    CompiletimeReadonly = 0x8000, // Marks that a property can only ever be read from, never written to. This is a const-ier version of const, for certain standard values like list.type
+    Unimplemented =
+        0x4000, // Marks that a method or property is not implemented. Throws a compiler warning if accessed.
+
+    CompiletimeReadonly =
+        0x8000, // Marks that a property can only ever be read from, never written to. This is a const-ier version of const, for certain standard values like list.type
     NoConstFold = 0x10000, // Marks that a const var cannot be const-folded during compile
-    Unsupported = 0x20000, // Marks that a method or property will not be not implemented. Throws a compiler warning if accessed.
+
+    Unsupported =
+        0x20000 // Marks that a method or property will not be not implemented. Throws a compiler warning if accessed.
 }
 
 /// <summary>
-/// Allows for more complex things than DMValueType does, such as supporting type paths
+///     Allows for more complex things than DMValueType does, such as supporting type paths
 /// </summary>
 public readonly struct DMComplexValueType {
     public readonly DMValueType Type;
@@ -61,24 +67,29 @@ public readonly struct DMComplexValueType {
     }
 
     internal bool MatchesType(DMCompiler compiler, DMComplexValueType type) {
-        if (IsPath && type.IsPath) {
-            if (compiler.DMObjectTree.TryGetDMObject(type.TypePath!.Value, out var dmObject) &&
+        if (IsPath && type.IsPath)
+            if (compiler.DMObjectTree.TryGetDMObject(type.TypePath!.Value, out DMObject? dmObject) &&
                 dmObject.IsSubtypeOf(TypePath!.Value)) // Allow subtypes
                 return true;
-        }
 
         return MatchesType(type.Type);
     }
 
     public override string ToString() {
-        var types = Type.ToString().ToLowerInvariant();
+        string types = Type.ToString().ToLowerInvariant();
 
         return $"\"{(IsPath ? types + ", " + TypePath!.Value : types)}\"";
     }
 
-    public static implicit operator DMComplexValueType(DMValueType type) => new(type, null);
-    public static implicit operator DMComplexValueType(DreamPath path) => new(DMValueType.Path, path);
+    public static implicit operator DMComplexValueType(DMValueType type) {
+        return new DMComplexValueType(type, null);
+    }
 
-    public static DMComplexValueType operator |(DMComplexValueType type1, DMValueType type2) =>
-        new(type1.Type | type2, type1.TypePath);
+    public static implicit operator DMComplexValueType(DreamPath path) {
+        return new DMComplexValueType(DMValueType.Path, path);
+    }
+
+    public static DMComplexValueType operator |(DMComplexValueType type1, DMValueType type2) {
+        return new DMComplexValueType(type1.Type | type2, type1.TypePath);
+    }
 }

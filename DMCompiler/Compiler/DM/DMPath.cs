@@ -1,15 +1,18 @@
 ﻿namespace DMCompiler.Compiler.DM;
 
 internal abstract class VarDeclInfo {
-    public DreamPath? TypePath;
-    public string VarName;
-
-    ///<summary>Marks whether the variable is /global/ or /static/. (These are seemingly interchangeable keywords in DM and so are under this same boolean)</summary>
-    public bool IsStatic;
-
     public bool IsConst;
     public bool IsFinal;
     public bool IsList;
+
+    /// <summary>
+    ///     Marks whether the variable is /global/ or /static/. (These are seemingly interchangeable keywords in DM and so
+    ///     are under this same boolean)
+    /// </summary>
+    public bool IsStatic;
+
+    public DreamPath? TypePath;
+    public string VarName;
 }
 
 internal sealed class ProcVarDeclInfo : VarDeclInfo {
@@ -17,12 +20,10 @@ internal sealed class ProcVarDeclInfo : VarDeclInfo {
         string[] elements = path.Elements;
         var readIdx = 0;
         List<string> currentPath = new();
-        if (elements[readIdx] == "var") {
-            readIdx++;
-        }
+        if (elements[readIdx] == "var") readIdx++;
 
         while (readIdx < elements.Length - 1) {
-            var elem = elements[readIdx];
+            string elem = elements[readIdx];
             switch (elem) {
                 case "static":
                 case "global":
@@ -45,19 +46,18 @@ internal sealed class ProcVarDeclInfo : VarDeclInfo {
             readIdx += 1;
         }
 
-        if (currentPath.Count > 0) {
+        if (currentPath.Count > 0)
             TypePath = new DreamPath(DreamPath.PathType.Absolute, currentPath.ToArray());
-        } else {
+        else
             TypePath = null;
-        }
 
         VarName = elements[^1];
     }
 }
 
 internal sealed class ObjVarDeclInfo : VarDeclInfo {
-    public DreamPath ObjectPath;
     public readonly bool IsTmp;
+    public DreamPath ObjectPath;
 
     public ObjVarDeclInfo(DreamPath path) {
         string[] elements = path.Elements;
@@ -69,14 +69,13 @@ internal sealed class ObjVarDeclInfo : VarDeclInfo {
         }
 
         ObjectPath = new DreamPath(path.Type, currentPath.ToArray());
-        if (ObjectPath.Elements.Length == 0) { // Variables declared in the root scope are inherently static.
+        if (ObjectPath.Elements.Length == 0) // Variables declared in the root scope are inherently static.
             IsStatic = true;
-        }
 
         currentPath.Clear();
         readIdx += 1;
         while (readIdx < elements.Length - 1) {
-            var elem = elements[readIdx];
+            string elem = elements[readIdx];
             switch (elem) {
                 case "static":
                 case "global":
@@ -102,11 +101,10 @@ internal sealed class ObjVarDeclInfo : VarDeclInfo {
             readIdx += 1;
         }
 
-        if (currentPath.Count > 0) {
+        if (currentPath.Count > 0)
             TypePath = new DreamPath(DreamPath.PathType.Absolute, currentPath.ToArray());
-        } else {
+        else
             TypePath = null;
-        }
 
         VarName = elements[^1];
     }
@@ -117,12 +115,10 @@ internal sealed class ProcParameterDeclInfo : VarDeclInfo {
         string[] elements = path.Elements;
         var readIdx = 0;
         List<string> currentPath = new();
-        if (elements[readIdx] == "var") {
-            readIdx++;
-        }
+        if (elements[readIdx] == "var") readIdx++;
 
         while (readIdx < elements.Length - 1) {
-            var elem = elements[readIdx];
+            string elem = elements[readIdx];
             switch (elem) {
                 case "static":
                 case "global":
@@ -146,11 +142,10 @@ internal sealed class ProcParameterDeclInfo : VarDeclInfo {
             readIdx += 1;
         }
 
-        if (currentPath.Count > 0) {
+        if (currentPath.Count > 0)
             TypePath = new DreamPath(DreamPath.PathType.Absolute, currentPath.ToArray());
-        } else {
+        else
             TypePath = null;
-        }
 
         VarName = elements[^1];
     }

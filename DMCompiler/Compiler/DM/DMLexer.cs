@@ -35,40 +35,41 @@ public sealed class DMLexer : TokenLexer {
 
     // NOTE: .NET still needs you to pass the capacity size to generate the most optimal code, so update it when you change these values
     private static readonly Dictionary<string, TokenType> Keywords = new(25) {
-        { "null", TokenType.DM_Null },
-        { "break", TokenType.DM_Break },
-        { "continue", TokenType.DM_Continue },
-        { "if", TokenType.DM_If },
-        { "else", TokenType.DM_Else },
-        { "for", TokenType.DM_For },
-        { "switch", TokenType.DM_Switch },
-        { "while", TokenType.DM_While },
-        { "do", TokenType.DM_Do },
-        { "var", TokenType.DM_Var },
-        { "proc", TokenType.DM_Proc },
-        { "new", TokenType.DM_New },
-        { "del", TokenType.DM_Del },
-        { "return", TokenType.DM_Return },
-        { "in", TokenType.DM_In },
-        { "to", TokenType.DM_To },
-        { "as", TokenType.DM_As },
-        { "set", TokenType.DM_Set },
-        { "call", TokenType.DM_Call },
-        { "call_ext", TokenType.DM_Call},
-        { "spawn", TokenType.DM_Spawn },
-        { "goto", TokenType.DM_Goto },
-        { "step", TokenType.DM_Step },
-        { "try", TokenType.DM_Try },
-        { "catch", TokenType.DM_Catch },
-        { "throw", TokenType.DM_Throw }
+        {"null", TokenType.DM_Null},
+        {"break", TokenType.DM_Break},
+        {"continue", TokenType.DM_Continue},
+        {"if", TokenType.DM_If},
+        {"else", TokenType.DM_Else},
+        {"for", TokenType.DM_For},
+        {"switch", TokenType.DM_Switch},
+        {"while", TokenType.DM_While},
+        {"do", TokenType.DM_Do},
+        {"var", TokenType.DM_Var},
+        {"proc", TokenType.DM_Proc},
+        {"new", TokenType.DM_New},
+        {"del", TokenType.DM_Del},
+        {"return", TokenType.DM_Return},
+        {"in", TokenType.DM_In},
+        {"to", TokenType.DM_To},
+        {"as", TokenType.DM_As},
+        {"set", TokenType.DM_Set},
+        {"call", TokenType.DM_Call},
+        {"call_ext", TokenType.DM_Call},
+        {"spawn", TokenType.DM_Spawn},
+        {"goto", TokenType.DM_Goto},
+        {"step", TokenType.DM_Step},
+        {"try", TokenType.DM_Try},
+        {"catch", TokenType.DM_Catch},
+        {"throw", TokenType.DM_Throw}
     };
+
+    private readonly Stack<int> _indentationStack = new(new[] {0});
 
     public int BracketNesting;
 
-    private readonly Stack<int> _indentationStack = new(new[] { 0 });
-
-    /// <param name="source">The enumerable list of tokens output by <see cref="DMPreprocessor.DMPreprocessorLexer"/>.</param>
-    public DMLexer(string sourceName, IEnumerable<Token> source) : base(sourceName, source) { }
+    /// <param name="source">The enumerable list of tokens output by <see cref="DMPreprocessor.DMPreprocessorLexer" />.</param>
+    public DMLexer(string sourceName, IEnumerable<Token> source) : base(sourceName, source) {
+    }
 
     protected override Token ParseNextToken() {
         Token token;
@@ -114,15 +115,40 @@ public sealed class DMLexer : TokenLexer {
                     token = preprocToken;
                 }
             } else {
-                var firstTokenLocation = CurrentLocation;
+                Location firstTokenLocation = CurrentLocation;
                 switch (preprocToken.Type) {
-                    case TokenType.DM_Preproc_Whitespace: Advance(); token = CreateToken(TokenType.DM_Whitespace, preprocToken.Text); break;
-                    case TokenType.DM_Preproc_Punctuator_LeftParenthesis: BracketNesting++; Advance(); token = CreateToken(TokenType.DM_LeftParenthesis, preprocToken.Text); break;
-                    case TokenType.DM_Preproc_Punctuator_RightParenthesis: BracketNesting = Math.Max(BracketNesting - 1, 0); Advance(); token = CreateToken(TokenType.DM_RightParenthesis, preprocToken.Text); break;
-                    case TokenType.DM_Preproc_Punctuator_LeftBracket: BracketNesting++; Advance(); token = CreateToken(TokenType.DM_LeftBracket, preprocToken.Text); break;
-                    case TokenType.DM_Preproc_Punctuator_RightBracket: BracketNesting = Math.Max(BracketNesting - 1, 0); Advance(); token = CreateToken(TokenType.DM_RightBracket, preprocToken.Text); break;
-                    case TokenType.DM_Preproc_Punctuator_Comma: Advance(); token = CreateToken(TokenType.DM_Comma, preprocToken.Text); break;
-                    case TokenType.DM_Preproc_Punctuator_Colon: Advance(); token = CreateToken(TokenType.DM_Colon, preprocToken.Text); break;
+                    case TokenType.DM_Preproc_Whitespace:
+                        Advance();
+                        token = CreateToken(TokenType.DM_Whitespace, preprocToken.Text);
+                        break;
+                    case TokenType.DM_Preproc_Punctuator_LeftParenthesis:
+                        BracketNesting++;
+                        Advance();
+                        token = CreateToken(TokenType.DM_LeftParenthesis, preprocToken.Text);
+                        break;
+                    case TokenType.DM_Preproc_Punctuator_RightParenthesis:
+                        BracketNesting = Math.Max(BracketNesting - 1, 0);
+                        Advance();
+                        token = CreateToken(TokenType.DM_RightParenthesis, preprocToken.Text);
+                        break;
+                    case TokenType.DM_Preproc_Punctuator_LeftBracket:
+                        BracketNesting++;
+                        Advance();
+                        token = CreateToken(TokenType.DM_LeftBracket, preprocToken.Text);
+                        break;
+                    case TokenType.DM_Preproc_Punctuator_RightBracket:
+                        BracketNesting = Math.Max(BracketNesting - 1, 0);
+                        Advance();
+                        token = CreateToken(TokenType.DM_RightBracket, preprocToken.Text);
+                        break;
+                    case TokenType.DM_Preproc_Punctuator_Comma:
+                        Advance();
+                        token = CreateToken(TokenType.DM_Comma, preprocToken.Text);
+                        break;
+                    case TokenType.DM_Preproc_Punctuator_Colon:
+                        Advance();
+                        token = CreateToken(TokenType.DM_Colon, preprocToken.Text);
+                        break;
                     case TokenType.DM_Preproc_Punctuator_Question:
                         switch (Advance().Type) {
                             case TokenType.DM_Preproc_Punctuator_Period:
@@ -237,7 +263,8 @@ public sealed class DMLexer : TokenLexer {
                         string tokenText = preprocToken.Text;
                         switch (preprocToken.Text[0]) {
                             case '"':
-                            case '{': token = CreateToken(TokenType.DM_ConstantString, tokenText, preprocToken.Value); break;
+                            case '{':
+                                token = CreateToken(TokenType.DM_ConstantString, tokenText, preprocToken.Value); break;
                             case '\'': token = CreateToken(TokenType.DM_Resource, tokenText, preprocToken.Value); break;
                             case '@': token = CreateToken(TokenType.DM_RawString, tokenText, preprocToken.Value); break;
                             default: token = CreateToken(TokenType.Error, tokenText, "Invalid string"); break;
@@ -267,7 +294,7 @@ public sealed class DMLexer : TokenLexer {
                         } while (ValidIdentifierComponents.Contains(Advance().Type) && !AtEndOfSource);
 
                         var identifierText = TokenTextBuilder.ToString();
-                        var tokenType = Keywords.GetValueOrDefault(identifierText, TokenType.DM_Identifier);
+                        TokenType tokenType = Keywords.GetValueOrDefault(identifierText, TokenType.DM_Identifier);
 
                         token = CreateToken(tokenType, identifierText, firstTokenLocation);
                         break;
@@ -276,23 +303,26 @@ public sealed class DMLexer : TokenLexer {
                         Advance();
 
                         string text = preprocToken.Text;
-                        if (text is "1.#INF" or "1#INF") {
+                        if (text is "1.#INF" or "1#INF")
                             token = CreateToken(TokenType.DM_Float, text, float.PositiveInfinity);
-                        } else if (text is "1.#IND" or "1#IND") {
+                        else if (text is "1.#IND" or "1#IND")
                             token = CreateToken(TokenType.DM_Float, text, float.NaN);
-                        } else if (text.StartsWith("0x") && int.TryParse(text.Substring(2), NumberStyles.HexNumber, null, out int intValue)) {
+                        else if (text.StartsWith("0x") && int.TryParse(text.Substring(2), NumberStyles.HexNumber, null,
+                                     out int intValue))
                             token = CreateToken(TokenType.DM_Integer, text, intValue);
-                        } else if (int.TryParse(text, out intValue)) {
+                        else if (int.TryParse(text, out intValue))
                             token = CreateToken(TokenType.DM_Integer, text, intValue);
-                        } else if (float.TryParse(text, out float floatValue)) {
+                        else if (float.TryParse(text, out float floatValue))
                             token = CreateToken(TokenType.DM_Float, text, floatValue);
-                        } else {
+                        else
                             token = CreateToken(TokenType.Error, text, "Invalid number");
-                        }
 
                         break;
                     }
-                    case TokenType.EndOfFile: Advance(); token = preprocToken; break;
+                    case TokenType.EndOfFile:
+                        Advance();
+                        token = preprocToken;
+                        break;
                     default: token = CreateToken(TokenType.Error, preprocToken.Text, "Invalid token"); break;
                 }
             }
@@ -306,7 +336,7 @@ public sealed class DMLexer : TokenLexer {
     }
 
     private int CheckIndentation() {
-        int indentationLevel = 0;
+        var indentationLevel = 0;
 
         Token current = GetCurrent();
         if (current.Type == TokenType.DM_Preproc_Whitespace) {

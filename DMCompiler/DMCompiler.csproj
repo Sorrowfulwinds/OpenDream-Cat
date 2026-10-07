@@ -10,17 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <DMStandard Include="DMStandard\**" />
+    <DMStandard Include="DMStandard\**"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RobustToolbox\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+    <ProjectReference Include="..\RobustToolbox\Robust.Shared.Maths\Robust.Shared.Maths.csproj"/>
   </ItemGroup>
 
   <Target Name="CopyDMStandard" AfterTargets="AfterBuild">
-    <Copy SourceFiles="@(DMStandard)" DestinationFiles="@(DMStandard->'$(OutDir)\DMStandard\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(DMStandard)" DestinationFiles="@(DMStandard->'$(OutDir)\DMStandard\%(RecursiveDir)%(Filename)%(Extension)')"/>
   </Target>
   <Target Name="CopyDMStandardOnPublish" AfterTargets="Publish">
-    <Copy SourceFiles="@(DMStandard)" DestinationFiles="@(DMStandard->'$(PublishDir)\DMStandard\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(DMStandard)" DestinationFiles="@(DMStandard->'$(PublishDir)\DMStandard\%(RecursiveDir)%(Filename)%(Extension)')"/>
   </Target>
 </Project>

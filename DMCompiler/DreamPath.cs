@@ -42,10 +42,7 @@ public struct DreamPath {
         UpwardSearch
     }
 
-    [JsonIgnore]
-    public string? LastElement {
-        get => Elements.Length > 0 ? Elements.Last() : null;
-    }
+    [JsonIgnore] public string? LastElement => Elements.Length > 0 ? Elements.Last() : null;
 
     [JsonIgnore]
     public string[] Elements {
@@ -97,7 +94,7 @@ public struct DreamPath {
     }
 
     internal DMValueType GetAtomType(DMCompiler compiler) {
-        if (!compiler.DMObjectTree.TryGetDMObject(this, out var dmType))
+        if (!compiler.DMObjectTree.TryGetDMObject(this, out DMObject? dmType))
             return DMValueType.Anything;
 
         if (dmType.IsSubtypeOf(Obj))
@@ -115,16 +112,16 @@ public struct DreamPath {
     public void SetFromString(string rawPath) {
         char pathTypeChar = rawPath[0];
         string[] tempElements = rawPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-       // operator/ and operator/= need special handling
-        if(rawPath.EndsWith("operator/"))
+        // operator/ and operator/= need special handling
+        if (rawPath.EndsWith("operator/"))
             tempElements[^1] = "operator/";
         // operator/ and operator/= need special handling
-        if(rawPath.EndsWith("operator/=")) {
+        if (rawPath.EndsWith("operator/=")) {
             tempElements[^2] = "operator/=";
             tempElements = tempElements[..^1]; //clip the last element (=)
         }
 
-        bool skipFirstChar = false;
+        var skipFirstChar = false;
 
         switch (pathTypeChar) {
             case '/':
@@ -144,10 +141,9 @@ public struct DreamPath {
                 break;
         }
 
-        if (skipFirstChar) {
+        if (skipFirstChar)
             // Skip the '/', ':' or '.' if needed
             tempElements[0] = tempElements[0][1..];
-        }
 
         Elements = tempElements;
         Normalize(false);
@@ -156,9 +152,7 @@ public struct DreamPath {
     public DreamPath AddToPath(string path) {
         string rawPath = PathString;
 
-        if (!rawPath.EndsWith('/') && !path.StartsWith('/')) {
-            path = '/' + path;
-        }
+        if (!rawPath.EndsWith('/') && !path.StartsWith('/')) path = '/' + path;
 
         return new DreamPath(rawPath + path);
     }
@@ -170,7 +164,7 @@ public struct DreamPath {
     public string[] GetElements(int elementStart, int elementEnd = -1) {
         if (elementEnd < 0) elementEnd = Elements.Length + elementEnd + 1;
 
-        string[] elements = new string[elementEnd - elementStart];
+        var elements = new string[elementEnd - elementStart];
         Array.Copy(Elements, elementStart, elements, 0, elements.Length);
 
         return elements;
@@ -178,13 +172,10 @@ public struct DreamPath {
 
     public DreamPath FromElements(int elementStart, int elementEnd = -1) {
         string[] elements = GetElements(elementStart, elementEnd);
-        string rawPath = String.Empty;
+        var rawPath = string.Empty;
 
-        if (elements.Length >= 1) {
-            rawPath = elements.Aggregate((string first, string second) => {
-                return first + "/" + second;
-            });
-        }
+        if (elements.Length >= 1)
+            rawPath = elements.Aggregate((first, second) => { return first + "/" + second; });
 
         rawPath = "/" + rawPath;
         return new DreamPath(rawPath);
@@ -193,9 +184,9 @@ public struct DreamPath {
     public DreamPath RemoveElement(int elementIndex) {
         if (elementIndex < 0) elementIndex += Elements.Length;
 
-        List<string> elements = new List<string>();
+        var elements = new List<string>();
         elements.AddRange(GetElements(0, elementIndex));
-        elements.AddRange(GetElements(Math.Min(elementIndex + 1, Elements.Length), -1));
+        elements.AddRange(GetElements(Math.Min(elementIndex + 1, Elements.Length)));
         return new DreamPath(Type, elements.ToArray());
     }
 
@@ -211,43 +202,46 @@ public struct DreamPath {
         return PathString;
     }
 
-    public override bool Equals(object? obj) => obj is DreamPath other && Equals(other);
+    public override bool Equals(object? obj) {
+        return obj is DreamPath other && Equals(other);
+    }
 
     [Pure]
     public bool Equals(DreamPath other) {
         if (other.Elements.Length != Elements.Length) return false;
 
-        for (int i = 0; i < Elements.Length; i++) {
-            if (Elements[i] != other.Elements[i]) return false;
-        }
+        for (var i = 0; i < Elements.Length; i++)
+            if (Elements[i] != other.Elements[i])
+                return false;
 
         return true;
     }
 
     public override int GetHashCode() {
-        int hashCode = 0;
-        for (int i = 0; i < Elements.Length; i++) {
-            hashCode += Elements[i].GetHashCode();
-        }
+        var hashCode = 0;
+        for (var i = 0; i < Elements.Length; i++) hashCode += Elements[i].GetHashCode();
 
         return hashCode;
     }
 
-    public static bool operator ==(DreamPath lhs, DreamPath rhs) => lhs.Equals(rhs);
+    public static bool operator ==(DreamPath lhs, DreamPath rhs) {
+        return lhs.Equals(rhs);
+    }
 
-    public static bool operator !=(DreamPath lhs, DreamPath rhs) => !(lhs == rhs);
+    public static bool operator !=(DreamPath lhs, DreamPath rhs) {
+        return !(lhs == rhs);
+    }
 
     private void Normalize(bool canHaveEmptyEntries) {
-        if (canHaveEmptyEntries && _elements.Contains("")) {
+        if (canHaveEmptyEntries && _elements.Contains(""))
             // Slow path :(
             _elements = _elements.Where(el => !string.IsNullOrEmpty(el)).ToArray();
-        }
 
-        var writeIdx = Array.IndexOf(_elements, "..");
+        int writeIdx = Array.IndexOf(_elements, "..");
         if (writeIdx == -1) return;
 
-        for (var i = writeIdx; i < _elements.Length; i++) {
-            var elem = _elements[i];
+        for (int i = writeIdx; i < _elements.Length; i++) {
+            string elem = _elements[i];
             if (elem == "..") {
                 writeIdx -= 1;
             } else {

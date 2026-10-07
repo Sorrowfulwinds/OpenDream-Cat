@@ -1,5 +1,5 @@
-﻿using DMCompiler.Compiler.DM;
-using System.IO;
+﻿using System.IO;
+using DMCompiler.Compiler.DM;
 
 namespace DMCompiler.Compiler.DMPreprocessor;
 
@@ -22,20 +22,22 @@ Constant ::= Integer | Float | Null
 */
 
 /// <summary>
-/// An extremely simple parser that acts on a sliver of tokens that have been DM-lexed for evaluation in a preprocessor directive, <br/>
-/// held separate from DMParser because of slightly different behaviour, far simpler implementation, and (<see langword="TODO"/>) possible statelessness.
+///     An extremely simple parser that acts on a sliver of tokens that have been DM-lexed for evaluation in a preprocessor
+///     directive, <br />
+///     held separate from DMParser because of slightly different behaviour, far simpler implementation, and (
+///     <see langword="TODO" />) possible statelessness.
 /// </summary>
 internal class DMPreprocessorParser(DMCompiler compiler) {
-    private List<Token>? _tokens;
+    private readonly float DegenerateValue = 0.0f;
     private Dictionary<string, DMMacro>? _defines;
     private int _tokenIndex;
-    private readonly float DegenerateValue = 0.0f;
+    private List<Token>? _tokens;
 
     /// <returns>A float, because that is the only possible thing a well-formed preproc expression can evaluate to.</returns>
     public float? ExpressionFromTokens(List<Token> input, Dictionary<string, DMMacro> defines) {
         _tokens = input;
         _defines = defines;
-        var ret = Expression();
+        float? ret = Expression();
         _tokens = null;
         _defines = null;
         _tokenIndex = 0;
@@ -63,12 +65,11 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
     }
 
     private bool Check(TokenType[] types) {
-        foreach (TokenType type in types) {
+        foreach (TokenType type in types)
             if (Current().Type == type) {
                 Advance();
                 return true;
             }
-        }
 
         return false;
     }
@@ -133,10 +134,10 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
 
             switch (token.Type) {
                 case TokenType.DM_EqualsEquals:
-                    a = (a == b ? 1.0f : 0.0f);
+                    a = a == b ? 1.0f : 0.0f;
                     break;
                 case TokenType.DM_ExclamationEquals:
-                    a = (a != b ? 1.0f : 0.0f);
+                    a = a != b ? 1.0f : 0.0f;
                     break;
                 case TokenType.DM_TildeEquals:
                     Error("'~=' is not valid in preprocessor expressions");
@@ -162,16 +163,16 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
 
             switch (token.Type) {
                 case TokenType.DM_LessThan:
-                    a = (a < b ? 1.0f : 0.0f);
+                    a = a < b ? 1.0f : 0.0f;
                     break;
                 case TokenType.DM_LessThanEquals:
-                    a = (a <= b ? 1.0f : 0.0f);
+                    a = a <= b ? 1.0f : 0.0f;
                     break;
                 case TokenType.DM_GreaterThan:
-                    a = (a > b ? 1.0f : 0.0f);
+                    a = a > b ? 1.0f : 0.0f;
                     break;
                 case TokenType.DM_GreaterThanEquals:
-                    a = (a >= b ? 1.0f : 0.0f);
+                    a = a >= b ? 1.0f : 0.0f;
                     break;
             }
         }
@@ -284,9 +285,7 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
             case TokenType.DM_LeftParenthesis:
                 Advance();
                 float? inner = Expression();
-                if (!Check(TokenType.DM_RightParenthesis)) {
-                    Error("Expected ')' to close expression");
-                }
+                if (!Check(TokenType.DM_RightParenthesis)) Error("Expected ')' to close expression");
 
                 return inner;
             case TokenType.DM_Identifier:
@@ -305,14 +304,14 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
                     }
 
                     Advance();
-                    if (!Check(TokenType.DM_RightParenthesis)) {
+                    if (!Check(TokenType.DM_RightParenthesis))
                         compiler.Emit(WarningCode.DefinedMissingParen, token.Location,
                             "Expected ')' to end defined() expression");
-                        //Electing to not return a degenerate value here since "defined(x" actually isn't an ambiguous grammar; we can figure out what they meant.
-                    }
-
+                    //Electing to not return a degenerate value here since "defined(x" actually isn't an ambiguous grammar; we can figure out what they meant.
                     return _defines!.ContainsKey(definedInner.Text) ? 1.0f : 0.0f;
-                } else if (token.Text == "fexists") {
+                }
+
+                if (token.Text == "fexists") {
                     Advance();
                     if (!Check(TokenType.DM_LeftParenthesis)) {
                         Error("Expected '(' to begin fexists() expression");
@@ -327,14 +326,14 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
                     }
 
                     Advance();
-                    if (!Check(TokenType.DM_RightParenthesis)) {
+                    if (!Check(TokenType.DM_RightParenthesis))
                         compiler.Emit(WarningCode.DefinedMissingParen, token.Location,
                             "Expected ')' to end fexists() expression");
-                    }
 
-                    var filePath = Path.GetRelativePath(".", fExistsInner.ValueAsString().Replace('\\', '/'));
+                    string filePath = Path.GetRelativePath(".", fExistsInner.ValueAsString().Replace('\\', '/'));
 
-                    var outputDir = Path.Combine(Path.GetDirectoryName(compiler.Settings.Files?[0]) ?? "/", Path.GetDirectoryName(fExistsInner.Location.SourceFile) ?? "/");
+                    string outputDir = Path.Combine(Path.GetDirectoryName(compiler.Settings.Files?[0]) ?? "/",
+                        Path.GetDirectoryName(fExistsInner.Location.SourceFile) ?? "/");
                     if (string.IsNullOrEmpty(outputDir))
                         outputDir = "./";
 
@@ -356,7 +355,7 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
         switch (constantToken.Type) {
             case TokenType.DM_Integer:
                 Advance();
-                return (float)(constantToken.ValueAsInt());
+                return (float)constantToken.ValueAsInt();
             case TokenType.DM_Float:
                 Advance();
                 return constantToken.ValueAsFloat();

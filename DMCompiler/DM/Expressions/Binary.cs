@@ -17,7 +17,7 @@ internal abstract class BinaryOp(Location location, DMExpression lhs, DMExpressi
 // x + y
 internal sealed class Add(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -35,7 +35,7 @@ internal sealed class Add(Location location, DMExpression lhs, DMExpression rhs)
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -49,7 +49,7 @@ internal sealed class Add(Location location, DMExpression lhs, DMExpression rhs)
 // x - y
 internal sealed class Subtract(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -65,7 +65,7 @@ internal sealed class Subtract(Location location, DMExpression lhs, DMExpression
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -79,7 +79,7 @@ internal sealed class Subtract(Location location, DMExpression lhs, DMExpression
 // x * y
 internal sealed class Multiply(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -95,7 +95,7 @@ internal sealed class Multiply(Location location, DMExpression lhs, DMExpression
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -109,7 +109,7 @@ internal sealed class Multiply(Location location, DMExpression lhs, DMExpression
 // x / y
 internal sealed class Divide(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -129,7 +129,7 @@ internal sealed class Divide(Location location, DMExpression lhs, DMExpression r
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -143,7 +143,7 @@ internal sealed class Divide(Location location, DMExpression lhs, DMExpression r
 // x % y
 internal sealed class Modulo(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -159,7 +159,7 @@ internal sealed class Modulo(Location location, DMExpression lhs, DMExpression r
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -171,16 +171,17 @@ internal sealed class Modulo(Location location, DMExpression lhs, DMExpression r
 }
 
 // x %% y
-internal sealed class ModuloModulo(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
+internal sealed class ModuloModulo(Location location, DMExpression lhs, DMExpression rhs)
+    : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
             // BYOND docs say that A %% B is equivalent to B * fract(A/B)
-            var fraction = lhsNum.Value / rhsNum.Value;
+            float fraction = lhsNum.Value / rhsNum.Value;
             fraction -= MathF.Truncate(fraction);
             constant = new Number(Location, fraction * rhsNum.Value);
         } else {
@@ -192,7 +193,7 @@ internal sealed class ModuloModulo(Location location, DMExpression lhs, DMExpres
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -206,7 +207,7 @@ internal sealed class ModuloModulo(Location location, DMExpression lhs, DMExpres
 // x ** y
 internal sealed class Power(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -222,7 +223,7 @@ internal sealed class Power(Location location, DMExpression lhs, DMExpression rh
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -236,7 +237,7 @@ internal sealed class Power(Location location, DMExpression lhs, DMExpression rh
 // x << y
 internal sealed class LeftShift(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -252,7 +253,7 @@ internal sealed class LeftShift(Location location, DMExpression lhs, DMExpressio
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -266,7 +267,7 @@ internal sealed class LeftShift(Location location, DMExpression lhs, DMExpressio
 // x >> y
 internal sealed class RightShift(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
@@ -282,7 +283,7 @@ internal sealed class RightShift(Location location, DMExpression lhs, DMExpressi
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -298,13 +299,13 @@ internal sealed class BinaryAnd(Location location, DMExpression lhs, DMExpressio
     public override bool PathIsFuzzy => true;
 
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
-            constant = new Number(Location, ((int)lhsNum.Value) & ((int)rhsNum.Value));
+            constant = new Number(Location, (int)lhsNum.Value & (int)rhsNum.Value);
         } else {
             constant = null;
             return false;
@@ -314,7 +315,7 @@ internal sealed class BinaryAnd(Location location, DMExpression lhs, DMExpressio
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -328,13 +329,13 @@ internal sealed class BinaryAnd(Location location, DMExpression lhs, DMExpressio
 // x ^ y
 internal sealed class BinaryXor(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
-            constant = new Number(Location, ((int)lhsNum.Value) ^ ((int)rhsNum.Value));
+            constant = new Number(Location, (int)lhsNum.Value ^ (int)rhsNum.Value);
         } else {
             constant = null;
             return false;
@@ -344,7 +345,7 @@ internal sealed class BinaryXor(Location location, DMExpression lhs, DMExpressio
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -358,13 +359,13 @@ internal sealed class BinaryXor(Location location, DMExpression lhs, DMExpressio
 // x | y
 internal sealed class BinaryOr(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
-            constant = new Number(Location, ((int)lhsNum.Value) | ((int)rhsNum.Value));
+            constant = new Number(Location, (int)lhsNum.Value | (int)rhsNum.Value);
         } else {
             constant = null;
             return false;
@@ -374,7 +375,7 @@ internal sealed class BinaryOr(Location location, DMExpression lhs, DMExpression
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -413,7 +414,8 @@ internal sealed class Equivalent(Location location, DMExpression lhs, DMExpressi
 }
 
 // x ~! y
-internal sealed class NotEquivalent(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
+internal sealed class NotEquivalent(Location location, DMExpression lhs, DMExpression rhs)
+    : BinaryOp(location, lhs, rhs) {
     public override void EmitPushValue(ExpressionContext ctx) {
         LHS.EmitPushValue(ctx);
         RHS.EmitPushValue(ctx);
@@ -422,17 +424,18 @@ internal sealed class NotEquivalent(Location location, DMExpression lhs, DMExpre
 }
 
 // x > y
-internal sealed class GreaterThan(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
+internal sealed class GreaterThan(Location location, DMExpression lhs, DMExpression rhs)
+    : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, (0 > rhsNum1.Value) ? 1 : 0);
+            constant = new Number(Location, 0 > rhsNum1.Value ? 1 : 0);
         } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, (lhsNum.Value > rhsNum2.Value) ? 1 : 0);
+            constant = new Number(Location, lhsNum.Value > rhsNum2.Value ? 1 : 0);
         } else {
             constant = null;
             return false;
@@ -442,7 +445,7 @@ internal sealed class GreaterThan(Location location, DMExpression lhs, DMExpress
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -454,9 +457,10 @@ internal sealed class GreaterThan(Location location, DMExpression lhs, DMExpress
 }
 
 // x >= y
-internal sealed class GreaterThanOrEqual(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
+internal sealed class GreaterThanOrEqual(Location location, DMExpression lhs, DMExpression rhs)
+    : BinaryOp(location, lhs, rhs) {
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -467,15 +471,15 @@ internal sealed class GreaterThanOrEqual(Location location, DMExpression lhs, DM
     }
 
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, (0 >= rhsNum1.Value) ? 1 : 0);
+            constant = new Number(Location, 0 >= rhsNum1.Value ? 1 : 0);
         } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, (lhsNum.Value >= rhsNum2.Value) ? 1 : 0);
+            constant = new Number(Location, lhsNum.Value >= rhsNum2.Value ? 1 : 0);
         } else {
             constant = null;
             return false;
@@ -488,7 +492,7 @@ internal sealed class GreaterThanOrEqual(Location location, DMExpression lhs, DM
 // x < y
 internal sealed class LessThan(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -499,15 +503,15 @@ internal sealed class LessThan(Location location, DMExpression lhs, DMExpression
     }
 
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, (0 < rhsNum1.Value) ? 1 : 0);
+            constant = new Number(Location, 0 < rhsNum1.Value ? 1 : 0);
         } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, (lhsNum.Value < rhsNum2.Value) ? 1 : 0);
+            constant = new Number(Location, lhsNum.Value < rhsNum2.Value ? 1 : 0);
         } else {
             constant = null;
             return false;
@@ -518,9 +522,10 @@ internal sealed class LessThan(Location location, DMExpression lhs, DMExpression
 }
 
 // x <= y
-internal sealed class LessThanOrEqual(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
+internal sealed class LessThanOrEqual(Location location, DMExpression lhs, DMExpression rhs)
+    : BinaryOp(location, lhs, rhs) {
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -531,15 +536,15 @@ internal sealed class LessThanOrEqual(Location location, DMExpression lhs, DMExp
     }
 
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (!LHS.TryAsConstant(compiler, out var lhs) || !RHS.TryAsConstant(compiler, out var rhs)) {
+        if (!LHS.TryAsConstant(compiler, out Constant? lhs) || !RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = null;
             return false;
         }
 
         if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, (0 <= rhsNum1.Value) ? 1 : 0);
+            constant = new Number(Location, 0 <= rhsNum1.Value ? 1 : 0);
         } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, (lhsNum.Value <= rhsNum2.Value) ? 1 : 0);
+            constant = new Number(Location, lhsNum.Value <= rhsNum2.Value ? 1 : 0);
         } else {
             constant = null;
             return false;
@@ -552,13 +557,13 @@ internal sealed class LessThanOrEqual(Location location, DMExpression lhs, DMExp
 // x || y
 internal sealed class Or(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (LHS.TryAsConstant(compiler, out var lhs)) {
+        if (LHS.TryAsConstant(compiler, out Constant? lhs)) {
             if (lhs.IsTruthy()) {
                 constant = lhs;
                 return true;
             }
 
-            if (RHS.TryAsConstant(compiler, out var rhs)) {
+            if (RHS.TryAsConstant(compiler, out Constant? rhs)) {
                 constant = rhs;
                 return true;
             }
@@ -569,7 +574,7 @@ internal sealed class Or(Location location, DMExpression lhs, DMExpression rhs) 
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -586,12 +591,12 @@ internal sealed class Or(Location location, DMExpression lhs, DMExpression rhs) 
 // x && y
 internal sealed class And(Location location, DMExpression lhs, DMExpression rhs) : BinaryOp(location, lhs, rhs) {
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        if (LHS.TryAsConstant(compiler, out var lhs) && !lhs.IsTruthy()) {
+        if (LHS.TryAsConstant(compiler, out Constant? lhs) && !lhs.IsTruthy()) {
             constant = lhs;
             return true;
         }
 
-        if (RHS.TryAsConstant(compiler, out var rhs)) {
+        if (RHS.TryAsConstant(compiler, out Constant? rhs)) {
             constant = rhs;
             return true;
         }
@@ -601,9 +606,9 @@ internal sealed class And(Location location, DMExpression lhs, DMExpression rhs)
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (LHS.TryAsConstant(ctx.Compiler, out var lhs)) {
+        if (LHS.TryAsConstant(ctx.Compiler, out Constant? lhs)) {
             if (lhs.IsTruthy()) {
-                if (RHS.TryAsConstant(ctx.Compiler, out var constant)) {
+                if (RHS.TryAsConstant(ctx.Compiler, out Constant? constant)) {
                     constant.EmitPushValue(ctx);
                     return;
                 }
@@ -626,7 +631,8 @@ internal sealed class And(Location location, DMExpression lhs, DMExpression rhs)
 }
 
 // x in y
-internal sealed class In(Location location, DMExpression expr, DMExpression container) : BinaryOp(location, expr, container) {
+internal sealed class In(Location location, DMExpression expr, DMExpression container)
+    : BinaryOp(location, expr, container) {
     public override void EmitPushValue(ExpressionContext ctx) {
         LHS.EmitPushValue(ctx);
         RHS.EmitPushValue(ctx);
@@ -641,11 +647,18 @@ internal sealed class In(Location location, DMExpression expr, DMExpression cont
 internal abstract class AssignmentBinaryOp(Location location, DMExpression lhs, DMExpression rhs)
     : BinaryOp(location, lhs, rhs) {
     /// <summary>
-    /// Generic interface for emitting the assignment operation. Has its conditionality and reference generation already handled.
+    ///     Generic interface for emitting the assignment operation. Has its conditionality and reference generation already
+    ///     handled.
     /// </summary>
-    /// <remarks>You should always make use of the reference argument, unless you totally override AssignmentBinaryOp's EmitPushValue method.</remarks>
+    /// <remarks>
+    ///     You should always make use of the reference argument, unless you totally override AssignmentBinaryOp's
+    ///     EmitPushValue method.
+    /// </remarks>
     /// <param name="ctx"></param>
-    /// <param name="reference">A reference to the LHS emitted via <see cref="DMExpression.EmitReference(ExpressionContext,string,DMExpression.ShortCircuitMode)"/></param>
+    /// <param name="reference">
+    ///     A reference to the LHS emitted via
+    ///     <see cref="DMExpression.EmitReference(ExpressionContext,string,DMExpression.ShortCircuitMode)" />
+    /// </param>
     /// <param name="endLabel"></param>
     protected abstract void EmitOp(ExpressionContext ctx, DMReference reference, string endLabel);
 
@@ -660,7 +673,8 @@ internal abstract class AssignmentBinaryOp(Location location, DMExpression lhs, 
 }
 
 // x = y
-internal sealed class Assignment(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class Assignment(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     public override DreamPath? Path => LHS.Path;
 
     protected override void EmitOp(ExpressionContext ctx, DMReference reference, string endLabel) {
@@ -678,7 +692,8 @@ internal sealed class Assignment(Location location, DMExpression lhs, DMExpressi
 }
 
 // x := y
-internal sealed class AssignmentInto(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class AssignmentInto(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     public override DreamPath? Path => LHS.Path;
 
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
@@ -689,7 +704,8 @@ internal sealed class AssignmentInto(Location location, DMExpression lhs, DMExpr
 }
 
 // x += y
-internal sealed class Append(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class Append(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -698,7 +714,8 @@ internal sealed class Append(Location location, DMExpression lhs, DMExpression r
 }
 
 // x |= y
-internal sealed class Combine(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class Combine(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -707,7 +724,8 @@ internal sealed class Combine(Location location, DMExpression lhs, DMExpression 
 }
 
 // x -= y
-internal sealed class Remove(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class Remove(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -716,7 +734,8 @@ internal sealed class Remove(Location location, DMExpression lhs, DMExpression r
 }
 
 // x &= y
-internal sealed class Mask(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class Mask(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -725,7 +744,8 @@ internal sealed class Mask(Location location, DMExpression lhs, DMExpression rhs
 }
 
 // x &&= y
-internal sealed class LogicalAndAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class LogicalAndAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         ctx.Proc.JumpIfFalseReference(reference, endLabel);
@@ -735,7 +755,8 @@ internal sealed class LogicalAndAssign(Location location, DMExpression lhs, DMEx
 }
 
 // x ||= y
-internal sealed class LogicalOrAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class LogicalOrAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         ctx.Proc.JumpIfTrueReference(reference, endLabel);
@@ -745,7 +766,8 @@ internal sealed class LogicalOrAssign(Location location, DMExpression lhs, DMExp
 }
 
 // x *= y
-internal sealed class MultiplyAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class MultiplyAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -754,7 +776,8 @@ internal sealed class MultiplyAssign(Location location, DMExpression lhs, DMExpr
 }
 
 // x /= y
-internal sealed class DivideAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class DivideAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -763,7 +786,8 @@ internal sealed class DivideAssign(Location location, DMExpression lhs, DMExpres
 }
 
 // x <<= y
-internal sealed class LeftShiftAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class LeftShiftAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -772,7 +796,8 @@ internal sealed class LeftShiftAssign(Location location, DMExpression lhs, DMExp
 }
 
 // x >>= y
-internal sealed class RightShiftAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class RightShiftAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -781,7 +806,8 @@ internal sealed class RightShiftAssign(Location location, DMExpression lhs, DMEx
 }
 
 // x ^= y
-internal sealed class XorAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class XorAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -790,7 +816,8 @@ internal sealed class XorAssign(Location location, DMExpression lhs, DMExpressio
 }
 
 // x %= y
-internal sealed class ModulusAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class ModulusAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);
@@ -799,7 +826,8 @@ internal sealed class ModulusAssign(Location location, DMExpression lhs, DMExpre
 }
 
 // x %%= y
-internal sealed class ModulusModulusAssign(Location location, DMExpression lhs, DMExpression rhs) : AssignmentBinaryOp(location, lhs, rhs) {
+internal sealed class ModulusModulusAssign(Location location, DMExpression lhs, DMExpression rhs)
+    : AssignmentBinaryOp(location, lhs, rhs) {
     protected override void EmitOp(ExpressionContext ctx, DMReference reference,
         string endLabel) {
         RHS.EmitPushValue(ctx);

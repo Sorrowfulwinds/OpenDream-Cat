@@ -41,15 +41,15 @@ public struct SourceInfoJson {
 }
 
 public class LineComparer : IEqualityComparer<SourceInfoJson> {
-    public bool Equals(SourceInfoJson? x, SourceInfoJson? y) {
-        return x?.Line == y?.Line;
-    }
-
     public bool Equals(SourceInfoJson x, SourceInfoJson y) {
         return x.Line == y.Line;
     }
 
     public int GetHashCode(SourceInfoJson obj) {
         return obj.Line.GetHashCode();
+    }
+
+    public bool Equals(SourceInfoJson? x, SourceInfoJson? y) {
+        return x?.Line == y?.Line;
     }
 }

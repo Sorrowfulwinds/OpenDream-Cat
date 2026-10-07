@@ -1,13 +1,20 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using Robust.Shared.Maths;
 
 namespace DMCompiler;
 
 /// <summary>
-/// A class containing operations used by both the compiler and the server.
-/// Helps make sure things like sin() and cos() give the same result on both.
+///     A class containing operations used by both the compiler and the server.
+///     Helps make sure things like sin() and cos() give the same result on both.
 /// </summary>
 public static class SharedOperations {
+    public enum ColorSpace {
+        RGB = 0,
+        HSV = 1,
+        HSL = 2
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float Sin(float x) {
         return MathF.Sin(x / 180 * MathF.PI);
@@ -72,13 +79,7 @@ public static class SharedOperations {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int BitShiftRight(int left, int right) {
-        return (left & 0x00FFFFFF) >> (right) ;
-    }
-
-    public enum ColorSpace {
-        RGB = 0,
-        HSV = 1,
-        HSL = 2
+        return (left & 0x00FFFFFF) >> right;
     }
 
     public static string ParseRgb((string? Name, float? Value)[] arguments) {
@@ -87,10 +88,10 @@ public static class SharedOperations {
         float? color2 = null;
         float? color3 = null;
         float? a = null;
-        ColorSpace space = ColorSpace.RGB;
+        var space = ColorSpace.RGB;
 
         int orderedIdx = -1;
-        foreach (var (name, value) in arguments) {
+        foreach ((string? name, float? value) in arguments) {
             orderedIdx++;
 
             if (name == null) {
@@ -136,12 +137,13 @@ public static class SharedOperations {
             } else if (name.StartsWith("l", StringComparison.InvariantCultureIgnoreCase) && color3 is null) {
                 color3 = value;
                 space = ColorSpace.HSL;
-            } else if (name.StartsWith("a", StringComparison.InvariantCultureIgnoreCase) && a is null)
+            } else if (name.StartsWith("a", StringComparison.InvariantCultureIgnoreCase) && a is null) {
                 a = value;
-            else if (name == "space" && space == default)
+            } else if (name == "space" && space == default) {
                 space = (ColorSpace?)value ?? ColorSpace.RGB;
-            else
+            } else {
                 throw new Exception($"Invalid or double arg \"{name}\"");
+            }
         }
 
         color1 ??= 0;
@@ -156,9 +158,9 @@ public static class SharedOperations {
 
         switch (space) {
             case ColorSpace.RGB: {
-                byte r = (byte)Math.Clamp(color1.Value, 0, 255);
-                byte g = (byte)Math.Clamp(color2.Value, 0, 255);
-                byte b = (byte)Math.Clamp(color3.Value, 0, 255);
+                var r = (byte)Math.Clamp(color1.Value, 0, 255);
+                var g = (byte)Math.Clamp(color2.Value, 0, 255);
+                var b = (byte)Math.Clamp(color3.Value, 0, 255);
 
                 color = new Color(r, g, b, aValue);
                 break;
@@ -169,7 +171,7 @@ public static class SharedOperations {
                 float s = Math.Clamp(color2.Value, 0, 100) / 100f;
                 float v = Math.Clamp(color3.Value, 0, 100) / 100f;
 
-                color = Color.FromHsv(new(h, s, v, aValue / 255f));
+                color = Color.FromHsv(new Vector4(h, s, v, aValue / 255f));
                 break;
             }
             case ColorSpace.HSL: {
@@ -177,7 +179,7 @@ public static class SharedOperations {
                 float s = Math.Clamp(color2.Value, 0, 100) / 100f;
                 float l = Math.Clamp(color3.Value, 0, 100) / 100f;
 
-                color = Color.FromHsl(new(h, s, l, aValue / 255f));
+                color = Color.FromHsl(new Vector4(h, s, l, aValue / 255f));
                 break;
             }
             default:
@@ -185,11 +187,10 @@ public static class SharedOperations {
         }
 
         // TODO: There is a difference between passing null and not passing a fourth arg at all
-        if (a is null) {
+        if (a is null)
             result = $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}".ToLower();
-        } else {
+        else
             result = $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}{color.AByte:X2}".ToLower();
-        }
 
         return result;
     }

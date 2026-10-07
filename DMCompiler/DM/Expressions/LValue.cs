@@ -8,7 +8,8 @@ internal abstract class LValue(Location location, DreamPath? path) : DMExpressio
     public override DreamPath? Path { get; } = path;
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) { // BYOND also seems to push consts instead of references when possible
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
+            // BYOND also seems to push consts instead of references when possible
             constant.EmitPushValue(ctx);
             return;
         }
@@ -29,7 +30,7 @@ internal abstract class LValue(Location location, DreamPath? path) : DMExpressio
 }
 
 /// <summary>
-/// Used when there was an error regarding L-Values
+///     Used when there was an error regarding L-Values
 /// </summary>
 /// <remarks>Emit an error code before creating!</remarks>
 internal sealed class BadLValue(Location location) : LValue(location, null) {
@@ -41,7 +42,8 @@ internal sealed class BadLValue(Location location) : LValue(location, null) {
     }
 
     public override void EmitPushInitial(ExpressionContext ctx) {
-        ctx.Compiler.Emit(WarningCode.BadExpression, Location, "Can't get initial value of a bad LValue (compiler bug!)");
+        ctx.Compiler.Emit(WarningCode.BadExpression, Location,
+            "Can't get initial value of a bad LValue (compiler bug!)");
         ctx.Proc.Throw();
     }
 }
@@ -70,17 +72,20 @@ internal sealed class Src(Location location, DreamPath? path) : LValue(location,
     }
 
     public override void EmitPushInitial(ExpressionContext ctx) {
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on `src` returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on `src` returns the current value");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "src";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "src";
+    }
 }
 
 // usr
 internal sealed class Usr(Location location) : LValue(location, DreamPath.Mob) {
     //According to the docs, Usr is a mob. But it will get set to null by coders to clear refs.
-    public override DMComplexValueType ValType => (DMValueType.Mob | DMValueType.Null);
+    public override DMComplexValueType ValType => DMValueType.Mob | DMValueType.Null;
 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
@@ -88,11 +93,14 @@ internal sealed class Usr(Location location) : LValue(location, DreamPath.Mob) {
     }
 
     public override void EmitPushInitial(ExpressionContext ctx) {
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on `usr` returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on `usr` returns the current value");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "usr";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "usr";
+    }
 }
 
 // args
@@ -103,11 +111,14 @@ internal sealed class Args(Location location) : LValue(location, DreamPath.List)
     }
 
     public override void EmitPushInitial(ExpressionContext ctx) {
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on `args` returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on `args` returns the current value");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "args";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "args";
+    }
 }
 
 // callee
@@ -119,11 +130,14 @@ internal sealed class Callee(Location location) : LValue(location, DreamPath.Cal
 
     public override void EmitPushInitial(ExpressionContext ctx) {
         // This happens silently in BYOND
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on constant var `callee` is pointless");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on constant var `callee` is pointless");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "callee";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "callee";
+    }
 }
 
 // caller
@@ -135,11 +149,14 @@ internal sealed class Caller(Location location) : LValue(location, DreamPath.Cal
 
     public override void EmitPushInitial(ExpressionContext ctx) {
         // This happens silently in BYOND
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on constant var `caller` is pointless");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on constant var `caller` is pointless");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "caller";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "caller";
+    }
 }
 
 // world
@@ -151,15 +168,19 @@ internal sealed class World(Location location) : LValue(location, DreamPath.Worl
 
     public override void EmitPushInitial(ExpressionContext ctx) {
         // This happens silently in BYOND
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on constant var `world` is pointless");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on constant var `world` is pointless");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "world";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "world";
+    }
 }
 
 // Identifier of local variable
-internal sealed class Local(Location location, DMProc.LocalVariable localVar, bool staticContext) : LValue(location, localVar.Type) {
+internal sealed class Local(Location location, DMProc.LocalVariable localVar, bool staticContext)
+    : LValue(location, localVar.Type) {
     public DMProc.LocalVariable LocalVar { get; } = localVar;
 
     // TODO: non-const local var static typing
@@ -175,11 +196,9 @@ internal sealed class Local(Location location, DMProc.LocalVariable localVar, bo
             return DMReference.Invalid;
         }
 
-        if (LocalVar.IsParameter) {
-            return DMReference.CreateArgument(LocalVar.Id);
-        } else {
-            return DMReference.CreateLocal(LocalVar.Id);
-        }
+        if (LocalVar.IsParameter) return DMReference.CreateArgument(LocalVar.Id);
+
+        return DMReference.CreateLocal(LocalVar.Id);
     }
 
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
@@ -194,11 +213,14 @@ internal sealed class Local(Location location, DMProc.LocalVariable localVar, bo
 
     public override void EmitPushInitial(ExpressionContext ctx) {
         // This happens silently in BYOND
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on a local variable returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on a local variable returns the current value");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => LocalVar.Name;
+    public override string GetNameof(ExpressionContext ctx) {
+        return LocalVar.Name;
+    }
 
     public override void EmitPushIsSaved(ExpressionContext ctx) {
         ctx.Proc.PushFloat(0);
@@ -206,7 +228,8 @@ internal sealed class Local(Location location, DMProc.LocalVariable localVar, bo
 }
 
 // Identifier of field
-internal sealed class Field(Location location, DMVariable variable, DMComplexValueType valType) : LValue(location, variable.Type) {
+internal sealed class Field(Location location, DMVariable variable, DMComplexValueType valType)
+    : LValue(location, variable.Type) {
     public bool IsConst { get; } = variable.IsConst;
     public override DMComplexValueType ValType => valType;
 
@@ -215,10 +238,10 @@ internal sealed class Field(Location location, DMVariable variable, DMComplexVal
         ctx.Proc.PushString(variable.Name);
         ctx.Proc.Initial();
 
-        if (variable.IsConst) {
+        if (variable.IsConst)
             // This happens silently in BYOND
-            ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on a constant variable is pointless");
-        }
+            ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+                "calling initial() on a constant variable is pointless");
     }
 
     public override void EmitPushIsSaved(ExpressionContext ctx) {
@@ -232,7 +255,9 @@ internal sealed class Field(Location location, DMVariable variable, DMComplexVal
         return DMReference.CreateSrcField(variable.Name);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => variable.Name;
+    public override string GetNameof(ExpressionContext ctx) {
+        return variable.Name;
+    }
 
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
         return variable.TryAsConstant(compiler, out constant);
@@ -244,7 +269,8 @@ internal sealed class Field(Location location, DMVariable variable, DMComplexVal
 }
 
 // Id of global field
-internal sealed class GlobalField(Location location, DreamPath? path, int id,  DMComplexValueType valType) : LValue(location, path) {
+internal sealed class GlobalField(Location location, DreamPath? path, int id, DMComplexValueType valType)
+    : LValue(location, path) {
     private int Id { get; } = id;
 
     public override DMComplexValueType ValType => valType;
@@ -256,7 +282,8 @@ internal sealed class GlobalField(Location location, DreamPath? path, int id,  D
 
     public override void EmitPushInitial(ExpressionContext ctx) {
         // This happens silently in BYOND
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on a global returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on a global returns the current value");
         EmitPushValue(ctx);
     }
 
@@ -279,9 +306,12 @@ internal sealed class GlobalVars(Location location) : LValue(location, null) {
 
     public override void EmitPushInitial(ExpressionContext ctx) {
         // This happens silently in BYOND
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on `global.vars` returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on `global.vars` returns the current value");
         EmitPushValue(ctx);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => "vars";
+    public override string GetNameof(ExpressionContext ctx) {
+        return "vars";
+    }
 }

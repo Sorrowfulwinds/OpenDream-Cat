@@ -22,7 +22,7 @@ public sealed class MapObjectJson(int type) {
     public Dictionary<string, object?>? VarOverrides { get; set; }
 
     public bool AddVarOverride(string varName, object? varValue) {
-        VarOverrides ??= new();
+        VarOverrides ??= new Dictionary<string, object?>();
         bool contained = VarOverrides.ContainsKey(varName);
         VarOverrides[varName] = varValue;
         return !contained;

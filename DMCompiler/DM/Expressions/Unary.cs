@@ -18,7 +18,7 @@ internal sealed class Negate(Location location, DMExpression expr) : UnaryOp(loc
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -38,7 +38,7 @@ internal sealed class Not(Location location, DMExpression expr) : UnaryOp(locati
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -54,12 +54,12 @@ internal sealed class BinaryNot(Location location, DMExpression expr) : UnaryOp(
         if (!Expr.TryAsConstant(compiler, out constant) || constant is not Number constantNum)
             return false;
 
-        constant = new Number(Location, (~(int)constantNum.Value) & 0xFFFFFF);
+        constant = new Number(Location, ~(int)constantNum.Value & 0xFFFFFF);
         return true;
     }
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (TryAsConstant(ctx.Compiler, out var constant)) {
+        if (TryAsConstant(ctx.Compiler, out Constant? constant)) {
             constant.EmitPushValue(ctx);
             return;
         }
@@ -114,7 +114,8 @@ internal sealed class PostDecrement(Location location, DMExpression expr) : Assi
 internal sealed class PointerRef(Location location, DMExpression expr) : UnaryOp(location, expr) {
     public override void EmitPushValue(ExpressionContext ctx) {
         Expr.EmitPushValue(ctx);
-        ctx.Compiler.UnimplementedWarning(Location, "Pointers are currently unimplemented and identifiers will be treated as normal variables.");
+        ctx.Compiler.UnimplementedWarning(Location,
+            "Pointers are currently unimplemented and identifiers will be treated as normal variables.");
     }
 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
@@ -127,7 +128,8 @@ internal sealed class PointerRef(Location location, DMExpression expr) : UnaryOp
 internal sealed class PointerDeref(Location location, DMExpression expr) : UnaryOp(location, expr) {
     public override void EmitPushValue(ExpressionContext ctx) {
         Expr.EmitPushValue(ctx);
-        ctx.Compiler.UnimplementedWarning(Location, "Pointers are currently unimplemented and identifiers will be treated as normal variables.");
+        ctx.Compiler.UnimplementedWarning(Location,
+            "Pointers are currently unimplemented and identifiers will be treated as normal variables.");
     }
 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,

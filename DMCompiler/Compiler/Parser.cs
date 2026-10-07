@@ -1,11 +1,11 @@
 namespace DMCompiler.Compiler;
 
 public class Parser<TSourceType> {
-    protected readonly Lexer<TSourceType> Lexer;
     protected readonly DMCompiler Compiler;
+    protected readonly Lexer<TSourceType> Lexer;
+    private readonly Stack<Token> _tokenStack = new(1);
 
     private Token _currentToken;
-    private readonly Stack<Token> _tokenStack = new(1);
 
     internal Parser(DMCompiler compiler, Lexer<TSourceType> lexer) {
         Compiler = compiler;
@@ -15,7 +15,7 @@ public class Parser<TSourceType> {
     }
 
     /// <summary>
-    /// Does not consume; this is simply a friendly getter.
+    ///     Does not consume; this is simply a friendly getter.
     /// </summary>
     protected Token Current() {
         return _currentToken;
@@ -60,47 +60,48 @@ public class Parser<TSourceType> {
 
     protected bool Check(Span<TokenType> types, out Token matchedToken) {
         TokenType currentType = Current().Type;
-        foreach (TokenType type in types) {
+        foreach (TokenType type in types)
             if (currentType == type) {
                 matchedToken = Current();
                 Advance();
 
                 return true;
             }
-        }
 
         matchedToken = default;
         return false;
     }
 
     protected void Consume(TokenType type, string errorMessage) {
-        if (!Check(type)) {
-            Emit(WarningCode.BadToken, errorMessage);
-        }
+        if (!Check(type)) Emit(WarningCode.BadToken, errorMessage);
     }
 
-    /// <returns>The <see cref="TokenType"/> that was found.</returns>
+    /// <returns>The <see cref="TokenType" /> that was found.</returns>
     protected TokenType Consume(TokenType[] types, string errorMessage) {
-        foreach (TokenType type in types) {
-            if (Check(type)) return type;
-        }
+        foreach (TokenType type in types)
+            if (Check(type))
+                return type;
 
         Emit(WarningCode.BadToken, errorMessage);
         return TokenType.Unknown;
     }
 
     /// <summary>
-    /// Emits a warning discovered during parsing, optionally causing a throw.
+    ///     Emits a warning discovered during parsing, optionally causing a throw.
     /// </summary>
-    /// <remarks> This implementation on <see cref="Parser{SourceType}"/> does not make use of <see cref="WarningCode"/> <br/>
-    /// since there are some parsers that aren't always in the compilation context, like the ones for DMF and DMM. <br/>
+    /// <remarks>
+    ///     This implementation on <see cref="Parser{SourceType}" /> does not make use of <see cref="WarningCode" /> <br />
+    ///     since there are some parsers that aren't always in the compilation context, like the ones for DMF and DMM. <br />
     /// </remarks>
     protected void Warning(string message, Token? token = null) {
         token ??= _currentToken;
         Compiler.ForcedWarning(token.Value.Location, message);
     }
 
-    /// <returns> True if this will raise an error, false if not. You can use this return value to help improve error emission around this (depending on how permissive we're being)</returns>
+    /// <returns>
+    ///     True if this will raise an error, false if not. You can use this return value to help improve error emission
+    ///     around this (depending on how permissive we're being)
+    /// </returns>
     protected bool Emit(WarningCode code, Location location, string message) {
         return Compiler.Emit(code, location, message);
     }

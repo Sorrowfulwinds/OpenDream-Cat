@@ -28,9 +28,7 @@ internal class DMCodeTreeBuilder(DMCompiler compiler) {
     }
 
     private void ProcessBlockInner(DMASTBlockInner blockInner, DreamPath currentType) {
-        foreach (DMASTStatement statement in blockInner.Statements) {
-            ProcessStatement(statement, currentType);
-        }
+        foreach (DMASTStatement statement in blockInner.Statements) ProcessStatement(statement, currentType);
     }
 
     private void ProcessStatement(DMASTStatement statement, DreamPath currentType) {
@@ -57,7 +55,7 @@ internal class DMCodeTreeBuilder(DMCompiler compiler) {
                 CodeTree.AddObjectVarOverride(varOverride.ObjectPath, varOverride);
                 break;
             case DMASTProcDefinition procDefinition:
-                var procOwner = currentType.Combine(procDefinition.ObjectPath);
+                DreamPath procOwner = currentType.Combine(procDefinition.ObjectPath);
 
                 CodeTree.AddType(procOwner);
                 CodeTree.AddProc(procOwner, procDefinition);

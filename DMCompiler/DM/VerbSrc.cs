@@ -1,7 +1,7 @@
 ﻿namespace DMCompiler.DM;
 
 /// <summary>
-/// The value of "set src = ..." in a verb
+///     The value of "set src = ..." in a verb
 /// </summary>
 public enum VerbSrc {
     View,

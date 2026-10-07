@@ -3,17 +3,17 @@ using System.Text;
 namespace DMCompiler.Compiler.DMPreprocessor;
 
 internal class DMMacro {
-    private readonly List<string>? _parameters;
-    private readonly List<Token>? _tokens;
     private readonly string? _overflowParameter;
     private readonly int _overflowParameterIndex;
+    private readonly List<string>? _parameters;
+    private readonly List<Token>? _tokens;
 
     public DMMacro(List<string>? parameters, List<Token>? tokens) {
         _parameters = parameters;
         _tokens = tokens;
 
-        if (_parameters != null) {
-            for (int i = 0; i < _parameters.Count; i++) {
+        if (_parameters != null)
+            for (var i = 0; i < _parameters.Count; i++) {
                 string parameter = _parameters[i];
 
                 if (parameter.EndsWith("...")) {
@@ -23,20 +23,17 @@ internal class DMMacro {
                     break;
                 }
             }
-        }
 
-        if (_tokens != null) {
+        if (_tokens != null)
             // Concat tokens cause any whitespace directly before them to be ignored
-            for (int i = 1; i < _tokens.Count; i++) {
+            for (var i = 1; i < _tokens.Count; i++) {
                 Token token = _tokens[i];
                 Token lastToken = _tokens[i - 1];
 
                 if (token.Type == TokenType.DM_Preproc_TokenConcat &&
-                    lastToken.Type == TokenType.DM_Preproc_Whitespace) {
+                    lastToken.Type == TokenType.DM_Preproc_Whitespace)
                     _tokens.RemoveAt(--i);
-                }
             }
-        }
     }
 
     public bool HasParameters() {
@@ -44,7 +41,7 @@ internal class DMMacro {
     }
 
     /// <summary>
-    /// Takes given parameters and creates a list of tokens representing the expanded macro
+    ///     Takes given parameters and creates a list of tokens representing the expanded macro
     /// </summary>
     /// <param name="compiler">The DMCompiler compiling this program</param>
     /// <param name="replacing">The identifier being replaced with this macro</param>
@@ -76,22 +73,20 @@ internal class DMMacro {
                 List<Token> parameter = parameters[parameterIndex];
 
                 if (token.Type == TokenType.DM_Preproc_ParameterStringify) {
-                    StringBuilder tokenTextBuilder = new StringBuilder();
+                    var tokenTextBuilder = new StringBuilder();
 
                     // Use a raw string. Use '#' because that can't appear in an expression.
                     // this does mean, however, that a '#' inside the string will make the preprocessor dump produce invalid code
                     tokenTextBuilder.Append("@#");
-                    foreach (Token parameterToken in parameter) {
-                        tokenTextBuilder.Append(parameterToken.Text);
-                    }
+                    foreach (Token parameterToken in parameter) tokenTextBuilder.Append(parameterToken.Text);
 
                     tokenTextBuilder.Append('#');
 
-                    string tokenText = tokenTextBuilder.ToString();
+                    var tokenText = tokenTextBuilder.ToString();
                     expandedTokens.Add(new Token(TokenType.DM_Preproc_ConstantString, tokenText,
                         Location.Unknown, tokenText.Substring(2, tokenText.Length - 3)));
                 } else {
-                    foreach (var parameterToken in parameter) {
+                    foreach (Token parameterToken in parameter)
                         switch (parameterToken.Type) {
                             case TokenType.DM_Preproc_Identifier:
                             case TokenType.DM_Preproc_Number:
@@ -99,7 +94,7 @@ internal class DMMacro {
                                     goto default;
 
                                 // If the last token was an identifier, we need to combine the two
-                                var lastToken = expandedTokens[^1];
+                                Token lastToken = expandedTokens[^1];
                                 if (lastToken.Type != TokenType.DM_Preproc_Identifier)
                                     goto default;
 
@@ -111,25 +106,24 @@ internal class DMMacro {
                                 expandedTokens.Add(parameterToken);
                                 break;
                         }
-                    }
                 }
             } else if (_overflowParameter != null && parameterName == _overflowParameter) {
                 for (int i = _overflowParameterIndex; i < parameters.Count; i++) {
                     expandedTokens.AddRange(parameters[i]);
 
-                    if(i < parameters.Count-1)
-                        expandedTokens.Add(new Token(TokenType.DM_Preproc_Punctuator_Comma, ",", Location.Unknown, null));
+                    if (i < parameters.Count - 1)
+                        expandedTokens.Add(
+                            new Token(TokenType.DM_Preproc_Punctuator_Comma, ",", Location.Unknown, null));
                 }
             } else {
-                if (token.Type == TokenType.DM_Preproc_ParameterStringify) {
+                if (token.Type == TokenType.DM_Preproc_ParameterStringify)
                     expandedTokens.Add(new Token(TokenType.DM_Preproc_ConstantString, $"@#{parameterName}#",
                         Location.Unknown, parameterName));
-                } else if (token.Type == TokenType.DM_Preproc_TokenConcat) {
+                else if (token.Type == TokenType.DM_Preproc_TokenConcat)
                     expandedTokens.Add(new Token(TokenType.DM_Preproc_Identifier, parameterName,
                         Location.Unknown, null));
-                } else {
+                else
                     expandedTokens.Add(token);
-                }
             }
         }
 
@@ -140,7 +134,7 @@ internal class DMMacro {
 // __LINE__
 internal sealed class DMMacroLine() : DMMacro(null, null) {
     public override List<Token> Expand(DMCompiler compiler, Token replacing, List<List<Token>>? parameters) {
-        var line = replacing.Location.Line;
+        int? line = replacing.Location.Line;
         if (line == null)
             throw new ArgumentException($"Token {replacing} does not have a line number", nameof(replacing));
 

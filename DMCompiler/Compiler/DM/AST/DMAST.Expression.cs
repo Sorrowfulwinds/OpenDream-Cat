@@ -9,15 +9,15 @@ public abstract class DMASTExpression(Location location) : DMASTNode(location) {
     }
 
     /// <summary>
-    /// If this is a <see cref="DMASTExpressionWrapped"/>, returns the expression inside.
-    /// Returns this expression if not.
+    ///     If this is a <see cref="DMASTExpressionWrapped" />, returns the expression inside.
+    ///     Returns this expression if not.
     /// </summary>
     public virtual DMASTExpression GetUnwrapped() {
         return this;
     }
 
     public override string ToStringNoLocation() {
-        var leaves = Leaves().ToList();
+        List<DMASTExpression> leaves = Leaves().ToList();
         if (leaves.Count == 0)
             return $"{GetType().Name}";
         return $"{GetType().Name}({string.Join(", ", Leaves().Select(l => l.ToString(Location)))})";
@@ -25,7 +25,7 @@ public abstract class DMASTExpression(Location location) : DMASTNode(location) {
 }
 
 /// <summary>
-/// Used when there was an error parsing an expression
+///     Used when there was an error parsing an expression
 /// </summary>
 /// <remarks>Emit an error code before creating!</remarks>
 public sealed class DMASTInvalidExpression(Location location) : DMASTExpression(location);
@@ -41,31 +41,31 @@ public sealed class DMASTSwitchCaseRange(Location location, DMASTExpression rang
 
 public sealed class DMASTStringFormat(Location location, string value, DMASTExpression?[] interpolatedValues)
     : DMASTExpression(location) {
-    public readonly string Value = value;
     public readonly DMASTExpression?[] InterpolatedValues = interpolatedValues;
+    public readonly string Value = value;
 }
 
-public sealed class DMASTList(Location location, DMASTCallParameter[] values, bool isAList) : DMASTExpression(location) {
-    public readonly DMASTCallParameter[] Values = values;
+public sealed class DMASTList(Location location, DMASTCallParameter[] values, bool isAList)
+    : DMASTExpression(location) {
     public readonly bool IsAList = isAList; // list() or alist()
+    public readonly DMASTCallParameter[] Values = values;
 
     public bool AllValuesConstant() {
-        return Values.All(
-            value => (value is {
-                 Key: DMASTExpressionConstant,
-                 Value: DMASTExpressionConstant
-            })
-            ||
-            (value is {
-                Key: DMASTExpressionConstant,
-                Value: DMASTList valueList
-            } && valueList.AllValuesConstant())
+        return Values.All(value => value is {
+                                       Key: DMASTExpressionConstant,
+                                       Value: DMASTExpressionConstant
+                                   }
+                                   ||
+                                   (value is {
+                                       Key: DMASTExpressionConstant,
+                                       Value: DMASTList valueList
+                                   } && valueList.AllValuesConstant())
         );
     }
 }
 
 /// <summary>
-/// Represents the value of a var defined as <code>var/list/L[1][2][3]</code>
+///     Represents the value of a var defined as <code>var/list/L[1][2][3]</code>
 /// </summary>
 public sealed class DMASTDimensionalList(Location location, List<DMASTExpression> sizes)
     : DMASTExpression(location) {
@@ -85,9 +85,9 @@ public sealed class DMASTInput(
     DMASTCallParameter[] parameters,
     DMValueType? types,
     DMASTExpression? list) : DMASTExpression(location) {
+    public readonly DMASTExpression? List = list;
     public readonly DMASTCallParameter[] Parameters = parameters;
     public DMValueType? Types = types;
-    public readonly DMASTExpression? List = list;
 }
 
 public sealed class DMASTLocateCoordinates(
@@ -100,8 +100,8 @@ public sealed class DMASTLocateCoordinates(
 
 public sealed class DMASTLocate(Location location, DMASTExpression? expression, DMASTExpression? container)
     : DMASTExpression(location) {
-    public readonly DMASTExpression? Expression = expression;
     public readonly DMASTExpression? Container = container;
+    public readonly DMASTExpression? Expression = expression;
 }
 
 public sealed class DMASTGradient(Location location, DMASTCallParameter[] parameters) : DMASTExpression(location) {
@@ -117,18 +117,18 @@ public sealed class DMASTAnimate(Location location, DMASTCallParameter[] paramet
 }
 
 public sealed class DMASTPick(Location location, DMASTPick.PickValue[] values) : DMASTExpression(location) {
+    public readonly PickValue[] Values = values;
+
     public struct PickValue(DMASTExpression? weight, DMASTExpression value) {
         public readonly DMASTExpression? Weight = weight;
         public readonly DMASTExpression Value = value;
     }
-
-    public readonly PickValue[] Values = values;
 }
 
 public class DMASTLog(Location location, DMASTExpression expression, DMASTExpression? baseExpression)
     : DMASTExpression(location) {
-    public readonly DMASTExpression Expression = expression;
     public readonly DMASTExpression? BaseExpression = baseExpression;
+    public readonly DMASTExpression Expression = expression;
 }
 
 public sealed class DMASTCall(
@@ -144,14 +144,14 @@ public class DMASTVarDeclExpression(Location location, DMASTPath path) : DMASTEx
 
 public sealed class DMASTNewPath(Location location, DMASTConstantPath path, DMASTCallParameter[]? parameters)
     : DMASTExpression(location) {
-    public readonly DMASTConstantPath Path = path;
     public readonly DMASTCallParameter[]? Parameters = parameters;
+    public readonly DMASTConstantPath Path = path;
 }
 
 public sealed class DMASTNewModifiedType(Location location, DMASTModifiedType type, DMASTCallParameter[]? parameters)
     : DMASTExpression(location) {
-    public readonly DMASTModifiedType Type = type;
     public readonly DMASTCallParameter[]? Parameters = parameters;
+    public readonly DMASTModifiedType Type = type;
 }
 
 public sealed class DMASTNewExpr(Location location, DMASTExpression expression, DMASTCallParameter[]? parameters)
@@ -182,10 +182,10 @@ public sealed class DMASTExpressionInRange(
     DMASTExpression startRange,
     DMASTExpression endRange,
     DMASTExpression? step = null) : DMASTExpression(location) {
-    public DMASTExpression Value = value;
-    public DMASTExpression StartRange = startRange;
-    public DMASTExpression EndRange = endRange;
     public readonly DMASTExpression? Step = step;
+    public DMASTExpression EndRange = endRange;
+    public DMASTExpression StartRange = startRange;
+    public DMASTExpression Value = value;
 
     public override IEnumerable<DMASTExpression> Leaves() {
         yield return Value;
@@ -204,24 +204,31 @@ public sealed class DMASTDereference(
     Location location,
     DMASTExpression expression,
     DMASTDereference.Operation[] operations) : DMASTExpression(location) {
+    public readonly DMASTExpression Expression = expression;
+
+    // Always contains at least one operation
+    public readonly Operation[] Operations = operations;
+
     public abstract class Operation {
         /// <summary>
-        /// The location of the operation.
+        ///     The location of the operation.
         /// </summary>
         public required Location Location;
+
         /// <summary>
-        /// Whether we should short circuit if the expression we are accessing is null.
+        ///     Whether we should short circuit if the expression we are accessing is null.
         /// </summary>
         public required bool Safe; // x?.y, x?.y() etc
     }
 
     public abstract class NamedOperation : Operation {
         /// <summary>
-        /// Name of the identifier.
+        ///     Name of the identifier.
         /// </summary>
         public required string Identifier;
+
         /// <summary>
-        /// Whether we should check if the variable exists or not.
+        ///     Whether we should check if the variable exists or not.
         /// </summary>
         public required bool NoSearch; // x:y, x:y()
     }
@@ -230,32 +237,27 @@ public sealed class DMASTDereference(
 
     public sealed class IndexOperation : Operation {
         /// <summary>
-        /// The index expression that we use to index this expression (constant or otherwise).
+        ///     The index expression that we use to index this expression (constant or otherwise).
         /// </summary>
         public required DMASTExpression Index; // x[y], x?[y]
     }
 
     public sealed class CallOperation : NamedOperation {
         /// <summary>
-        /// The parameters that we call this proc with.
+        ///     The parameters that we call this proc with.
         /// </summary>
         public required DMASTCallParameter[] Parameters; // x.y(),
     }
-
-    public readonly DMASTExpression Expression = expression;
-
-    // Always contains at least one operation
-    public readonly Operation[] Operations = operations;
 }
 
 public interface IDMASTCallable;
 
-public sealed class DMASTCallableProcIdentifier(Location location, string identifier) : DMASTExpression(location), IDMASTCallable {
+public sealed class DMASTCallableProcIdentifier(Location location, string identifier)
+    : DMASTExpression(location), IDMASTCallable {
     public readonly string Identifier = identifier;
 }
 
 public sealed class DMASTCallableSuper(Location location) : DMASTExpression(location), IDMASTCallable;
-
 public sealed class DMASTCallableSelf(Location location) : DMASTExpression(location), IDMASTCallable;
 
 public sealed class DMASTScopeIdentifier(
@@ -263,9 +265,9 @@ public sealed class DMASTScopeIdentifier(
     DMASTExpression? expression,
     string identifier,
     DMASTCallParameter[]? callArguments) : DMASTExpression(location), IDMASTCallable {
+    public readonly DMASTCallParameter[]? CallArguments = callArguments;
     public readonly DMASTExpression? Expression = expression;
     public readonly string Identifier = identifier;
-    public readonly DMASTCallParameter[]? CallArguments = callArguments;
 
     public bool IsProcRef => CallArguments != null;
 }

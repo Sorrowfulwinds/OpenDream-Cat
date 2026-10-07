@@ -7,7 +7,7 @@ using DMCompiler.DM.Expressions;
 namespace DMCompiler.DM.Builders;
 
 internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMProc proc) {
-    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc));
+    private readonly DMExpressionBuilder _exprBuilder = new(new ExpressionContext(compiler, dmObject, proc));
 
     private ExpressionContext ExprContext => new(compiler, dmObject, proc);
 
@@ -35,25 +35,27 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             }
         }
 
-        ProcessBlockInner(procDefinition.Body, silenceEmptyBlockWarning : true);
+        ProcessBlockInner(procDefinition.Body, true);
         proc.ResolveLabels();
     }
 
     /// <param name="block">The block to process</param>
-    /// <param name="silenceEmptyBlockWarning">Used to avoid emitting noisy warnings about procs with nothing in them.<br/>
-    /// FIXME: Eventually we should try to be smart enough to emit the error anyway for procs that <br/>
-    /// A: are not marked opendream_unimplemented and <br/>
-    /// B: have no descendant proc which actually has code in it (implying that this proc is just some abstract virtual for it)
+    /// <param name="silenceEmptyBlockWarning">
+    ///     Used to avoid emitting noisy warnings about procs with nothing in them.<br />
+    ///     FIXME: Eventually we should try to be smart enough to emit the error anyway for procs that <br />
+    ///     A: are not marked opendream_unimplemented and <br />
+    ///     B: have no descendant proc which actually has code in it (implying that this proc is just some abstract virtual for
+    ///     it)
     /// </param>
     private void ProcessBlockInner(DMASTProcBlockInner block, bool silenceEmptyBlockWarning = false) {
-        if(!silenceEmptyBlockWarning && block.Statements.Length == 0) { // If this block has no real statements
+        if (!silenceEmptyBlockWarning && block.Statements.Length == 0) { // If this block has no real statements
             // Not an error in BYOND, but we do have an emission for this!
-            if (block.SetStatements.Length != 0) {
+            if (block.SetStatements.Length != 0)
                 // Give a more articulate message about this, since it's kinda weird
-                compiler.Emit(WarningCode.EmptyBlock,block.Location,"Empty block detected - set statements are executed outside of, before, and unconditional to, this block");
-            } else {
-                compiler.Emit(WarningCode.EmptyBlock,block.Location,"Empty block detected");
-            }
+                compiler.Emit(WarningCode.EmptyBlock, block.Location,
+                    "Empty block detected - set statements are executed outside of, before, and unconditional to, this block");
+            else
+                compiler.Emit(WarningCode.EmptyBlock, block.Location, "Empty block detected");
 
             return;
         }
@@ -68,7 +70,8 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         switch (statement) {
             case DMASTInvalidProcStatement: break;
             case DMASTNullProcStatement: break;
-            case DMASTProcStatementExpression statementExpression: ProcessStatementExpression(statementExpression); break;
+            case DMASTProcStatementExpression statementExpression:
+                ProcessStatementExpression(statementExpression); break;
             case DMASTProcStatementContinue statementContinue: ProcessStatementContinue(statementContinue); break;
             case DMASTProcStatementGoto statementGoto: ProcessStatementGoto(statementGoto); break;
             case DMASTProcStatementLabel statementLabel: ProcessStatementLabel(statementLabel); break;
@@ -83,8 +86,10 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             case DMASTProcStatementDoWhile statementDoWhile: ProcessStatementDoWhile(statementDoWhile); break;
             case DMASTProcStatementSwitch statementSwitch: ProcessStatementSwitch(statementSwitch); break;
             case DMASTProcStatementBrowse statementBrowse: ProcessStatementBrowse(statementBrowse); break;
-            case DMASTProcStatementBrowseResource statementBrowseResource: ProcessStatementBrowseResource(statementBrowseResource); break;
-            case DMASTProcStatementOutputControl statementOutputControl: ProcessStatementOutputControl(statementOutputControl); break;
+            case DMASTProcStatementBrowseResource statementBrowseResource:
+                ProcessStatementBrowseResource(statementBrowseResource); break;
+            case DMASTProcStatementOutputControl statementOutputControl:
+                ProcessStatementOutputControl(statementOutputControl); break;
             case DMASTProcStatementLink statementLink: ProcessStatementLink(statementLink); break;
             case DMASTProcStatementFtp statementFtp: ProcessStatementFtp(statementFtp); break;
             case DMASTProcStatementOutput statementOutput: ProcessStatementOutput(statementOutput); break;
@@ -95,7 +100,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             //NOTE: Is there a more generic way of doing this, where Aggregate doesn't need every possible type state specified here?
             //      please write such generic thing if more than three aggregates show up in this switch.
             case DMASTAggregate<DMASTProcStatementVarDeclaration> gregVar:
-                foreach (var declare in gregVar.Statements)
+                foreach (DMASTProcStatementVarDeclaration declare in gregVar.Statements)
                     ProcessStatementVarDeclaration(declare);
                 break;
             default:
@@ -118,8 +123,8 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
     }
 
     private void ProcessStatementLabel(DMASTProcStatementLabel statementLabel) {
-        var codeLabel = proc.TryAddCodeLabel(statementLabel.Name);
-        var labelName = codeLabel?.LabelName ?? statementLabel.Name;
+        DMProc.CodeLabel? codeLabel = proc.TryAddCodeLabel(statementLabel.Name);
+        string labelName = codeLabel?.LabelName ?? statementLabel.Name;
 
         proc.AddLabel(labelName);
 
@@ -162,27 +167,27 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
     }
 
     /// <remarks>
-    /// Global/static var declarations are handled by <see cref="DMCodeTree.ProcGlobalVarNode" />
+    ///     Global/static var declarations are handled by <see cref="DMCodeTree.ProcGlobalVarNode" />
     /// </remarks>
     private void ProcessStatementVarDeclaration(DMASTProcStatementVarDeclaration varDeclaration) {
-        if (varDeclaration.IsGlobal) { return; }
+        if (varDeclaration.IsGlobal) return;
 
         DMExpression value;
         if (varDeclaration.Value != null) {
             value = _exprBuilder.Create(varDeclaration.Value, varDeclaration.Type);
 
-            if (!varDeclaration.ValType.MatchesType(compiler, value.ValType)) {
+            if (!varDeclaration.ValType.MatchesType(compiler, value.ValType))
                 compiler.Emit(WarningCode.InvalidVarType, varDeclaration.Location,
                     $"{varDeclaration.Name}: Invalid var value {value.ValType}, expected {varDeclaration.ValType}");
-            }
         } else {
             value = new Null(varDeclaration.Location);
         }
 
         bool successful;
         if (varDeclaration.IsConst) {
-            if (!value.TryAsConstant(compiler, out var constValue)) {
-                compiler.Emit(WarningCode.HardConstContext, varDeclaration.Location, "Const var must be set to a constant");
+            if (!value.TryAsConstant(compiler, out Constant? constValue)) {
+                compiler.Emit(WarningCode.HardConstContext, varDeclaration.Location,
+                    "Const var must be set to a constant");
                 return;
             }
 
@@ -192,7 +197,8 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         }
 
         if (!successful) {
-            compiler.Emit(WarningCode.DuplicateVariable, varDeclaration.Location, $"Duplicate var {varDeclaration.Name}");
+            compiler.Emit(WarningCode.DuplicateVariable, varDeclaration.Location,
+                $"Duplicate var {varDeclaration.Name}");
             return;
         }
 
@@ -203,15 +209,14 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
 
     private void ProcessStatementReturn(DMASTProcStatementReturn statement) {
         if (statement.Value != null) {
-            var expr = _exprBuilder.Create(statement.Value);
+            DMExpression expr = _exprBuilder.Create(statement.Value);
 
             // Don't type-check unimplemented procs
             if (proc.TypeChecked && (proc.Attributes & ProcAttributes.Unimplemented) == 0) {
-                if (expr.TryAsConstant(compiler, out var exprConst)) {
+                if (expr.TryAsConstant(compiler, out Constant? exprConst))
                     proc.ValidateReturnType(exprConst);
-                } else {
+                else
                     proc.ValidateReturnType(expr);
-                }
             }
 
             expr.EmitPushValue(ExprContext);
@@ -255,40 +260,45 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
     private void ProcessStatementFor(DMASTProcStatementFor statementFor) {
         proc.StartScope();
         {
-            foreach (var decl in FindVarDecls(statementFor.Expression1)) {
-                ProcessStatementVarDeclaration(new DMASTProcStatementVarDeclaration(statementFor.Location, decl.DeclPath, null, DMValueType.Anything));
-            }
+            foreach (DMASTVarDeclExpression decl in FindVarDecls(statementFor.Expression1))
+                ProcessStatementVarDeclaration(new DMASTProcStatementVarDeclaration(statementFor.Location,
+                    decl.DeclPath, null, DMValueType.Anything));
 
-            if (statementFor is { Expression2: DMASTExpressionIn dmastIn, Expression3: null }) { // for(var/i,j in expr) or for(i,j in expr)
-                var valueVar = statementFor.Expression2 != null ? _exprBuilder.CreateIgnoreUnknownReference(statementFor.Expression2) : null;
-                var list = _exprBuilder.Create(dmastIn.RHS);
+            if (statementFor is {Expression2: DMASTExpressionIn dmastIn, Expression3: null}) {
+                // for(var/i,j in expr) or for(i,j in expr)
+                DMExpression? valueVar = statementFor.Expression2 != null
+                    ? _exprBuilder.CreateIgnoreUnknownReference(statementFor.Expression2)
+                    : null;
+                DMExpression list = _exprBuilder.Create(dmastIn.RHS);
 
                 // TODO: Wow this sucks
                 if (valueVar is UnknownReference unknownRef) { // j in var/i,j isn't already a var
-                    if(dmastIn.LHS is not DMASTIdentifier ident)
+                    if (dmastIn.LHS is not DMASTIdentifier ident)
                         unknownRef.EmitCompilerError(compiler);
                     else
-                        ProcessStatementVarDeclaration(new DMASTProcStatementVarDeclaration(statementFor.Location, new DMASTPath(statementFor.Location, new DreamPath(ident.Identifier)), null, DMValueType.Anything));
+                        ProcessStatementVarDeclaration(new DMASTProcStatementVarDeclaration(statementFor.Location,
+                            new DMASTPath(statementFor.Location, new DreamPath(ident.Identifier)), null,
+                            DMValueType.Anything));
                 }
 
                 DMASTExpression outputExpr;
-                if (statementFor.Expression1 is DMASTVarDeclExpression decl) {
+                if (statementFor.Expression1 is DMASTVarDeclExpression decl)
                     outputExpr = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement!);
-                } else {
+                else
                     outputExpr = statementFor.Expression1;
-                }
 
-                var keyVar = _exprBuilder.Create(outputExpr);
+                DMExpression keyVar = _exprBuilder.Create(outputExpr);
                 valueVar = _exprBuilder.Create(dmastIn.LHS);
 
                 switch (keyVar) {
                     case Local outputLocal: {
                         outputLocal.LocalVar.ExplicitValueType = statementFor.DMTypes;
-                        if(outputLocal.LocalVar is DMProc.LocalConstVariable)
-                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
+                        if (outputLocal.LocalVar is DMProc.LocalConstVariable)
+                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
+                                "Cannot change constant value");
                         break;
                     }
-                    case Field { IsConst: true }: {
+                    case Field {IsConst: true}: {
                         compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
                         break;
                     }
@@ -297,11 +307,12 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                 switch (valueVar) {
                     case Local assocLocal: {
                         assocLocal.LocalVar.ExplicitValueType = statementFor.DMTypes;
-                        if(assocLocal.LocalVar is DMProc.LocalConstVariable)
-                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
+                        if (assocLocal.LocalVar is DMProc.LocalConstVariable)
+                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
+                                "Cannot change constant value");
                         break;
                     }
-                    case Field { IsConst: true }: {
+                    case Field {IsConst: true}: {
                         compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
                         break;
                     }
@@ -309,21 +320,29 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
 
                 ProcessStatementForList(list, keyVar, valueVar, statementFor.DMTypes, statementFor.Body);
             } else if (statementFor.Expression2 != null || statementFor.Expression3 != null) {
-                var initializer = statementFor.Expression1 != null ? _exprBuilder.Create(statementFor.Expression1) : null;
-                var comparator = statementFor.Expression2 != null ? _exprBuilder.Create(statementFor.Expression2) : null;
-                var incrementor = statementFor.Expression3 != null ? _exprBuilder.Create(statementFor.Expression3) : null;
+                DMExpression? initializer = statementFor.Expression1 != null
+                    ? _exprBuilder.Create(statementFor.Expression1)
+                    : null;
+                DMExpression? comparator = statementFor.Expression2 != null
+                    ? _exprBuilder.Create(statementFor.Expression2)
+                    : null;
+                DMExpression? incrementor = statementFor.Expression3 != null
+                    ? _exprBuilder.Create(statementFor.Expression3)
+                    : null;
 
                 ProcessStatementForStandard(initializer, comparator, incrementor, statementFor.Body);
             } else {
                 switch (statementFor.Expression1) {
                     case DMASTAssign {LHS: DMASTVarDeclExpression decl, RHS: DMASTExpressionInRange range}: {
-                        var initializer = statementFor.Expression1 != null ? _exprBuilder.Create(statementFor.Expression1) : null;
+                        DMExpression? initializer = statementFor.Expression1 != null
+                            ? _exprBuilder.Create(statementFor.Expression1)
+                            : null;
                         var identifier = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement);
-                        var outputVar = _exprBuilder.Create(identifier);
+                        DMExpression outputVar = _exprBuilder.Create(identifier);
 
-                        var start = _exprBuilder.Create(range.StartRange);
-                        var end = _exprBuilder.Create(range.EndRange);
-                        var step = range.Step != null
+                        DMExpression start = _exprBuilder.Create(range.StartRange);
+                        DMExpression end = _exprBuilder.Create(range.EndRange);
+                        DMExpression step = range.Step != null
                             ? _exprBuilder.Create(range.StartRange)
                             : new Number(range.Location, 1);
 
@@ -331,27 +350,26 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                         break;
                     }
                     case DMASTExpressionInRange exprRange: {
-                        DMASTVarDeclExpression? decl = exprRange.Value as DMASTVarDeclExpression;
+                        var decl = exprRange.Value as DMASTVarDeclExpression;
                         decl ??= exprRange.Value is DMASTAssign assign
                             ? assign.LHS as DMASTVarDeclExpression
                             : null;
 
                         DMASTExpression outputExpr;
-                        if (decl != null) {
+                        if (decl != null)
                             outputExpr = new DMASTIdentifier(exprRange.Value.Location, decl.DeclPath.Path.LastElement);
-                        } else {
+                        else
                             outputExpr = exprRange.Value;
-                        }
 
-                        var outputVar = _exprBuilder.Create(outputExpr);
+                        DMExpression outputVar = _exprBuilder.Create(outputExpr);
 
-                        if (outputVar is Local { LocalVar: DMProc.LocalConstVariable } or Field { IsConst: true }) {
-                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
-                        }
+                        if (outputVar is Local {LocalVar: DMProc.LocalConstVariable} or Field {IsConst: true})
+                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
+                                "Cannot change constant value");
 
-                        var start = _exprBuilder.Create(exprRange.StartRange);
-                        var end = _exprBuilder.Create(exprRange.EndRange);
-                        var step = exprRange.Step != null
+                        DMExpression start = _exprBuilder.Create(exprRange.StartRange);
+                        DMExpression end = _exprBuilder.Create(exprRange.EndRange);
+                        DMExpression step = exprRange.Step != null
                             ? _exprBuilder.Create(exprRange.Step)
                             : new Number(exprRange.Location, 1);
 
@@ -359,31 +377,36 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                         break;
                     }
                     case DMASTVarDeclExpression vd: {
-                        var initializer = statementFor.Expression1 != null ? _exprBuilder.Create(statementFor.Expression1) : null;
+                        DMExpression? initializer = statementFor.Expression1 != null
+                            ? _exprBuilder.Create(statementFor.Expression1)
+                            : null;
                         var declInfo = new ProcVarDeclInfo(vd.DeclPath.Path);
                         var identifier = new DMASTIdentifier(vd.Location, declInfo.VarName);
-                        var outputVar = _exprBuilder.Create(identifier);
+                        DMExpression outputVar = _exprBuilder.Create(identifier);
 
-                        ProcessStatementForType(vd.Location, initializer, outputVar, declInfo.TypePath, statementFor.Body);
+                        ProcessStatementForType(vd.Location, initializer, outputVar, declInfo.TypePath,
+                            statementFor.Body);
                         break;
                     }
                     case DMASTExpressionIn exprIn: {
                         DMASTExpression outputExpr;
-                        if (exprIn.LHS is DMASTVarDeclExpression decl) {
+                        if (exprIn.LHS is DMASTVarDeclExpression decl)
                             outputExpr = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement);
-                        } else {
+                        else
                             outputExpr = exprIn.LHS;
-                        }
 
-                        var outputVar = _exprBuilder.Create(outputExpr);
-                        var list = _exprBuilder.Create(exprIn.RHS);
+                        DMExpression outputVar = _exprBuilder.Create(outputExpr);
+                        DMExpression list = _exprBuilder.Create(exprIn.RHS);
 
                         if (outputVar is Local outputLocal) {
                             outputLocal.LocalVar.ExplicitValueType = statementFor.DMTypes;
-                            if(outputLocal.LocalVar is DMProc.LocalConstVariable)
-                                compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
-                        } else if (outputVar is Field { IsConst: true })
-                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location, "Cannot change constant value");
+                            if (outputLocal.LocalVar is DMProc.LocalConstVariable)
+                                compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
+                                    "Cannot change constant value");
+                        } else if (outputVar is Field {IsConst: true}) {
+                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
+                                "Cannot change constant value");
+                        }
 
                         ProcessStatementForList(list, outputVar, null, statementFor.DMTypes, statementFor.Body);
                         break;
@@ -402,15 +425,14 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             if (expr is DMASTVarDeclExpression p)
                 yield return p;
 
-            foreach (var leaf in expr.Leaves()) {
-                foreach(var decl in FindVarDecls(leaf)) {
-                    yield return decl;
-                }
-            }
+            foreach (DMASTExpression leaf in expr.Leaves())
+            foreach (DMASTVarDeclExpression decl in FindVarDecls(leaf))
+                yield return decl;
         }
     }
 
-    private void ProcessStatementForStandard(DMExpression? initializer, DMExpression? comparator, DMExpression? incrementor, DMASTProcBlockInner body) {
+    private void ProcessStatementForStandard(DMExpression? initializer, DMExpression? comparator,
+        DMExpression? incrementor, DMASTProcBlockInner body) {
         proc.StartScope();
         {
             if (initializer != null) {
@@ -465,7 +487,8 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         }
     }
 
-    private void ProcessStatementForList(DMExpression list, DMExpression outputVar, DMExpression? outputAssocVar, DMComplexValueType? typeCheck, DMASTProcBlockInner body) {
+    private void ProcessStatementForList(DMExpression list, DMExpression outputVar, DMExpression? outputAssocVar,
+        DMComplexValueType? typeCheck, DMASTProcBlockInner body) {
         if (outputVar is not LValue lValue) {
             compiler.Emit(WarningCode.BadExpression, outputVar.Location, "Invalid output var");
             lValue = new BadLValue(outputVar.Location);
@@ -476,17 +499,15 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             lValue = new BadLValue(outputAssocVar.Location);
         }
 
-        LValue? outputValue = (LValue?)outputAssocVar;
+        var outputValue = (LValue?)outputAssocVar;
 
         // Having no "as [types]" will use the var's type for the type filter
-        if (typeCheck == null && lValue.Path != null) {
-            typeCheck = lValue.Path;
-        }
+        if (typeCheck == null && lValue.Path != null) typeCheck = lValue.Path;
 
-        bool performingImplicitIsType = false;
+        var performingImplicitIsType = false;
         list.EmitPushValue(ExprContext);
         if (typeCheck?.TypePath is { } typeCheckPath) { // We have a specific type to filter for
-            if (compiler.DMObjectTree.TryGetTypeId(typeCheckPath, out var filterTypeId)) {
+            if (compiler.DMObjectTree.TryGetTypeId(typeCheckPath, out int filterTypeId)) {
                 // Create an enumerator that will do the implicit istype() for us
                 proc.CreateFilteredListEnumerator(filterTypeId, typeCheckPath);
             } else {
@@ -512,13 +533,13 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                 // It would be ideal if the type filtering could be done by the interpreter, like it does when the var has a type
                 // But the code currently isn't structured in a way that it could be done nicely
                 if (performingImplicitIsType) {
-                    var afterTypeCheckIf = proc.NewLabelName();
-                    var afterTypeCheckExpr = proc.NewLabelName();
+                    string afterTypeCheckIf = proc.NewLabelName();
+                    string afterTypeCheckExpr = proc.NewLabelName();
 
                     void CheckType(DMValueType type, DreamPath path, ref bool doOr) {
                         if (!typeCheck!.Value.Type.HasFlag(type))
                             return;
-                        if (!compiler.DMObjectTree.TryGetTypeId(path, out var typeId))
+                        if (!compiler.DMObjectTree.TryGetTypeId(path, out int typeId))
                             return;
 
                         if (doOr)
@@ -530,7 +551,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                         proc.IsType();
                     }
 
-                    bool doOr = false; // Only insert BooleanOr after the first type
+                    var doOr = false; // Only insert BooleanOr after the first type
                     CheckType(DMValueType.Area, DreamPath.Area, ref doOr);
                     CheckType(DMValueType.Turf, DreamPath.Turf, ref doOr);
                     CheckType(DMValueType.Obj, DreamPath.Obj, ref doOr);
@@ -554,7 +575,8 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         proc.DestroyEnumerator();
     }
 
-    private void ProcessStatementForType(Location location, DMExpression? initializer, DMExpression outputVar, DreamPath? type, DMASTProcBlockInner body) {
+    private void ProcessStatementForType(Location location, DMExpression? initializer, DMExpression outputVar,
+        DreamPath? type, DMASTProcBlockInner body) {
         if (type == null) {
             // This shouldn't happen, just to be safe
             compiler.ForcedError(location,
@@ -562,7 +584,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             return;
         }
 
-        if (compiler.DMObjectTree.TryGetTypeId(type.Value, out var typeId)) {
+        if (compiler.DMObjectTree.TryGetTypeId(type.Value, out int typeId)) {
             proc.PushType(typeId);
             proc.CreateTypeEnumerator();
         } else {
@@ -581,11 +603,10 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             {
                 proc.MarkLoopContinue(loopLabel);
 
-                if (outputVar is LValue lValue) {
+                if (outputVar is LValue lValue)
                     ProcessLoopAssignment(lValue);
-                } else {
+                else
                     compiler.Emit(WarningCode.BadExpression, outputVar.Location, "Invalid output var");
-                }
 
                 ProcessBlockInner(body);
                 proc.LoopJumpToStart(loopLabel);
@@ -596,14 +617,14 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         proc.DestroyEnumerator();
     }
 
-    private void ProcessStatementForRange(DMExpression? initializer, DMExpression outputVar, DMExpression start, DMExpression end, DMExpression? step, DMASTProcBlockInner body) {
+    private void ProcessStatementForRange(DMExpression? initializer, DMExpression outputVar, DMExpression start,
+        DMExpression end, DMExpression? step, DMASTProcBlockInner body) {
         start.EmitPushValue(ExprContext);
         end.EmitPushValue(ExprContext);
-        if (step != null) {
+        if (step != null)
             step.EmitPushValue(ExprContext);
-        } else {
+        else
             proc.PushFloat(1.0f);
-        }
 
         proc.CreateRangeEnumerator();
         proc.StartScope();
@@ -618,11 +639,10 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             {
                 proc.MarkLoopContinue(loopLabel);
 
-                if (outputVar is LValue lValue) {
+                if (outputVar is LValue lValue)
                     ProcessLoopAssignment(lValue);
-                } else {
+                else
                     compiler.Emit(WarningCode.BadExpression, outputVar.Location, "Invalid output var");
-                }
 
                 ProcessBlockInner(body);
                 proc.LoopJumpToStart(loopLabel);
@@ -634,7 +654,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
     }
 
     //Generic infinite loop, while loops with static expression as their conditional with positive truthfulness get turned into this as well as empty for() calls
-    private void ProcessStatementInfLoop(DMASTProcStatementInfLoop statementInfLoop){
+    private void ProcessStatementInfLoop(DMASTProcStatementInfLoop statementInfLoop) {
         proc.StartScope();
         {
             string loopLabel = proc.NewLabelName();
@@ -693,13 +713,13 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         DMASTProcBlockInner? defaultCaseBody = null;
 
         _exprBuilder.Emit(statementSwitch.Value);
-        foreach (DMASTProcStatementSwitch.SwitchCase switchCase in statementSwitch.Cases) {
+        foreach (DMASTProcStatementSwitch.SwitchCase switchCase in statementSwitch.Cases)
             if (switchCase is DMASTProcStatementSwitch.SwitchCaseValues switchCaseValues) {
                 string caseLabel = proc.NewLabelName();
 
                 foreach (DMASTExpression value in switchCaseValues.Values) {
                     Constant GetCaseValue(DMASTExpression expression) {
-                        if (!_exprBuilder.TryConstant(expression, out var constant))
+                        if (!_exprBuilder.TryConstant(expression, out Constant? constant))
                             compiler.Emit(WarningCode.HardConstContext, expression.Location, "Expected a constant");
 
                         // Return 0 if unsuccessful so that we can continue compiling
@@ -746,7 +766,6 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             } else {
                 defaultCaseBody = ((DMASTProcStatementSwitch.SwitchCaseDefault)switchCase).Body;
             }
-        }
 
         proc.Pop();
 
@@ -860,9 +879,8 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         string endLabel = proc.NewLabelName();
 
         if (tryCatch.CatchParameter is DMASTProcStatementVarDeclaration param) {
-            if (!proc.TryAddLocalVariable(param.Name, param.Type, param.ValType)) {
+            if (!proc.TryAddLocalVariable(param.Name, param.Type, param.ValType))
                 compiler.Emit(WarningCode.DuplicateVariable, param.Location, $"Duplicate var {param.Name}");
-            }
 
             proc.StartTry(catchLabel, proc.GetLocalVariableReference(param.Name, param.Location));
         } else {

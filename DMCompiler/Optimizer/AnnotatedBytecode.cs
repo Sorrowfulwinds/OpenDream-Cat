@@ -5,18 +5,17 @@ using DMCompiler.DM;
 namespace DMCompiler.Optimizer;
 
 internal interface IAnnotatedBytecode {
-    public void AddArg(DMCompiler compiler, IAnnotatedBytecode arg);
+    void AddArg(DMCompiler compiler, IAnnotatedBytecode arg);
     void SetLocation(IAnnotatedBytecode location);
     void SetLocation(Location location);
-    public Location GetLocation();
+    Location GetLocation();
 }
 
 internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
+    private readonly List<IAnnotatedBytecode> _args = new();
     public Location Location;
     public DreamProcOpcode Opcode;
     public int StackSizeDelta;
-
-    private readonly List<IAnnotatedBytecode> _args = new();
     private Location? _location;
 
     public AnnotatedBytecodeInstruction(DreamProcOpcode opcode, int stackSizeDelta, Location location) {
@@ -51,24 +50,39 @@ internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
         _args = args;
     }
 
+    public void AddArg(DMCompiler compiler, IAnnotatedBytecode arg) {
+        _args.Add(arg);
+    }
+
+    public void SetLocation(IAnnotatedBytecode loc) {
+        if (_location != null) return;
+        _location = loc.GetLocation();
+    }
+
+    public void SetLocation(Location loc) {
+        if (_location != null) return;
+        _location = loc;
+    }
+
+    public Location GetLocation() {
+        return _location ?? Location;
+    }
+
     private void ValidateArgs(OpcodeMetadata metadata, List<IAnnotatedBytecode> args) {
         if (metadata.VariableArgs) {
-            if (args[0] is not AnnotatedBytecodeInteger) {
-                throw new Exception("Variable arg instructions must have a sizing operand (integer) as their first arg");
-            }
+            if (args[0] is not AnnotatedBytecodeInteger)
+                throw new Exception(
+                    "Variable arg instructions must have a sizing operand (integer) as their first arg");
 
             return;
         }
 
-        if (metadata.RequiredArgs.Length != args.Count) {
+        if (metadata.RequiredArgs.Length != args.Count)
             throw new Exception($"Expected {metadata.RequiredArgs.Length} args, got {args.Count}");
-        }
 
-        for (int i = 0; i < metadata.RequiredArgs.Length; i++) {
-            if (!MatchArgs(metadata.RequiredArgs[i], args[i])) {
+        for (var i = 0; i < metadata.RequiredArgs.Length; i++)
+            if (!MatchArgs(metadata.RequiredArgs[i], args[i]))
                 throw new Exception($"Expected arg {i} to be {metadata.RequiredArgs[i]}, got {args[i].GetType()}");
-            }
-        }
     }
 
     private bool MatchArgs(OpcodeArgType requiredArg, IAnnotatedBytecode arg) {
@@ -108,10 +122,6 @@ internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
         }
     }
 
-    public void AddArg(DMCompiler compiler, IAnnotatedBytecode arg) {
-        _args.Add(arg);
-    }
-
     public List<IAnnotatedBytecode> GetArgs() {
         return _args;
     }
@@ -122,20 +132,6 @@ internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
 
     public T GetArg<T>(int index) where T : IAnnotatedBytecode {
         return (T)GetArg(index);
-    }
-
-    public void SetLocation(IAnnotatedBytecode loc) {
-        if (_location != null) return;
-        _location = loc.GetLocation();
-    }
-
-    public void SetLocation(Location loc) {
-        if (_location != null) return;
-        _location = loc;
-    }
-
-    public Location GetLocation() {
-        return _location ?? Location;
     }
 }
 
@@ -326,8 +322,8 @@ internal sealed class AnnotatedBytecodeProcId(int procId, Location location) : I
 }
 
 internal sealed class AnnotatedBytecodeEnumeratorId(int enumeratorId, Location location) : IAnnotatedBytecode {
-    public Location Location = location;
     public int EnumeratorId = enumeratorId;
+    public Location Location = location;
 
     public void AddArg(DMCompiler compiler, IAnnotatedBytecode arg) {
         compiler.ForcedError(Location, "Cannot add args to a type");

@@ -22,7 +22,9 @@ internal sealed class Null(Location location) : Constant(location) {
         ctx.Proc.PushNull();
     }
 
-    public override bool IsTruthy() => false;
+    public override bool IsTruthy() {
+        return false;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         json = null;
@@ -32,10 +34,6 @@ internal sealed class Null(Location location) : Constant(location) {
 
 // 4.0, -4.0
 internal sealed class Number : Constant {
-    public float Value { get; }
-
-    public override DMComplexValueType ValType => DMValueType.Num;
-
     public Number(Location location, int value) : base(location) {
         Value = value;
     }
@@ -44,25 +42,30 @@ internal sealed class Number : Constant {
         Value = value;
     }
 
+    public float Value { get; }
+
+    public override DMComplexValueType ValType => DMValueType.Num;
+
     public override void EmitPushValue(ExpressionContext ctx) {
         ctx.Proc.PushFloat(Value);
     }
 
-    public override bool IsTruthy() => Value != 0;
+    public override bool IsTruthy() {
+        return Value != 0;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         // Positive/Negative infinity cannot be represented in JSON and need a special value
-        if (float.IsPositiveInfinity(Value)) {
-            json = new Dictionary<string, JsonVariableType>() {
+        if (float.IsPositiveInfinity(Value))
+            json = new Dictionary<string, JsonVariableType> {
                 {"type", JsonVariableType.PositiveInfinity}
             };
-        } else if (float.IsNegativeInfinity(Value)) {
-            json = new Dictionary<string, JsonVariableType>() {
+        else if (float.IsNegativeInfinity(Value))
+            json = new Dictionary<string, JsonVariableType> {
                 {"type", JsonVariableType.NegativeInfinity}
             };
-        } else {
+        else
             json = Value;
-        }
 
         return true;
     }
@@ -78,7 +81,9 @@ internal sealed class String(Location location, string value) : Constant(locatio
         ctx.Proc.PushString(Value);
     }
 
-    public override bool IsTruthy() => Value.Length != 0;
+    public override bool IsTruthy() {
+        return Value.Length != 0;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         json = Value;
@@ -106,18 +111,18 @@ internal sealed class Resource : Constant {
         // Also remove "." and ".." from the directory path
         filePath = System.IO.Path.GetRelativePath(".", filePath.Replace('\\', '/'));
 
-        var outputDir = System.IO.Path.GetDirectoryName(compiler.Settings.Files?[0]) ?? "/";
+        string outputDir = System.IO.Path.GetDirectoryName(compiler.Settings.Files?[0]) ?? "/";
         if (string.IsNullOrEmpty(outputDir))
             outputDir = "./";
 
         string? finalFilePath = null;
 
-        var fileName = System.IO.Path.GetFileName(filePath);
-        var fileDir = System.IO.Path.GetDirectoryName(filePath) ?? string.Empty;
+        string fileName = System.IO.Path.GetFileName(filePath);
+        string fileDir = System.IO.Path.GetDirectoryName(filePath) ?? string.Empty;
 
         // Search every defined FILE_DIR
         foreach (string resourceDir in compiler.ResourceDirectories) {
-            var directory = FindDirectory(resourceDir == string.Empty ? "./" : resourceDir, fileDir);
+            string? directory = FindDirectory(resourceDir == string.Empty ? "./" : resourceDir, fileDir);
 
             if (directory != null) {
                 // Perform a case-insensitive search for the file
@@ -130,8 +135,9 @@ internal sealed class Resource : Constant {
 
         // Search relative to the source file if it wasn't in one of the FILE_DIRs
         if (finalFilePath == null) {
-            var sourceDir = System.IO.Path.Combine(outputDir, System.IO.Path.GetDirectoryName(Location.SourceFile) ?? string.Empty);
-            var directory = FindDirectory(sourceDir, fileDir);
+            string sourceDir = System.IO.Path.Combine(outputDir,
+                System.IO.Path.GetDirectoryName(Location.SourceFile) ?? string.Empty);
+            string? directory = FindDirectory(sourceDir, fileDir);
 
             if (directory != null)
                 finalFilePath = FindFile(directory, fileName);
@@ -140,10 +146,9 @@ internal sealed class Resource : Constant {
         if (finalFilePath != null) {
             _filePath = System.IO.Path.GetRelativePath(outputDir, finalFilePath);
 
-            if (_isAmbiguous) {
+            if (_isAmbiguous)
                 compiler.Emit(WarningCode.AmbiguousResourcePath, Location,
                     $"Resource {filePath} has multiple case-insensitive matches, using {_filePath}");
-            }
         } else {
             compiler.Emit(WarningCode.ItemDoesntExist, Location, $"Cannot find file '{filePath}'");
             _filePath = filePath;
@@ -160,33 +165,35 @@ internal sealed class Resource : Constant {
         ctx.Proc.PushResource(_filePath);
     }
 
-    public override bool IsTruthy() => true;
+    public override bool IsTruthy() {
+        return true;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
-        json = new Dictionary<string, object>() {
-            { "type", JsonVariableType.Resource },
-            { "resourcePath", _filePath }
+        json = new Dictionary<string, object> {
+            {"type", JsonVariableType.Resource},
+            {"resourcePath", _filePath}
         };
 
         return true;
     }
 
     /// <summary>
-    /// Performs a recursive case-insensitive for a directory.<br/>
-    /// Marks the resource as ambiguous if multiple are found.
+    ///     Performs a recursive case-insensitive for a directory.<br />
+    ///     Marks the resource as ambiguous if multiple are found.
     /// </summary>
     /// <param name="directory">Directory to search in (case-sensitive)</param>
     /// <param name="searching">Directory to search for (case-insensitive)</param>
     /// <returns>The found directory, null if none</returns>
     private string? FindDirectory(string directory, string searching) {
-        var searchingDirectories = searching.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string[] searchingDirectories = searching.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        foreach (var searchingDirectory in searchingDirectories) {
+        foreach (string searchingDirectory in searchingDirectories) {
             string[] directories = Directory.GetDirectories(directory, searchingDirectory, SearchOptions);
 
             if (directories.Length == 0)
                 return null;
-            else if (directories.Length > 1)
+            if (directories.Length > 1)
                 _isAmbiguous = true;
 
             directory = directories[0];
@@ -196,54 +203,58 @@ internal sealed class Resource : Constant {
     }
 
     /// <summary>
-    /// Performs a case-insensitive search for a file inside a directory.<br/>
-    /// Marks the resource as ambiguous if multiple are found.
+    ///     Performs a case-insensitive search for a file inside a directory.<br />
+    ///     Marks the resource as ambiguous if multiple are found.
     /// </summary>
     /// <param name="directory">Directory to search in (case-sensitive)</param>
     /// <param name="searching">File to search for (case-insensitive)</param>
     /// <returns>The found file, null if none</returns>
     private string? FindFile(string directory, string searching) {
-        var files = Directory.GetFiles(directory, searching, SearchOptions);
+        string[] files = Directory.GetFiles(directory, searching, SearchOptions);
 
         // GetFiles() can't find "..ogg" on Linux for some reason, so try a direct check for the file
         if (files.Length == 0) {
             string combined = System.IO.Path.Combine(directory, searching);
 
             return File.Exists(combined) ? combined : null;
-        } else if (files.Length > 1) {
-            _isAmbiguous = true;
         }
+
+        if (files.Length > 1) _isAmbiguous = true;
 
         return files[0];
     }
 }
 
 internal interface IConstantPath {
-    public DreamPath? Path { get; }
+    DreamPath? Path { get; }
 }
 
 /// <summary>
-/// A reference to a type
-/// <code>/a/b/c</code>
+///     A reference to a type
+///     <code>/a/b/c</code>
 /// </summary>
 internal class ConstantTypeReference(Location location, DMObject dmObject) : Constant(location), IConstantPath {
     public DMObject Value { get; } = dmObject;
+    public override DMComplexValueType ValType => Value.Path;
 
     public override DreamPath? Path => Value.Path;
-    public override DMComplexValueType ValType => Value.Path;
 
     public override void EmitPushValue(ExpressionContext ctx) {
         ctx.Proc.PushType(Value.Id);
     }
 
-    public override string? GetNameof(ExpressionContext ctx) => Value.Path.LastElement;
+    public override string? GetNameof(ExpressionContext ctx) {
+        return Value.Path.LastElement;
+    }
 
-    public override bool IsTruthy() => true;
+    public override bool IsTruthy() {
+        return true;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         json = new Dictionary<string, object> {
-            { "type", JsonVariableType.Type },
-            { "value", Value.Id }
+            {"type", JsonVariableType.Type},
+            {"value", Value.Id}
         };
 
         return true;
@@ -251,10 +262,11 @@ internal class ConstantTypeReference(Location location, DMObject dmObject) : Con
 }
 
 /// <summary>
-/// A reference to a proc
-/// <code>/datum/proc/foo</code>
+///     A reference to a proc
+///     <code>/datum/proc/foo</code>
 /// </summary>
-internal sealed class ConstantProcReference(Location location, DreamPath path, DMProc referencedProc) : Constant(location), IConstantPath {
+internal sealed class ConstantProcReference(Location location, DreamPath path, DMProc referencedProc)
+    : Constant(location), IConstantPath {
     public DMProc Value { get; } = referencedProc;
 
     public override DreamPath? Path => path;
@@ -263,14 +275,18 @@ internal sealed class ConstantProcReference(Location location, DreamPath path, D
         ctx.Proc.PushProc(Value.Id);
     }
 
-    public override string GetNameof(ExpressionContext ctx) => Value.Name;
+    public override string GetNameof(ExpressionContext ctx) {
+        return Value.Name;
+    }
 
-    public override bool IsTruthy() => true;
+    public override bool IsTruthy() {
+        return true;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         json = new Dictionary<string, object> {
-            { "type", JsonVariableType.Proc },
-            { "value", Value.Id }
+            {"type", JsonVariableType.Proc},
+            {"value", Value.Id}
         };
 
         return true;
@@ -278,10 +294,11 @@ internal sealed class ConstantProcReference(Location location, DreamPath path, D
 }
 
 /// <summary>
-/// A generic reference to all of a type's procs or verbs
-/// <code>/datum/proc</code>
+///     A generic reference to all of a type's procs or verbs
+///     <code>/datum/proc</code>
 /// </summary>
-internal sealed class ConstantProcStub(Location location, DMObject onObject, bool isVerb) : Constant(location), IConstantPath {
+internal sealed class ConstantProcStub(Location location, DMObject onObject, bool isVerb)
+    : Constant(location), IConstantPath {
     private readonly string _str =
         $"{(onObject.Path == DreamPath.Root ? string.Empty : onObject.Path.PathString)}/{(isVerb ? "verb" : "proc")}";
 
@@ -292,7 +309,9 @@ internal sealed class ConstantProcStub(Location location, DMObject onObject, boo
         ctx.Proc.PushString(_str);
     }
 
-    public override bool IsTruthy() => true;
+    public override bool IsTruthy() {
+        return true;
+    }
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         json = _str;

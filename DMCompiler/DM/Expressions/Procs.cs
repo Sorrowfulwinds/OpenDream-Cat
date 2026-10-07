@@ -13,19 +13,19 @@ internal sealed class Proc(Location location, string identifier) : DMExpression(
 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
-        if (ctx.Type.HasProc(identifier)) {
-            return DMReference.CreateSrcProc(identifier);
-        } else if (ctx.ObjectTree.TryGetGlobalProc(identifier, out var globalProc)) {
-            return DMReference.CreateGlobalProc(globalProc.Id);
-        }
+        if (ctx.Type.HasProc(identifier)) return DMReference.CreateSrcProc(identifier);
 
-        ctx.Compiler.Emit(WarningCode.ItemDoesntExist, Location, $"Type {ctx.Type.Path} does not have a proc named \"{identifier}\"");
+        if (ctx.ObjectTree.TryGetGlobalProc(identifier, out DMProc? globalProc))
+            return DMReference.CreateGlobalProc(globalProc.Id);
+
+        ctx.Compiler.Emit(WarningCode.ItemDoesntExist, Location,
+            $"Type {ctx.Type.Path} does not have a proc named \"{identifier}\"");
         //Just... pretend there is one for the sake of argument.
         return DMReference.CreateSrcProc(identifier);
     }
 
     public DMProc? GetProc(DMCompiler compiler, DMObject dmObject) {
-        var procId = dmObject.GetProcs(identifier)?[^1];
+        int? procId = dmObject.GetProcs(identifier)?[^1];
         return procId is null ? null : compiler.DMObjectTree.AllProcs[procId.Value];
     }
 
@@ -54,8 +54,8 @@ internal sealed class GlobalProc(Location location, DMProc globalProc) : DMExpre
 }
 
 /// <summary>
-/// . <br/>
-/// This is an LValue _and_ a proc!
+///     . <br />
+///     This is an LValue _and_ a proc!
 /// </summary>
 internal sealed class ProcSelf(Location location, DMComplexValueType valType) : LValue(location, null) {
     public override DMComplexValueType ValType => valType;
@@ -66,7 +66,8 @@ internal sealed class ProcSelf(Location location, DMComplexValueType valType) : 
     }
 
     public override void EmitPushInitial(ExpressionContext ctx) {
-        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location, "calling initial() on `.` returns the current value");
+        ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+            "calling initial() on `.` returns the current value");
         EmitPushValue(ctx);
     }
 }
@@ -76,24 +77,27 @@ internal sealed class ProcSuper(Location location, DMComplexValueType? valType) 
     public override DMComplexValueType ValType => valType ?? DMValueType.Anything;
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        ctx.Compiler.Emit(WarningCode.InvalidReference, Location, $"Attempt to use proc \"..\" as value");
+        ctx.Compiler.Emit(WarningCode.InvalidReference, Location, "Attempt to use proc \"..\" as value");
     }
 
-    public override DMReference EmitReference(ExpressionContext ctx, string endLabel, ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
-        if ((ctx.Proc.Attributes & ProcAttributes.IsOverride) != ProcAttributes.IsOverride) {
+    public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
+        ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
+        if ((ctx.Proc.Attributes & ProcAttributes.IsOverride) != ProcAttributes.IsOverride)
             // Don't emit if lateral proc overrides exist
-            if (ctx.Type.GetProcs(ctx.Proc.Name)!.Count == 1) {
+            if (ctx.Type.GetProcs(ctx.Proc.Name)!.Count == 1)
                 ctx.Compiler.Emit(WarningCode.PointlessParentCall, Location,
                     "Calling parents via ..() in a proc definition does nothing");
-            }
-        }
 
         return DMReference.SuperProc;
     }
 }
 
 // x(y, z, ...)
-internal sealed class ProcCall(Location location, DMExpression target, ArgumentList arguments, DMComplexValueType valType)
+internal sealed class ProcCall(
+    Location location,
+    DMExpression target,
+    ArgumentList arguments,
+    DMComplexValueType valType)
     : DMExpression(location) {
     public override bool PathIsFuzzy => Path == null;
     public override DMComplexValueType ValType => valType.IsAnything ? target.ValType : valType;
@@ -133,25 +137,27 @@ internal sealed class ProcCall(Location location, DMExpression target, ArgumentL
     }
 
     /// <summary>
-    /// This is a good place to do some compile-time linting of any native procs that require it,
-    /// such as native procs that check ahead of time if the number of arguments is correct (like matrix() or sin())
+    ///     This is a good place to do some compile-time linting of any native procs that require it,
+    ///     such as native procs that check ahead of time if the number of arguments is correct (like matrix() or sin())
     /// </summary>
     private void DoCompileTimeLinting(DMCompiler compiler, DMObject? procOwner, DMProc? targetProc) {
-        if(procOwner is null || procOwner.Path == DreamPath.Root) {
+        if (procOwner is null || procOwner.Path == DreamPath.Root) {
             if (targetProc is null)
                 return;
-            if(targetProc.Name == "matrix") {
-                switch(arguments.Length) {
+            if (targetProc.Name == "matrix")
+                switch (arguments.Length) {
                     case 0:
-                    case 1: // NOTE: 'case 1' also ends up referring to the arglist situation. FIXME: Make this lint work for that, too?
+                    case 1
+                        : // NOTE: 'case 1' also ends up referring to the arglist situation. FIXME: Make this lint work for that, too?
                     case 6:
                         break; // Normal cases
                     case 2:
                     case 3: // These imply that they're trying to use the undocumented matrix signatures.
-                    case 4: // The lint is to just check that the last argument is a numeric constant that is a valid matrix "opcode."
-                        var lastArg = arguments.Expressions.Last().Expr;
-                        if(lastArg.TryAsConstant(compiler, out var constant)) {
-                            if(constant is not Number opcodeNumber) {
+                    case 4
+                        : // The lint is to just check that the last argument is a numeric constant that is a valid matrix "opcode."
+                        DMExpression lastArg = arguments.Expressions.Last().Expr;
+                        if (lastArg.TryAsConstant(compiler, out Constant? constant)) {
+                            if (constant is not Number opcodeNumber) {
                                 compiler.Emit(WarningCode.SuspiciousMatrixCall, arguments.Location,
                                     "Arguments for matrix() are invalid - either opcode is invalid or not enough arguments");
                                 break;
@@ -161,13 +167,12 @@ internal sealed class ProcCall(Location location, DMExpression target, ArgumentL
                             //but the call is still valid.
                             //This is because of MATRIX_MODIFY; things like MATRIX_INVERT | MATRIX_MODIFY are okay!
                             const int notModifyBits = ~(int)MatrixOpcode.Modify;
-                            if (!Enum.IsDefined((MatrixOpcode) ((int)opcodeNumber.Value & notModifyBits))) {
+                            if (!Enum.IsDefined((MatrixOpcode)((int)opcodeNumber.Value & notModifyBits)))
                                 //NOTE: This still does let some certain weird opcodes through,
                                 //like a MODIFY with no other operation present.
                                 //Not sure if that is a parity behaviour or not!
                                 compiler.Emit(WarningCode.SuspiciousMatrixCall, arguments.Location,
                                     "Arguments for matrix() are invalid - either opcode is invalid or not enough arguments");
-                            }
                         }
 
                         break;
@@ -180,7 +185,6 @@ internal sealed class ProcCall(Location location, DMExpression target, ArgumentL
                             $"Too many arguments to matrix() - got {arguments.Length} arguments, expecting 6 or less");
                         break;
                 }
-            }
         }
     }
 

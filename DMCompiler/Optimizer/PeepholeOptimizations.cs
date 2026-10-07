@@ -18,12 +18,12 @@ internal sealed class AppendNoPush : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Bytecode index is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Bytecode index is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.AppendNoPush, [assignTarget]));
@@ -44,12 +44,12 @@ internal sealed class AssignNoPush : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Bytecode index is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Bytecode index is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.AssignNoPush, [assignTarget]));
@@ -71,13 +71,13 @@ internal sealed class AssignNull : IOptimization {
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
         // Ensure that we have at least two elements from the starting index to avoid out-of-bound errors
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
         // Directly cast and extract the target from the second element's first argument
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
-        AnnotatedBytecodeReference assignTarget = secondInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
+        var assignTarget = secondInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         // Remove the original instructions from input
         input.RemoveRange(index, 2);
@@ -101,14 +101,14 @@ internal sealed class PushField : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
-        AnnotatedBytecodeReference pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
-        AnnotatedBytecodeString derefField = secondInstruction.GetArg<AnnotatedBytecodeString>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var derefField = secondInstruction.GetArg<AnnotatedBytecodeString>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.PushRefAndDereferenceField,
@@ -132,11 +132,11 @@ internal sealed class IndexRefWithString : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeReference pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
-        AnnotatedBytecodeString strIndex = secondInstruction.GetArg<AnnotatedBytecodeString>(0);
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
+        var strIndex = secondInstruction.GetArg<AnnotatedBytecodeString>(0);
 
         input.RemoveRange(index, 3);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.IndexRefWithString, -1,
@@ -158,8 +158,8 @@ internal class ReturnReferenceValue : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeReference pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.ReturnReferenceValue, [pushVal]));
     }
@@ -179,9 +179,11 @@ internal class ReturnFloat : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal);
         IOptimization.ReplaceInstructions(input, index, 2,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.ReturnFloat, [new AnnotatedBytecodeFloat(pushVal, firstInstruction.Location)]));
+            new AnnotatedBytecodeInstruction(DreamProcOpcode.ReturnFloat,
+                [new AnnotatedBytecodeFloat(pushVal, firstInstruction.Location)]));
     }
 }
 
@@ -199,14 +201,14 @@ internal sealed class JumpIfReferenceFalse : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
-        AnnotatedBytecodeReference pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
-        AnnotatedBytecodeLabel jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.JumpIfReferenceFalse,
@@ -246,14 +248,14 @@ internal sealed class SwitchOnFloat : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
-        AnnotatedBytecodeFloat pushVal = firstInstruction.GetArg<AnnotatedBytecodeFloat>(0);
-        AnnotatedBytecodeLabel jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeFloat>(0);
+        var jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.SwitchOnFloat, [pushVal, jumpLabel]));
@@ -274,14 +276,14 @@ internal sealed class SwitchOnString : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
-        AnnotatedBytecodeString pushVal = firstInstruction.GetArg<AnnotatedBytecodeString>(0);
-        AnnotatedBytecodeLabel jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeString>(0);
+        var jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.SwitchOnString, [pushVal, jumpLabel]));
@@ -320,12 +322,12 @@ internal sealed class IsTypeDirect : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        var firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeTypeId pushVal = firstInstruction.GetArg<AnnotatedBytecodeTypeId>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var pushVal = firstInstruction.GetArg<AnnotatedBytecodeTypeId>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.IsTypeDirect, [pushVal]));
@@ -348,9 +350,11 @@ internal sealed class ConstFoldBitNot : IOptimization {
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(((~(int)pushVal1) & 0xFFFFFF), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat(~(int)pushVal1 & 0xFFFFFF, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 2,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -368,16 +372,18 @@ internal sealed class ConstFoldBitOr : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitOr,
+            DreamProcOpcode.BitOr
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(((int)pushVal1 | (int)pushVal2), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat((int)pushVal1 | (int)pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -395,16 +401,18 @@ internal sealed class ConstFoldBitAnd : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitAnd,
+            DreamProcOpcode.BitAnd
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(((int)pushVal1 & (int)pushVal2), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat((int)pushVal1 & (int)pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -422,16 +430,18 @@ internal sealed class ConstFoldMultiply : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Multiply,
+            DreamProcOpcode.Multiply
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 * pushVal2, firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat(pushVal1 * pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -449,18 +459,20 @@ internal sealed class ConstFoldDivide : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Divide,
+            DreamProcOpcode.Divide
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
         // At runtime, given "A / B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 / pushVal2, firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat(pushVal1 / pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -478,16 +490,18 @@ internal sealed class ConstFoldAdd : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Add,
+            DreamProcOpcode.Add
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 + pushVal2, firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat(pushVal1 + pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -505,16 +519,20 @@ internal sealed class ConstFoldAddStrings : IOptimization {
         return [
             DreamProcOpcode.PushString,
             DreamProcOpcode.PushString,
-            DreamProcOpcode.Add,
+            DreamProcOpcode.Add
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
         var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
         var firstString = firstInstruction.GetArg<AnnotatedBytecodeString>(0);
-        var secondString = ((AnnotatedBytecodeInstruction)input[index+1]).GetArg<AnnotatedBytecodeString>(0);
+        var secondString = ((AnnotatedBytecodeInstruction)input[index + 1]).GetArg<AnnotatedBytecodeString>(0);
 
-        var combinedId = compiler.DMObjectTree.AddString(firstString.ResolveString(compiler) + secondString.ResolveString(compiler)); // TODO: Currently doesn't handle removing strings from the string tree that have no other references
+        int combinedId =
+            compiler.DMObjectTree.AddString(firstString.ResolveString(compiler) +
+                                            secondString
+                                                .ResolveString(
+                                                    compiler)); // TODO: Currently doesn't handle removing strings from the string tree that have no other references
 
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeString(combinedId, firstInstruction.Location)};
 
@@ -534,18 +552,20 @@ internal sealed class ConstFoldSubtract : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Subtract,
+            DreamProcOpcode.Subtract
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
         // At runtime, given "A - B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 - pushVal2, firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat(pushVal1 - pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -563,18 +583,20 @@ internal sealed class ConstFoldModulus : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Modulus,
+            DreamProcOpcode.Modulus
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
         // At runtime, given "A % B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat((int)pushVal1 % (int)pushVal2, firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat((int)pushVal1 % (int)pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -592,18 +614,20 @@ internal sealed class ConstFoldPower : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Power,
+            DreamProcOpcode.Power
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
 
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
         // At runtime, given "A ** B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(MathF.Pow(pushVal1, pushVal2), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1)
+            {new AnnotatedBytecodeFloat(MathF.Pow(pushVal1, pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -625,23 +649,24 @@ internal sealed class AssignAndPushReferenceValue : IOptimization {
     }
 
     /// <summary>
-    /// We can only apply this optimization if both opcodes refer to the same reference
+    ///     We can only apply this optimization if both opcodes refer to the same reference
     /// </summary>
     public bool CheckPreconditions(List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
 
-        AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
-        AnnotatedBytecodeReference pushTarget = secondInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var pushTarget = secondInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         // Assigning certain values to certain vars (e.g. setting a SrcField like "dir" to null)
         // actually causes the value to be coerced to something different than the value on the stack.
         // We don't have a good way to identify those vars at this point, so just restrict the opt to locals and args since those shouldn't have side effects
-        if (pushTarget.RefType != DMReference.Type.Local && pushTarget.RefType != DMReference.Type.Argument) return false;
+        if (pushTarget.RefType != DMReference.Type.Local && pushTarget.RefType != DMReference.Type.Argument)
+            return false;
 
         return assignTarget.Equals(pushTarget);
     }
@@ -649,8 +674,8 @@ internal sealed class AssignAndPushReferenceValue : IOptimization {
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
         // We check the input bounds in CheckPreconditions, so we can skip doing it again here
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.Assign, [assignTarget]));
@@ -672,18 +697,18 @@ internal sealed class AppendAndPushReferenceValue : IOptimization {
     }
 
     /// <summary>
-    /// We can only apply this optimization if both opcodes refer to the same reference
+    ///     We can only apply this optimization if both opcodes refer to the same reference
     /// </summary>
     public bool CheckPreconditions(List<IAnnotatedBytecode> input, int index) {
-        if (index + 1 >= input.Count) {
-            throw new ArgumentOutOfRangeException(nameof(index), "Index plus one is outside the bounds of the input list.");
-        }
+        if (index + 1 >= input.Count)
+            throw new ArgumentOutOfRangeException(nameof(index),
+                "Index plus one is outside the bounds of the input list.");
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeInstruction secondInstruction = (AnnotatedBytecodeInstruction)(input[index + 1]);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var secondInstruction = (AnnotatedBytecodeInstruction)input[index + 1];
 
-        AnnotatedBytecodeReference appendTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
-        AnnotatedBytecodeReference pushTarget = secondInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var appendTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var pushTarget = secondInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         return appendTarget.Equals(pushTarget);
     }
@@ -691,8 +716,8 @@ internal sealed class AppendAndPushReferenceValue : IOptimization {
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
         // We check the input bounds in CheckPreconditions, so we can skip doing it again here
 
-        AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
-        AnnotatedBytecodeReference appendTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
+        var firstInstruction = (AnnotatedBytecodeInstruction)input[index];
+        var appendTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
         input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.Append, [appendTarget]));
@@ -710,17 +735,21 @@ internal sealed class ConstFoldBitshiftLeft : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitShiftLeft,
+            DreamProcOpcode.BitShiftLeft
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
         // At runtime, given "A << B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(SharedOperations.BitShiftLeft((int)pushVal1, (int)pushVal2), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1) {
+            new AnnotatedBytecodeFloat(SharedOperations.BitShiftLeft((int)pushVal1, (int)pushVal2),
+                firstInstruction.Location)
+        };
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
@@ -738,17 +767,21 @@ internal sealed class ConstFoldBitshiftRight : IOptimization {
         return [
             DreamProcOpcode.PushFloat,
             DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitShiftRight,
+            DreamProcOpcode.BitShiftRight
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
-        var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal1);
-        IOptimization.GetInstructionAndValue(input[index + 1], out var pushVal2);
+        AnnotatedBytecodeInstruction firstInstruction =
+            IOptimization.GetInstructionAndValue(input[index], out float pushVal1);
+        IOptimization.GetInstructionAndValue(input[index + 1], out float pushVal2);
 
         // At runtime, given "A >> B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(SharedOperations.BitShiftRight((int)pushVal1, (int)pushVal2), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1) {
+            new AnnotatedBytecodeFloat(SharedOperations.BitShiftRight((int)pushVal1, (int)pushVal2),
+                firstInstruction.Location)
+        };
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));

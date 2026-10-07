@@ -1,30 +1,30 @@
 ﻿using DMCompiler.Compiler.DM;
 using DMCompiler.Compiler.DM.AST;
+using DMCompiler.DM;
 using DMCompiler.DM.Builders;
 using DMCompiler.Json;
 
 namespace DMCompiler.Compiler.DMM;
 
 internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset) : DMParser(compiler, lexer) {
-    private int _cellNameLength = -1;
     private readonly HashSet<DreamPath> _skippedTypes = new();
+    private int _cellNameLength = -1;
 
     public DreamMapJson ParseMap() {
-        DreamMapJson map = new DreamMapJson();
+        var map = new DreamMapJson();
 
         _cellNameLength = -1;
 
-        bool parsing = true;
+        var parsing = true;
         while (parsing) {
             CellDefinitionJson? cellDefinition = ParseCellDefinition();
             if (cellDefinition != null) {
                 if (_cellNameLength == -1) _cellNameLength = cellDefinition.Name.Length;
 
-                if (cellDefinition.Name.Length == _cellNameLength) {
+                if (cellDefinition.Name.Length == _cellNameLength)
                     map.CellDefinitions.Add(cellDefinition.Name, cellDefinition);
-                } else {
+                else
                     Emit(WarningCode.BadToken, $"Invalid cell definition name length '{cellDefinition.Name}'");
-                }
             }
 
             MapBlockJson? mapBlock = ParseMapBlock();
@@ -52,14 +52,13 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
             Consume(TokenType.DM_Equals, "Expected '='");
             Consume(TokenType.DM_LeftParenthesis, "Expected '('");
 
-            CellDefinitionJson cellDefinition = new CellDefinitionJson(currentToken.ValueAsString());
+            var cellDefinition = new CellDefinitionJson(currentToken.ValueAsString());
             DMASTPath? objectType = Path();
             while (objectType != null) {
-                if (!Compiler.DMObjectTree.TryGetDMObject(objectType.Path, out var type) && _skippedTypes.Add(objectType.Path)) {
-                    Warning($"Skipping type '{objectType.Path}'");
-                }
+                if (!Compiler.DMObjectTree.TryGetDMObject(objectType.Path, out DMObject? type) &&
+                    _skippedTypes.Add(objectType.Path)) Warning($"Skipping type '{objectType.Path}'");
 
-                MapObjectJson mapObject = new MapObjectJson(type?.Id ?? -1);
+                var mapObject = new MapObjectJson(type?.Id ?? -1);
 
                 if (Check(TokenType.DM_LeftCurlyBracket)) {
                     DMASTStatement? statement = Statement();
@@ -71,14 +70,16 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                         }
 
                         if (!varOverride.ObjectPath.Equals(DreamPath.Root))
-                            Compiler.ForcedError(statement.Location, $"Invalid var name '{varOverride.VarName}' in DMM on type {objectType.Path}");
+                            Compiler.ForcedError(statement.Location,
+                                $"Invalid var name '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
-                        var exprBuilder = new DMExpressionBuilder(new(Compiler, type, null));
-                        var value = exprBuilder.Create(varOverride.Value);
-                        if (!value.TryAsJsonRepresentation(Compiler, out var valueJson))
+                        var exprBuilder = new DMExpressionBuilder(new ExpressionContext(Compiler, type, null));
+                        DMExpression value = exprBuilder.Create(varOverride.Value);
+                        if (!value.TryAsJsonRepresentation(Compiler, out object? valueJson))
                             Compiler.ForcedError(statement.Location, $"Failed to serialize value to json ({value})");
                         else if (!mapObject.AddVarOverride(varOverride.VarName, valueJson))
-                            Compiler.ForcedWarning(statement.Location, $"Duplicate var override '{varOverride.VarName}' in DMM on type {objectType.Path}");
+                            Compiler.ForcedWarning(statement.Location,
+                                $"Duplicate var override '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
                         CurrentPath = DreamPath.Root;
                         statement = Check(TokenType.DM_Semicolon) ? Statement() : null;
@@ -88,24 +89,23 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                 }
 
                 if (type != null) {
-                    if (type.IsSubtypeOf(DreamPath.Turf)) {
+                    if (type.IsSubtypeOf(DreamPath.Turf))
                         cellDefinition.Turf = mapObject;
-                    } else if (type.IsSubtypeOf(DreamPath.Area)) {
+                    else if (type.IsSubtypeOf(DreamPath.Area))
                         cellDefinition.Area = mapObject;
-                    } else {
+                    else
                         cellDefinition.Objects.Add(mapObject);
-                    }
                 }
 
-                if (Check(TokenType.DM_Comma)) {
+                if (Check(TokenType.DM_Comma))
                     objectType = Path();
-                } else {
+                else
                     objectType = null;
-                }
             }
 
             if (cellDefinition.Turf == null)
-                Compiler.ForcedWarning(currentToken.Location, $"Cell definition \"{cellDefinition.Name}\" is missing a turf");
+                Compiler.ForcedWarning(currentToken.Location,
+                    $"Cell definition \"{cellDefinition.Name}\" is missing a turf");
 
             Consume(TokenType.DM_RightParenthesis, "Expected ')'");
             return cellDefinition;
@@ -118,27 +118,28 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
         (int X, int Y, int Z)? coordinates = Coordinates();
 
         if (coordinates.HasValue) {
-            MapBlockJson mapBlock = new MapBlockJson(coordinates.Value.X, coordinates.Value.Y, coordinates.Value.Z);
+            var mapBlock = new MapBlockJson(coordinates.Value.X, coordinates.Value.Y, coordinates.Value.Z);
 
             Consume(TokenType.DM_Equals, "Expected '='");
             Token blockStringToken = Current();
             Consume(TokenType.DM_ConstantString, "Expected a constant string");
 
             string blockString = blockStringToken.ValueAsString();
-            string[] lines = blockString.Split("\n", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            string[] lines = blockString.Split("\n",
+                StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
             mapBlock.Height = lines.Length;
-            for (int y = 1; y <= lines.Length; y++) {
+            for (var y = 1; y <= lines.Length; y++) {
                 string line = lines[y - 1];
-                int width = (line.Length / _cellNameLength);
+                int width = line.Length / _cellNameLength;
 
                 if (mapBlock.Width < width) mapBlock.Width = width;
-                if ((line.Length % _cellNameLength) != 0) {
+                if (line.Length % _cellNameLength != 0) {
                     Emit(WarningCode.BadToken, blockStringToken.Location, "Invalid map block row");
                     return null;
                 }
 
-                for (int x = 1; x <= width; x++) {
+                for (var x = 1; x <= width; x++) {
                     string cell = line.Substring((x - 1) * _cellNameLength, _cellNameLength);
 
                     mapBlock.Cells.Add(cell);
@@ -146,16 +147,16 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
             }
 
             return mapBlock;
-        } else {
-            return null;
         }
+
+        return null;
     }
 
     private (int X, int Y, int Z)? Coordinates() {
         if (!Check(TokenType.DM_LeftParenthesis))
             return null;
 
-        DMASTConstantInteger? x = Constant() as DMASTConstantInteger;
+        var x = Constant() as DMASTConstantInteger;
         if (x == null) {
             Emit(WarningCode.BadToken, x?.Location ?? CurrentLoc, "Expected an integer");
             return null;
@@ -163,7 +164,7 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
 
         Consume(TokenType.DM_Comma, "Expected ','");
 
-        DMASTConstantInteger? y = Constant() as DMASTConstantInteger;
+        var y = Constant() as DMASTConstantInteger;
         if (y == null) {
             Emit(WarningCode.BadToken, y?.Location ?? CurrentLoc, "Expected an integer");
             return null;
@@ -171,7 +172,7 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
 
         Consume(TokenType.DM_Comma, "Expected ','");
 
-        DMASTConstantInteger? z = Constant() as DMASTConstantInteger;
+        var z = Constant() as DMASTConstantInteger;
         if (z == null) {
             Emit(WarningCode.BadToken, z?.Location ?? CurrentLoc, "Expected an integer");
             return null;
@@ -183,7 +184,8 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
 
     protected override Token Advance() {
         //Throw out any newlines, indents, dedents, or whitespace
-        List<TokenType> ignoredTypes = new() { TokenType.Newline, TokenType.DM_Indent, TokenType.DM_Dedent, TokenType.DM_Whitespace };
+        List<TokenType> ignoredTypes = new()
+            {TokenType.Newline, TokenType.DM_Indent, TokenType.DM_Dedent, TokenType.DM_Whitespace};
         while (ignoredTypes.Contains(base.Advance().Type)) {
         }
 

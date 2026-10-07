@@ -1,158 +1,104 @@
-using DMCompiler.Bytecode;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using DMCompiler.DM.Expressions;
+using DMCompiler.Bytecode;
 using DMCompiler.Compiler;
 using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM.Builders;
+using DMCompiler.DM.Expressions;
 using DMCompiler.Json;
 using DMCompiler.Optimizer;
+using String = DMCompiler.DM.Expressions.String;
 using VerbSrcEnum = DMCompiler.DM.VerbSrc;
 
 namespace DMCompiler.DM;
 
 internal sealed class DMProc {
-    public class LocalVariable(string name, int id, bool isParameter, DreamPath? type, DMComplexValueType? explicitValueType) {
-        public readonly string Name = name;
-        public readonly int Id = id;
-        public readonly bool IsParameter = isParameter;
-        public DreamPath? Type = type;
+    /// <summary>
+    ///     BYOND currently has a ridiculous behaviour, where, <br />
+    ///     sometimes when a set statement has a right-hand side that is non-constant, <br />
+    ///     no error is emitted and instead its value is just, whatever the last well-evaluated set statement's value was.
+    ///     <br />
+    ///     This behaviour is nonsense but for harsh parity we sometimes may need to carry it out to hold up a codebase; <br />
+    ///     Yogstation (at time of writing) actually errors on OD if we don't implement this.
+    /// </summary>
+    // Starts null; marks that we've never seen one before and should just error like normal people.
+    private static Constant? _previousSetStatementValue;
 
-        /// <summary>
-        /// The explicit <see cref="DMValueType"/> for this variable
-        /// <code>var/parameter as mob</code>
-        /// </summary>
-        public DMComplexValueType? ExplicitValueType = explicitValueType;
-    }
+    public readonly AnnotatedByteCodeWriter AnnotatedBytecode;
+    public readonly Dictionary<string, int> GlobalVariables = new();
+    public readonly int Id;
+    public readonly List<string> Parameters = new();
+    private readonly DMASTProcDefinition? _astDefinition;
 
-    public sealed class LocalConstVariable(string name, int id, DreamPath? type, Constant value)
-        : LocalVariable(name, id, false, type, value.ValType) {
-        public readonly Constant Value = value;
-    }
+    private readonly DMCompiler _compiler;
+    private readonly DMObject _dmObject;
 
-    public class CodeLabel {
-        private static int _idCounter;
-        public readonly long AnnotatedByteOffset;
-        public readonly int Id;
-        public readonly string Name;
+    private readonly List<string> _localVariableNames = new();
+    private readonly Dictionary<string, LocalVariable> _parameters = new();
+    private readonly Stack<CodeLabelReference> _pendingLabelReferences = new();
+    private readonly Stack<DMProcScope> _scopes = new();
 
-        public string LabelName => $"{Name}_{Id}_codelabel";
+    private readonly List<SourceInfoJson> _sourceInfo = new();
+    public ProcAttributes Attributes;
+    public sbyte Invisibility;
+    public Location Location;
+    public string? UnsupportedReason;
+    public string? VerbCategory = string.Empty;
+    public string? VerbDesc;
+    public string? VerbName;
+    public int? VerbRange;
 
-        public CodeLabel(string name, long offset) {
-            Id = _idCounter++;
-            Name = name;
-            AnnotatedByteOffset = offset;
-        }
-    }
+    public VerbSrc? VerbSrc;
+    private int _enumeratorIdCounter;
+    private int _labelIdCounter;
+    private string? _lastSourceFile;
+    private int _localVariableHighestId;
+    private int _localVariableIdCounter;
+    private Stack<string>? _loopStack;
 
-    internal struct CodeLabelReference(string identifier, string placeholder, Location location, DMProcScope scope) {
-        public readonly string Identifier = identifier;
-        public readonly string Placeholder = placeholder;
-        public readonly Location Location = location;
-        public readonly DMProcScope Scope = scope;
-    }
+    private Location _writerLocation;
 
-    internal class DMProcScope {
-        public readonly Dictionary<string, LocalVariable> LocalVariables = new();
-        public readonly Dictionary<string, CodeLabel> LocalCodeLabels = new();
-        public readonly DMProcScope? ParentScope;
+    public DMProc(DMCompiler compiler, int id, DMObject dmObject, DMASTProcDefinition? astDefinition) {
+        AnnotatedBytecode = new AnnotatedByteCodeWriter(compiler);
+        _compiler = compiler;
+        Id = id;
+        _dmObject = dmObject;
+        _astDefinition = astDefinition;
+        if (_astDefinition?.IsOverride ?? false)
+            Attributes |= ProcAttributes.IsOverride; // init procs don't have AST definitions
+        Location = astDefinition?.Location ?? Location.Unknown;
+        _scopes.Push(new DMProcScope());
+        IsVerb = _astDefinition?.IsVerb ?? false;
 
-        public DMProcScope() { }
+        if (_astDefinition is not null) {
+            foreach (DMASTDefinitionParameter parameter in _astDefinition!.Parameters)
+                AddParameter(parameter.Name, parameter.Location, parameter.Type, parameter.ObjectType);
 
-        public DMProcScope(DMProcScope? parentScope) {
-            ParentScope = parentScope;
+            foreach (DMASTProcStatement statement in _astDefinition!.Body?.SetStatements ??
+                                                     Array.Empty<DMASTProcStatementSet>())
+                if (statement is DMASTAggregate<DMASTProcStatementSet> setAggregate)
+                    foreach (DMASTProcStatementSet setStatement in setAggregate.Statements)
+                        ProcessSetStatement(setStatement);
+                else if (statement is DMASTProcStatementSet setStatement) ProcessSetStatement(setStatement);
         }
     }
 
     public string Name => _astDefinition?.Name ?? "<init>";
     public bool IsVerb { get; set; }
     public bool IsFinal => _astDefinition?.IsFinal ?? false;
-    public readonly List<string> Parameters = new();
-    public Location Location;
-    public ProcAttributes Attributes;
-    public string? UnsupportedReason;
-    public readonly int Id;
-    public readonly Dictionary<string, int> GlobalVariables = new();
-
-    public VerbSrc? VerbSrc;
-    public int? VerbRange;
-    public string? VerbName;
-    public string? VerbCategory = string.Empty;
-    public string? VerbDesc;
-    public sbyte Invisibility;
-
-    private readonly DMCompiler _compiler;
-    private readonly DMObject _dmObject;
-    private readonly DMASTProcDefinition? _astDefinition;
-    private readonly Stack<CodeLabelReference> _pendingLabelReferences = new();
-    private Stack<string>? _loopStack;
-    private readonly Stack<DMProcScope> _scopes = new();
-    private readonly Dictionary<string, LocalVariable> _parameters = new();
-    private int _labelIdCounter;
-    private int _enumeratorIdCounter;
-
-    private readonly List<string> _localVariableNames = new();
-    private int _localVariableIdCounter;
-    private int _localVariableHighestId;
-
-    private readonly List<SourceInfoJson> _sourceInfo = new();
-    private string? _lastSourceFile;
 
     public bool TypeChecked => !ReturnTypes.IsAnything;
     public DMComplexValueType? RawReturnTypes => _astDefinition?.ReturnTypes;
     public DMComplexValueType ReturnTypes => _dmObject.GetProcReturnTypes(Name) ?? DMValueType.Anything;
 
     public long Position => AnnotatedBytecode.Position;
-    public readonly AnnotatedByteCodeWriter AnnotatedBytecode;
-
-    private Location _writerLocation;
-
-    /// <summary>
-    /// BYOND currently has a ridiculous behaviour, where, <br/>
-    /// sometimes when a set statement has a right-hand side that is non-constant, <br/>
-    /// no error is emitted and instead its value is just, whatever the last well-evaluated set statement's value was. <br/>
-    /// This behaviour is nonsense but for harsh parity we sometimes may need to carry it out to hold up a codebase; <br/>
-    /// Yogstation (at time of writing) actually errors on OD if we don't implement this.
-    /// </summary>
-    // Starts null; marks that we've never seen one before and should just error like normal people.
-    private static Constant? _previousSetStatementValue;
-
-    public DMProc(DMCompiler compiler, int id, DMObject dmObject, DMASTProcDefinition? astDefinition) {
-        AnnotatedBytecode = new(compiler);
-        _compiler = compiler;
-        Id = id;
-        _dmObject = dmObject;
-        _astDefinition = astDefinition;
-        if (_astDefinition?.IsOverride ?? false) Attributes |= ProcAttributes.IsOverride; // init procs don't have AST definitions
-        Location = astDefinition?.Location ?? Location.Unknown;
-        _scopes.Push(new DMProcScope());
-        IsVerb = _astDefinition?.IsVerb ?? false;
-
-        if (_astDefinition is not null) {
-            foreach (var parameter in _astDefinition!.Parameters) {
-                AddParameter(parameter.Name, parameter.Location, parameter.Type, parameter.ObjectType);
-            }
-
-            foreach (var statement in _astDefinition!.Body?.SetStatements ?? Array.Empty<DMASTProcStatementSet>()) {
-                if (statement is DMASTAggregate<DMASTProcStatementSet> setAggregate) {
-                    foreach (var setStatement in setAggregate.Statements) {
-                        ProcessSetStatement(setStatement);
-                    }
-                } else if (statement is DMASTProcStatementSet setStatement) {
-                    ProcessSetStatement(setStatement);
-                }
-            }
-        }
-    }
 
     private int AllocLocalVariable(string name) {
         _localVariableNames.Add(name);
         WriteLocalVariable(name);
 
         int variableId = _localVariableIdCounter++;
-        if(_localVariableIdCounter > _localVariableHighestId) {
-            _localVariableHighestId = _localVariableIdCounter;
-        }
+        if (_localVariableIdCounter > _localVariableHighestId) _localVariableHighestId = _localVariableIdCounter;
 
         return variableId;
     }
@@ -167,23 +113,23 @@ internal sealed class DMProc {
     public void Compile() {
         _compiler.VerbosePrint($"Compiling proc {_dmObject.Path.ToString()}.{Name}()");
 
-        if (_astDefinition is not null) { // It's null for initialization procs
+        if (_astDefinition is not null) // It's null for initialization procs
             new DMProcBuilder(_compiler, _dmObject, this).ProcessProcDefinition(_astDefinition);
-        }
 
         if (IsVerb)
             _dmObject.AddVerb(this);
     }
 
     public void ValidateReturnType(DMExpression expr) {
-        var type = expr.ValType;
-        var returnTypes = _dmObject.GetProcReturnTypes(Name)!.Value;
+        DMComplexValueType type = expr.ValType;
+        DMComplexValueType returnTypes = _dmObject.GetProcReturnTypes(Name)!.Value;
         if ((returnTypes.Type & (DMValueType.Color | DMValueType.File | DMValueType.Message)) != 0) {
-            _compiler.Emit(WarningCode.UnsupportedTypeCheck, expr.Location, "color, message, and file return types are currently unsupported.");
+            _compiler.Emit(WarningCode.UnsupportedTypeCheck, expr.Location,
+                "color, message, and file return types are currently unsupported.");
             return;
         }
 
-        var splitter = _astDefinition?.IsOverride ?? false ? "/" : "/proc/";
+        string splitter = _astDefinition?.IsOverride ?? false ? "/" : "/proc/";
         // We couldn't determine the expression's return type for whatever reason
         if (type.IsAnything) {
             if (_compiler.Settings.SkipAnythingTypecheck)
@@ -191,17 +137,22 @@ internal sealed class DMProc {
 
             switch (expr) {
                 case ProcCall:
-                    _compiler.Emit(WarningCode.InvalidReturnType, expr.Location, $"{_dmObject.Path.ToString()}.{Name}(): Called proc does not have a return type set, expected {ReturnTypes}.");
+                    _compiler.Emit(WarningCode.InvalidReturnType, expr.Location,
+                        $"{_dmObject.Path.ToString()}.{Name}(): Called proc does not have a return type set, expected {ReturnTypes}.");
                     break;
                 case Local:
-                    _compiler.Emit(WarningCode.InvalidReturnType, expr.Location, $"{_dmObject.Path.ToString()}.{Name}(): Cannot determine return type of non-constant expression, expected {ReturnTypes}. Consider making this variable constant or adding an explicit \"as {ReturnTypes}\"");
+                    _compiler.Emit(WarningCode.InvalidReturnType, expr.Location,
+                        $"{_dmObject.Path.ToString()}.{Name}(): Cannot determine return type of non-constant expression, expected {ReturnTypes}. Consider making this variable constant or adding an explicit \"as {ReturnTypes}\"");
                     break;
                 default:
-                    _compiler.Emit(WarningCode.InvalidReturnType, expr.Location, $"{_dmObject.Path.ToString()}.{Name}(): Cannot determine return type of expression \"{expr}\", expected {ReturnTypes}. Consider reporting this as a bug on OpenDream's GitHub.");
+                    _compiler.Emit(WarningCode.InvalidReturnType, expr.Location,
+                        $"{_dmObject.Path.ToString()}.{Name}(): Cannot determine return type of expression \"{expr}\", expected {ReturnTypes}. Consider reporting this as a bug on OpenDream's GitHub.");
                     break;
             }
-        } else if (!ReturnTypes.MatchesType(_compiler, type)) { // We could determine the return types but they don't match
-            _compiler.Emit(WarningCode.InvalidReturnType, expr.Location, $"{_dmObject.Path.ToString()}{splitter}{Name}(): Invalid return type {type}, expected {ReturnTypes}");
+        } else if (!ReturnTypes.MatchesType(_compiler, type)) {
+            // We could determine the return types but they don't match
+            _compiler.Emit(WarningCode.InvalidReturnType, expr.Location,
+                $"{_dmObject.Path.ToString()}{splitter}{Name}(): Invalid return type {type}, expected {ReturnTypes}");
         }
     }
 
@@ -214,13 +165,13 @@ internal sealed class DMProc {
         if (_parameters.Count > 0) {
             arguments = new List<ProcArgumentJson>(_parameters.Count);
 
-            foreach (var parameter in _parameters.Values) {
+            foreach (LocalVariable parameter in _parameters.Values) {
                 if (parameter.ExplicitValueType is not { } argumentType) {
                     // If no "as" was used then we assume its type based on the type hint
                     if (parameter.Type is not { } typePath) {
                         argumentType = DMValueType.Anything;
                     } else {
-                        _compiler.DMObjectTree.TryGetDMObject(typePath, out var type);
+                        _compiler.DMObjectTree.TryGetDMObject(typePath, out DMObject? type);
                         argumentType = type?.GetDMValueType() ?? DMValueType.Anything;
                     }
                 }
@@ -241,7 +192,7 @@ internal sealed class DMProc {
             Bytecode = serializer.Serialize(AnnotatedBytecode.GetAnnotatedBytecode()),
             Arguments = arguments,
             SourceInfo = serializer.SourceInfo,
-            Locals = (_localVariableNames.Count > 0) ? serializer.GetLocalVariablesJson() : null,
+            Locals = _localVariableNames.Count > 0 ? serializer.GetLocalVariablesJson() : null,
 
             IsVerb = IsVerb,
             VerbSrc = VerbSrc,
@@ -260,12 +211,11 @@ internal sealed class DMProc {
     }
 
     public void WaitFor(bool waitFor) {
-        if (waitFor) {
+        if (waitFor)
             // "waitfor" is true by default
             Attributes &= ~ProcAttributes.DisableWaitfor;
-        } else {
+        else
             Attributes |= ProcAttributes.DisableWaitfor;
-        }
     }
 
     public void AddGlobalVariable(DMVariable global, int id) {
@@ -273,9 +223,7 @@ internal sealed class DMProc {
     }
 
     public int? GetGlobalVariableId(string name) {
-        if (GlobalVariables.TryGetValue(name, out int id)) {
-            return id;
-        }
+        if (GlobalVariables.TryGetValue(name, out int id)) return id;
 
         return null;
     }
@@ -291,22 +239,22 @@ internal sealed class DMProc {
     }
 
     public void ProcessSetStatement(DMASTProcStatementSet statementSet) {
-        var attribute = statementSet.Attribute.ToLower();
+        string attribute = statementSet.Attribute.ToLower();
         var exprBuilder = new DMExpressionBuilder(new ExpressionContext(_compiler, _dmObject, this));
 
-        if(attribute == "src") {
+        if (attribute == "src") {
             // TODO: Would be much better if the parser was just more strict with the expression
             switch (statementSet.Value) {
                 case DMASTIdentifier {Identifier: "usr"}:
                     VerbSrc = statementSet.WasInKeyword ? VerbSrcEnum.InUsr : VerbSrcEnum.Usr;
                     break;
-                case DMASTDereference {Expression: DMASTIdentifier{Identifier: "usr"}, Operations: var operations}:
+                case DMASTDereference {Expression: DMASTIdentifier {Identifier: "usr"}, Operations: var operations}:
                     if (operations is not [DMASTDereference.FieldOperation {Identifier: var deref}])
                         goto default;
 
                     if (deref == "contents") {
                         VerbSrc = VerbSrcEnum.InUsr;
-                    }  else if (deref == "loc") {
+                    } else if (deref == "loc") {
                         VerbSrc = VerbSrcEnum.UsrLoc;
                         _compiler.UnimplementedWarning(statementSet.Location,
                             "'set src = usr.loc' is unimplemented");
@@ -328,7 +276,7 @@ internal sealed class DMProc {
                         _compiler.UnimplementedWarning(statementSet.Location,
                             "'set src = world' is unimplemented");
                     break;
-                case DMASTDereference {Expression: DMASTIdentifier{Identifier: "world"}, Operations: var operations}:
+                case DMASTDereference {Expression: DMASTIdentifier {Identifier: "world"}, Operations: var operations}:
                     if (operations is not [DMASTDereference.FieldOperation {Identifier: "contents"}])
                         goto default;
 
@@ -336,52 +284,66 @@ internal sealed class DMProc {
                     _compiler.UnimplementedWarning(statementSet.Location,
                         "'set src = world.contents' is unimplemented");
                     break;
-                case DMASTProcCall {Callable: DMASTCallableProcIdentifier {Identifier: { } callType and ("view" or "oview" or "range" or "orange")} callable, Parameters: var parameters}:
-                    if(parameters.Length > 2) {
-                        _compiler.Emit(WarningCode.BadArgument, callable.Location, "Cannot specify more than two arguments");
+                case DMASTProcCall {
+                    Callable: DMASTCallableProcIdentifier {
+                        Identifier: { } callType and ("view" or "oview" or "range" or "orange")
+                    } callable,
+                    Parameters: var parameters
+                }:
+                    if (parameters.Length > 2) {
+                        _compiler.Emit(WarningCode.BadArgument, callable.Location,
+                            "Cannot specify more than two arguments");
                         break;
                     }
 
                     DMASTExpression? rangeExpression = null;
 
                     // BYOND allows you to set usr even though it's redundant so we have to handle that
-                    if(parameters.Length == 2) {
-                        if(parameters.FirstOrDefault(exp => exp.Value is DMASTIdentifier { Identifier: "usr"})?.Value is DMASTIdentifier usrIdent) {
+                    if (parameters.Length == 2) {
+                        if (parameters.FirstOrDefault(exp => exp.Value is DMASTIdentifier {Identifier: "usr"})?.Value is
+                            DMASTIdentifier usrIdent) {
                             rangeExpression = parameters.FirstOrDefault(exp => !exp.Value.Equals(usrIdent))?.Value;
-                            _compiler.Emit(WarningCode.MalformedSetStatement, usrIdent.Location, "Specifying usr is redundant");
+                            _compiler.Emit(WarningCode.MalformedSetStatement, usrIdent.Location,
+                                "Specifying usr is redundant");
                         } else {
-                            _compiler.Emit(WarningCode.InvalidSetStatement, callable.Location, "Bad range arguments for src setting");
+                            _compiler.Emit(WarningCode.InvalidSetStatement, callable.Location,
+                                "Bad range arguments for src setting");
                         }
                     } else {
-                        var theExpression = parameters.FirstOrDefault()?.Value;
-                        if(theExpression is DMASTIdentifier { Identifier: "usr"}) {
-                            _compiler.Emit(WarningCode.MalformedSetStatement, theExpression.Location, "Specifying usr is redundant");
-                        } else {
+                        DMASTExpression? theExpression = parameters.FirstOrDefault()?.Value;
+                        if (theExpression is DMASTIdentifier {Identifier: "usr"})
+                            _compiler.Emit(WarningCode.MalformedSetStatement, theExpression.Location,
+                                "Specifying usr is redundant");
+                        else
                             rangeExpression = theExpression;
-                        }
                     }
 
-                    if(rangeExpression is not null) { // world.view otherwise
-                        if (!exprBuilder.TryConstant(rangeExpression, out var rangeConstant)) {
-                            _compiler.Emit(WarningCode.BadArgument, rangeExpression.Location, "Range must be a constant value");
+                    if (rangeExpression is not null) { // world.view otherwise
+                        if (!exprBuilder.TryConstant(rangeExpression, out Constant? rangeConstant)) {
+                            _compiler.Emit(WarningCode.BadArgument, rangeExpression.Location,
+                                "Range must be a constant value");
                             break;
                         }
 
                         if (rangeConstant is not Number {Value: var range}) {
-                            if(rangeConstant is Null)
+                            if (rangeConstant is Null) {
                                 range = 0;
-                            else {
-                                _compiler.Emit(WarningCode.MalformedSetStatement, rangeExpression.Location, "Non-num ranges make this verb inaccessible");
+                            } else {
+                                _compiler.Emit(WarningCode.MalformedSetStatement, rangeExpression.Location,
+                                    "Non-num ranges make this verb inaccessible");
                                 range = -1;
                             }
-                        } else if (range <= -1)
-                            _compiler.Emit(WarningCode.MalformedSetStatement, rangeExpression.Location, "Negative ranges make this verb inaccessible");
+                        } else if (range <= -1) {
+                            _compiler.Emit(WarningCode.MalformedSetStatement, rangeExpression.Location,
+                                "Negative ranges make this verb inaccessible");
+                        }
 
                         VerbRange = (int)MathF.Ceiling(range);
                     }
 
-                    if(callType is "view" or "oview") {
-                        _compiler.UnimplementedWarning(callable.Location, "src = view() is unimplemented and defaults to src = range()");
+                    if (callType is "view" or "oview") {
+                        _compiler.UnimplementedWarning(callable.Location,
+                            "src = view() is unimplemented and defaults to src = range()");
                         if (statementSet.WasInKeyword)
                             VerbSrc = callType == "view" ? VerbSrcEnum.InView : VerbSrcEnum.InOView;
                         else
@@ -402,8 +364,10 @@ internal sealed class DMProc {
             return;
         }
 
-        if (!exprBuilder.TryConstant(statementSet.Value, out var constant)) { // If this set statement's rhs is not constant
-            bool didError = _compiler.Emit(WarningCode.InvalidSetStatement, statementSet.Location, $"'{attribute}' attribute should be a constant");
+        if (!exprBuilder.TryConstant(statementSet.Value, out Constant? constant)) {
+            // If this set statement's rhs is not constant
+            bool didError = _compiler.Emit(WarningCode.InvalidSetStatement, statementSet.Location,
+                $"'{attribute}' attribute should be a constant");
             if (didError) // if this is an error
                 return; // don't do the cursed thing
 
@@ -414,17 +378,17 @@ internal sealed class DMProc {
 
         // oh no.
         if (constant is null) {
-            _compiler.Emit(WarningCode.BadExpression, statementSet.Location, $"'{attribute}' attribute must be a constant");
+            _compiler.Emit(WarningCode.BadExpression, statementSet.Location,
+                $"'{attribute}' attribute must be a constant");
             return;
         }
 
         // Check if it was 'set x in y' or whatever
         // (which is illegal for everything except setting src to something)
-        if (statementSet.WasInKeyword) {
-            _compiler.Emit(WarningCode.BadToken, statementSet.Location, "Use of 'in' keyword is illegal here. Did you mean '='?");
-            //fallthrough into normal behaviour because this error is kinda pedantic
-        }
-
+        if (statementSet.WasInKeyword)
+            _compiler.Emit(WarningCode.BadToken, statementSet.Location,
+                "Use of 'in' keyword is illegal here. Did you mean '='?");
+        //fallthrough into normal behaviour because this error is kinda pedantic
         switch (statementSet.Attribute.ToLower()) {
             case "waitfor": {
                 WaitFor(constant.IsTruthy());
@@ -438,8 +402,9 @@ internal sealed class DMProc {
                 break;
             }
             case "opendream_unsupported":
-                if (constant is not Expressions.String unsupportedStr) {
-                    _compiler.Emit(WarningCode.BadExpression, constant.Location, "opendream_unsupported attribute must be a string");
+                if (constant is not String unsupportedStr) {
+                    _compiler.Emit(WarningCode.BadExpression, constant.Location,
+                        "opendream_unsupported attribute must be a string");
                     break;
                 }
 
@@ -472,7 +437,7 @@ internal sealed class DMProc {
                     Attributes &= ~ProcAttributes.Background;
                 break;
             case "name":
-                if (constant is not Expressions.String nameStr) {
+                if (constant is not String nameStr) {
                     _compiler.Emit(WarningCode.BadExpression, constant.Location, "name attribute must be a string");
                     break;
                 }
@@ -480,19 +445,18 @@ internal sealed class DMProc {
                 VerbName = nameStr.Value;
                 break;
             case "category":
-                if (constant is Expressions.String str) {
+                if (constant is String str)
                     VerbCategory = str.Value;
-                } else if (constant is Null) {
+                else if (constant is Null)
                     VerbCategory = null;
-                } else {
+                else
                     _compiler.Emit(WarningCode.BadExpression, constant.Location,
                         "category attribute must be a string or null");
-                }
 
                 break;
             case "desc":
                 // TODO: verb.desc is supposed to be printed when you type the verb name and press F1. Check the ref for details.
-                if (constant is not Expressions.String descStr) {
+                if (constant is not String descStr) {
                     _compiler.Emit(WarningCode.BadExpression, constant.Location, "desc attribute must be a string");
                     break;
                 }
@@ -503,7 +467,8 @@ internal sealed class DMProc {
                 // The ref says 0-101 for atoms and 0-100 for verbs
                 // BYOND doesn't clamp the actual var value but it does seem to treat out-of-range values as their extreme
                 if (constant is not Number invisNum) {
-                    _compiler.Emit(WarningCode.BadExpression, constant.Location, "invisibility attribute must be an int");
+                    _compiler.Emit(WarningCode.BadExpression, constant.Location,
+                        "invisibility attribute must be an int");
                     break;
                 }
 
@@ -519,11 +484,11 @@ internal sealed class DMProc {
         if (fromLoc.InDMStandard) // Don't emit these warnings for code inside DMStandard
             return;
 
-        if (UnsupportedReason is not null) {
-            _compiler.UnsupportedWarning(fromLoc, $"{_dmObject.Path.ToString()}.{Name}() is unsupported: {UnsupportedReason}");
-        } else if ((Attributes & ProcAttributes.Unimplemented) == ProcAttributes.Unimplemented) {
+        if (UnsupportedReason is not null)
+            _compiler.UnsupportedWarning(fromLoc,
+                $"{_dmObject.Path.ToString()}.{Name}() is unsupported: {UnsupportedReason}");
+        else if ((Attributes & ProcAttributes.Unimplemented) == ProcAttributes.Unimplemented)
             _compiler.UnimplementedWarning(fromLoc, $"{_dmObject.Path.ToString()}.{Name}() is not implemented");
-        }
     }
 
     public bool TryGetParameterByName(string name, [NotNullWhen(true)] out LocalVariable? param) {
@@ -536,11 +501,13 @@ internal sealed class DMProc {
             return false;
         }
 
-        var name = _astDefinition.Parameters[index].Name;
+        string name = _astDefinition.Parameters[index].Name;
         return _parameters.TryGetValue(name, out param);
     }
 
-    public string MakePlaceholderLabel() => $"PLACEHOLDER_{_pendingLabelReferences.Count}_LABEL";
+    public string MakePlaceholderLabel() {
+        return $"PLACEHOLDER_{_pendingLabelReferences.Count}_LABEL";
+    }
 
     public CodeLabel? TryAddCodeLabel(string name) {
         if (_scopes.Peek().LocalCodeLabels.ContainsKey(name)) {
@@ -548,7 +515,7 @@ internal sealed class DMProc {
             return null;
         }
 
-        CodeLabel label = new CodeLabel(name, Position);
+        var label = new CodeLabel(name, Position);
         _scopes.Peek().LocalCodeLabels.Add(name, label);
         return label;
     }
@@ -570,13 +537,11 @@ internal sealed class DMProc {
     }
 
     public LocalVariable? GetLocalVariable(string name) {
-        if (_parameters.TryGetValue(name, out var parameter)) {
-            return parameter;
-        }
+        if (_parameters.TryGetValue(name, out LocalVariable? parameter)) return parameter;
 
         DMProcScope? scope = _scopes.Peek();
         while (scope != null) {
-            if (scope.LocalVariables.TryGetValue(name, out var localVariable))
+            if (scope.LocalVariables.TryGetValue(name, out LocalVariable? localVariable))
                 return localVariable;
 
             scope = scope.ParentScope;
@@ -607,15 +572,14 @@ internal sealed class DMProc {
 
         _writerLocation = location;
 
-        var sourceFile = location.SourceFile.Replace('\\', '/');
+        string sourceFile = location.SourceFile.Replace('\\', '/');
 
         // Only write the source file if it has changed
-        if (_lastSourceFile != sourceFile) {
+        if (_lastSourceFile != sourceFile)
             sourceInfo.File = _compiler.DMObjectTree.AddString(sourceFile);
-        } else if (_sourceInfo.Count > 0 && sourceInfo.Line == _sourceInfo[^1].Line) {
+        else if (_sourceInfo.Count > 0 && sourceInfo.Line == _sourceInfo[^1].Line)
             // Don't need to write this source info if it's the same source & line as the last
             return;
-        }
 
         _lastSourceFile = sourceFile;
         _sourceInfo.Add(sourceInfo);
@@ -648,7 +612,7 @@ internal sealed class DMProc {
     }
 
     public void Enumerate(DMReference reference, Location location) {
-        if (_loopStack?.TryPeek(out var peek) ?? false) {
+        if (_loopStack?.TryPeek(out string? peek) ?? false) {
             WriteOpcode(DreamProcOpcode.Enumerate);
             WriteEnumeratorId(_enumeratorIdCounter - 1);
             WriteReference(reference);
@@ -659,7 +623,7 @@ internal sealed class DMProc {
     }
 
     public void EnumerateAssoc(DMReference assocRef, DMReference outputRef, Location location) {
-        if (_loopStack?.TryPeek(out var peek) ?? false) {
+        if (_loopStack?.TryPeek(out string? peek) ?? false) {
             WriteOpcode(DreamProcOpcode.EnumerateAssoc);
             WriteEnumeratorId(_enumeratorIdCounter - 1);
             WriteReference(assocRef);
@@ -671,7 +635,7 @@ internal sealed class DMProc {
     }
 
     public void EnumerateNoAssign(Location location) {
-        if (_loopStack?.TryPeek(out var peek) ?? false) {
+        if (_loopStack?.TryPeek(out string? peek) ?? false) {
             WriteOpcode(DreamProcOpcode.EnumerateNoAssign);
             WriteEnumeratorId(_enumeratorIdCounter - 1);
             WriteLabel($"{peek}_end");
@@ -729,8 +693,9 @@ internal sealed class DMProc {
         // TODO This seems like a bad way to handle background, doesn't it?
 
         if ((Attributes & ProcAttributes.Background) == ProcAttributes.Background) {
-            if (!_compiler.DMObjectTree.TryGetGlobalProc("sleep", out var sleepProc)) {
-                _compiler.Emit(WarningCode.ItemDoesntExist, Location, "Cannot do a background sleep without a sleep proc");
+            if (!_compiler.DMObjectTree.TryGetGlobalProc("sleep", out DMProc? sleepProc)) {
+                _compiler.Emit(WarningCode.ItemDoesntExist, Location,
+                    "Cannot do a background sleep without a sleep proc");
                 return;
             }
 
@@ -746,11 +711,10 @@ internal sealed class DMProc {
     }
 
     public void LoopEnd() {
-        if (_loopStack?.TryPop(out var pop) ?? false) {
+        if (_loopStack?.TryPop(out string? pop) ?? false)
             AddLabel(pop + "_end");
-        } else {
+        else
             _compiler.ForcedError(Location, "Cannot pop empty loop stack");
-        }
 
         EndScope();
     }
@@ -807,13 +771,13 @@ internal sealed class DMProc {
 
     public void Break(Location location, DMASTIdentifier? label = null) {
         if (label is not null) {
-            var codeLabel = (GetCodeLabel(label.Identifier, _scopes.Peek())?.LabelName ?? label.Identifier + "_codelabel");
-            if (!LabelExists(codeLabel)) {
+            string codeLabel = GetCodeLabel(label.Identifier, _scopes.Peek())?.LabelName ??
+                               label.Identifier + "_codelabel";
+            if (!LabelExists(codeLabel))
                 _compiler.Emit(WarningCode.ItemDoesntExist, label.Location, $"Unknown label {label.Identifier}");
-            }
 
             Jump(codeLabel + "_end");
-        } else if (_loopStack?.TryPeek(out var peek) ?? false) {
+        } else if (_loopStack?.TryPeek(out string? peek) ?? false) {
             Jump(peek + "_end");
         } else {
             _compiler.Emit(WarningCode.BadFlowStatement, location, "Cannot break; not in a loop");
@@ -821,49 +785,43 @@ internal sealed class DMProc {
     }
 
     public void BreakIfFalse(Location location) {
-        if (_loopStack?.TryPeek(out var peek) ?? false) {
+        if (_loopStack?.TryPeek(out string? peek) ?? false)
             JumpIfFalse($"{peek}_end");
-        } else {
+        else
             _compiler.Emit(WarningCode.BadFlowStatement, location, "Cannot break; not in a loop");
-        }
     }
 
     public void Continue(Location location, DMASTIdentifier? label = null) {
         // TODO: Clean up this godawful label handling
         if (label is not null) {
             // Also, labelled loops always need the label declared first, so stick it like this way
-            var codeLabel = (
-                GetCodeLabel(label.Identifier, _scopes.Peek())?.LabelName ??
-                label.Identifier + "_codelabel"
-            );
-            if (!LabelExists(codeLabel)) {
+            string codeLabel = GetCodeLabel(label.Identifier, _scopes.Peek())?.LabelName ??
+                               label.Identifier + "_codelabel";
+            if (!LabelExists(codeLabel))
                 _compiler.Emit(WarningCode.ItemDoesntExist, label.Location, $"Unknown label {label.Identifier}");
-            }
 
-            var labelList = GetLabels().Keys.ToList();
+            List<string> labelList = GetLabels().Keys.ToList();
             var continueLabel = string.Empty;
-            for (var i = labelList.IndexOf(codeLabel) + 1; i < labelList.Count; i++) {
+            for (int i = labelList.IndexOf(codeLabel) + 1; i < labelList.Count; i++)
                 if (labelList[i].EndsWith("_start")) {
                     continueLabel = labelList[i].Replace("_start", "_continue");
                     break;
                 }
-            }
 
             BackgroundSleep();
             Jump(continueLabel);
         } else {
             BackgroundSleep();
 
-            if (_loopStack?.TryPeek(out var peek) ?? false) {
+            if (_loopStack?.TryPeek(out string? peek) ?? false)
                 Jump(peek + "_continue");
-            } else {
+            else
                 _compiler.Emit(WarningCode.BadFlowStatement, location, "Cannot continue; not in a loop");
-            }
         }
     }
 
     public void Goto(DMASTIdentifier label) {
-        var placeholder = MakePlaceholderLabel();
+        string placeholder = MakePlaceholderLabel();
         _pendingLabelReferences.Push(new CodeLabelReference(
             label.Identifier,
             placeholder,
@@ -919,13 +877,13 @@ internal sealed class DMProc {
 
     public void JumpIfTrueReference(DMReference reference, string label) {
         WriteOpcode(DreamProcOpcode.JumpIfTrueReference);
-        WriteReference(reference, affectStack: false);
+        WriteReference(reference, false);
         WriteLabel(label);
     }
 
     public void JumpIfFalseReference(DMReference reference, string label) {
         WriteOpcode(DreamProcOpcode.JumpIfFalseReference);
-        WriteReference(reference, affectStack: false);
+        WriteReference(reference, false);
         WriteLabel(label);
     }
 
@@ -1245,7 +1203,7 @@ internal sealed class DMProc {
     }
 
     /// <summary>
-    /// Prevents negative stack size errors when other compile errors occur
+    ///     Prevents negative stack size errors when other compile errors occur
     /// </summary>
     public void PushNullAndError() {
         PushNull();
@@ -1253,12 +1211,12 @@ internal sealed class DMProc {
     }
 
     public void FormatString(string value) {
-        int formatCount = 0;
-        foreach (var c in value) {
-            if (!StringFormatEncoder.Decode(c, out var formatType))
+        var formatCount = 0;
+        foreach (char c in value) {
+            if (!StringFormatEncoder.Decode(c, out StringFormatEncoder.FormatSuffix? formatType))
                 continue;
 
-            if(StringFormatEncoder.IsInterpolation(formatType.Value))
+            if (StringFormatEncoder.IsInterpolation(formatType.Value))
                 formatCount++;
         }
 
@@ -1470,5 +1428,64 @@ internal sealed class DMProc {
 
     public void ResolveLabels() {
         AnnotatedBytecode.ResolveCodeLabelReferences(_pendingLabelReferences);
+    }
+
+    public class LocalVariable(
+        string name,
+        int id,
+        bool isParameter,
+        DreamPath? type,
+        DMComplexValueType? explicitValueType) {
+        public readonly int Id = id;
+        public readonly bool IsParameter = isParameter;
+        public readonly string Name = name;
+
+        /// <summary>
+        ///     The explicit <see cref="DMValueType" /> for this variable
+        ///     <code>var/parameter as mob</code>
+        /// </summary>
+        public DMComplexValueType? ExplicitValueType = explicitValueType;
+
+        public DreamPath? Type = type;
+    }
+
+    public sealed class LocalConstVariable(string name, int id, DreamPath? type, Constant value)
+        : LocalVariable(name, id, false, type, value.ValType) {
+        public readonly Constant Value = value;
+    }
+
+    public class CodeLabel {
+        private static int _idCounter;
+        public readonly long AnnotatedByteOffset;
+        public readonly int Id;
+        public readonly string Name;
+
+        public CodeLabel(string name, long offset) {
+            Id = _idCounter++;
+            Name = name;
+            AnnotatedByteOffset = offset;
+        }
+
+        public string LabelName => $"{Name}_{Id}_codelabel";
+    }
+
+    internal struct CodeLabelReference(string identifier, string placeholder, Location location, DMProcScope scope) {
+        public readonly string Identifier = identifier;
+        public readonly string Placeholder = placeholder;
+        public readonly Location Location = location;
+        public readonly DMProcScope Scope = scope;
+    }
+
+    internal class DMProcScope {
+        public readonly Dictionary<string, CodeLabel> LocalCodeLabels = new();
+        public readonly Dictionary<string, LocalVariable> LocalVariables = new();
+        public readonly DMProcScope? ParentScope;
+
+        public DMProcScope() {
+        }
+
+        public DMProcScope(DMProcScope? parentScope) {
+            ParentScope = parentScope;
+        }
     }
 }

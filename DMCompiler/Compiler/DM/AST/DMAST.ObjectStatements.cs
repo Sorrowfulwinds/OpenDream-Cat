@@ -3,12 +3,12 @@ using DMCompiler.DM;
 namespace DMCompiler.Compiler.DM.AST;
 
 /// <summary>
-/// A statement used in object definitions (outside of procs)
+///     A statement used in object definitions (outside of procs)
 /// </summary>
 public abstract class DMASTStatement(Location location) : DMASTNode(location);
 
 /// <summary>
-/// Used when there was an error parsing a statement
+///     Used when there was an error parsing a statement
 /// </summary>
 /// <remarks>Emit an error code before creating!</remarks>
 public sealed class DMASTInvalidStatement(Location location) : DMASTStatement(location);
@@ -18,23 +18,25 @@ public sealed class DMASTNullStatement(Location location) : DMASTStatement(locat
 
 public sealed class DMASTObjectDefinition(Location location, DreamPath path, DMASTBlockInner? innerBlock)
     : DMASTStatement(location) {
-    /// <summary> Unlike other Path variables stored by AST nodes, this path is guaranteed to be the real, absolute path of this object definition block. <br/>
-    /// That includes any inherited pathing from being tabbed into a different, base definition.
+    public readonly DMASTBlockInner? InnerBlock = innerBlock;
+
+    /// <summary>
+    ///     Unlike other Path variables stored by AST nodes, this path is guaranteed to be the real, absolute path of this
+    ///     object definition block. <br />
+    ///     That includes any inherited pathing from being tabbed into a different, base definition.
     /// </summary>
     public DreamPath Path = path;
-
-    public readonly DMASTBlockInner? InnerBlock = innerBlock;
 }
 
-/// <remarks> Also includes proc overrides; see the <see cref="IsOverride"/> member. Verbs too.</remarks>
+/// <remarks> Also includes proc overrides; see the <see cref="IsOverride" /> member. Verbs too.</remarks>
 public sealed class DMASTProcDefinition : DMASTStatement {
-    public readonly DreamPath ObjectPath;
-    public readonly string Name;
+    public readonly DMASTProcBlockInner? Body;
+    public readonly bool IsFinal;
     public readonly bool IsOverride;
     public readonly bool IsVerb;
-    public readonly bool IsFinal;
+    public readonly string Name;
+    public readonly DreamPath ObjectPath;
     public readonly DMASTDefinitionParameter[] Parameters;
-    public readonly DMASTProcBlockInner? Body;
     public readonly DMComplexValueType? ReturnTypes;
 
     public DMASTProcDefinition(Location location, DreamPath path, DMASTDefinitionParameter[] parameters,
@@ -51,14 +53,15 @@ public sealed class DMASTProcDefinition : DMASTStatement {
         if (procElementIndex != -1) path = path.RemoveElement(procElementIndex);
 
         int finalElementIndex = path.FindElement("final");
-        if (!IsOverride && finalElementIndex != -1 && finalElementIndex != path.Elements.Length && finalElementIndex == procElementIndex) { // Removing "proc" should've moved "final" to the index of "proc"
+        if (!IsOverride && finalElementIndex != -1 && finalElementIndex != path.Elements.Length &&
+            finalElementIndex == procElementIndex) { // Removing "proc" should've moved "final" to the index of "proc"
             IsFinal = true;
             path = path.RemoveElement(finalElementIndex);
         } else {
             IsFinal = false;
         }
 
-        ObjectPath = (path.Elements.Length > 1) ? path.FromElements(0, -2) : DreamPath.Root;
+        ObjectPath = path.Elements.Length > 1 ? path.FromElements(0, -2) : DreamPath.Root;
         Name = path.LastElement ?? throw new ArgumentException($"Proc path \"{path}\" is missing a name", nameof(path));
         Parameters = parameters;
         Body = body;
@@ -71,6 +74,11 @@ public sealed class DMASTObjectVarDefinition(
     DreamPath path,
     DMASTExpression value,
     DMComplexValueType valType) : DMASTStatement(location) {
+    public readonly DMComplexValueType ValType = valType;
+
+    private readonly ObjVarDeclInfo _varDecl = new(path);
+    public DMASTExpression Value = value;
+
     /// <summary>The path of the object that we are a property of.</summary>
     public DreamPath ObjectPath => _varDecl.ObjectPath;
 
@@ -78,17 +86,12 @@ public sealed class DMASTObjectVarDefinition(
     public DreamPath? Type => _varDecl.IsList ? DreamPath.List : _varDecl.TypePath;
 
     public string Name => _varDecl.VarName;
-    public DMASTExpression Value = value;
-
-    private readonly ObjVarDeclInfo _varDecl = new(path);
 
     public bool IsStatic => _varDecl.IsStatic;
 
     public bool IsConst => _varDecl.IsConst;
     public bool IsFinal => _varDecl.IsFinal;
     public bool IsTmp => _varDecl.IsTmp;
-
-    public readonly DMComplexValueType ValType = valType;
 }
 
 public sealed class DMASTMultipleObjectVarDefinitions(Location location, DMASTObjectVarDefinition[] varDefinitions)
@@ -103,7 +106,8 @@ public sealed class DMASTObjectVarOverride : DMASTStatement {
 
     public DMASTObjectVarOverride(Location location, DreamPath path, DMASTExpression value) : base(location) {
         ObjectPath = path.FromElements(0, -2);
-        VarName = path.LastElement ?? throw new ArgumentException($"Var override path \"{path}\" is missing a name", nameof(path));
+        VarName = path.LastElement ??
+                  throw new ArgumentException($"Var override path \"{path}\" is missing a name", nameof(path));
         Value = value;
     }
 }

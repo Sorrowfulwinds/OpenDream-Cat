@@ -6,22 +6,22 @@ using System.Text;
 namespace DMCompiler.Compiler.DMPreprocessor;
 
 /// <summary>
-/// This class acts as the first layer of digestion for the compiler, <br/>
-/// taking in raw text and outputting vague tokens descriptive enough for the preprocessor to run on them.
+///     This class acts as the first layer of digestion for the compiler, <br />
+///     taking in raw text and outputting vague tokens descriptive enough for the preprocessor to run on them.
 /// </summary>
 internal sealed class DMPreprocessorLexer {
     private static readonly StringBuilder TokenTextBuilder = new();
-
-    public readonly string? IncludeDirectory;
     public readonly string File;
 
+    public readonly string? IncludeDirectory;
+
     private readonly DMCompiler _compiler;
-    private readonly StreamReader _source;
     private readonly bool _isDMStandard;
+    private readonly Queue<Token> _pendingTokenQueue = new(); // TODO: Possible to remove this?
+    private readonly StreamReader _source;
     private char _current;
     private int _currentLine = 1, _currentColumn;
     private int _previousLine = 1, _previousColumn;
-    private readonly Queue<Token> _pendingTokenQueue = new(); // TODO: Possible to remove this?
 
     public DMPreprocessorLexer(DMCompiler compiler, string? includeDirectory, string file, string source) {
         _compiler = compiler;
@@ -45,7 +45,7 @@ internal sealed class DMPreprocessorLexer {
     public Token NextToken(bool ignoreWhitespace = false) {
         if (_pendingTokenQueue.Count > 0) {
             Token token = _pendingTokenQueue.Dequeue();
-            if (ignoreWhitespace) {
+            if (ignoreWhitespace)
                 do {
                     if (token.Type != TokenType.DM_Preproc_Whitespace)
                         return token;
@@ -55,9 +55,8 @@ internal sealed class DMPreprocessorLexer {
 
                     token = _pendingTokenQueue.Dequeue();
                 } while (true);
-            } else {
+            else
                 return token;
-            }
         }
 
         char c = GetCurrent();
@@ -75,16 +74,22 @@ internal sealed class DMPreprocessorLexer {
                 return CreateToken(TokenType.Newline, "\n");
             case ' ':
             case '\t':
-                int whitespaceLength = 1;
+                var whitespaceLength = 1;
                 while (Advance() is ' ' or '\t')
                     whitespaceLength++;
 
                 return ignoreWhitespace
                     ? NextToken()
                     : CreateToken(TokenType.DM_Preproc_Whitespace, new string(c, whitespaceLength));
-            case '}': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, c);
-            case ';': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_Semicolon, c);
-            case '.': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_Period, c);
+            case '}':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator, c);
+            case ';':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_Semicolon, c);
+            case '.':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_Period, c);
             case ':':
                 switch (Advance()) {
                     case '=':
@@ -96,9 +101,15 @@ internal sealed class DMPreprocessorLexer {
                     default:
                         return CreateToken(TokenType.DM_Preproc_Punctuator_Colon, c);
                 }
-            case ',': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_Comma, c);
-            case '(': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_LeftParenthesis, c);
-            case ')': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_RightParenthesis, c);
+            case ',':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_Comma, c);
+            case '(':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_LeftParenthesis, c);
+            case ')':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_RightParenthesis, c);
             case '[': {
                 if (Advance() == ']') {
                     if (Advance() == '=') {
@@ -111,14 +122,16 @@ internal sealed class DMPreprocessorLexer {
 
                 return CreateToken(TokenType.DM_Preproc_Punctuator_LeftBracket, c);
             }
-            case ']': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_RightBracket, c);
-            case '?': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator_Question, c);
+            case ']':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_RightBracket, c);
+            case '?':
+                Advance();
+                return CreateToken(TokenType.DM_Preproc_Punctuator_Question, c);
             case '\\': {
                 c = Advance();
 
-                if (HandleLineEnd()) {
-                    return CreateToken(TokenType.DM_Preproc_LineSplice, c);
-                }
+                if (HandleLineEnd()) return CreateToken(TokenType.DM_Preproc_LineSplice, c);
 
                 //An escaped identifier.
                 //The next character turns into an identifier.
@@ -136,7 +149,9 @@ internal sealed class DMPreprocessorLexer {
 
                         return CreateToken(TokenType.DM_Preproc_Punctuator, ">>");
                     }
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, ">=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, ">=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '>');
                 }
             }
@@ -151,8 +166,12 @@ internal sealed class DMPreprocessorLexer {
 
                         return CreateToken(TokenType.DM_Preproc_Punctuator, "<<");
                     }
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "<=");
-                    case '>': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "<>");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "<=");
+                    case '>':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "<>");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '<');
                 }
             }
@@ -160,25 +179,37 @@ internal sealed class DMPreprocessorLexer {
                 switch (Advance()) {
                     case '|': {
                         switch (Advance()) {
-                            case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "||=");
+                            case '=':
+                                Advance();
+                                return CreateToken(TokenType.DM_Preproc_Punctuator, "||=");
                             default: return CreateToken(TokenType.DM_Preproc_Punctuator, "||");
                         }
                     }
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "|=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "|=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '|');
                 }
             }
             case '*': {
                 switch (Advance()) {
-                    case '*': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "**");
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "*=");
+                    case '*':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "**");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "*=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '*');
                 }
             }
             case '+': {
                 switch (Advance()) {
-                    case '+': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "++");
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "+=");
+                    case '+':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "++");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "+=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '+');
                 }
             }
@@ -186,24 +217,34 @@ internal sealed class DMPreprocessorLexer {
                 switch (Advance()) {
                     case '&': {
                         switch (Advance()) {
-                            case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "&&=");
+                            case '=':
+                                Advance();
+                                return CreateToken(TokenType.DM_Preproc_Punctuator, "&&=");
                             default: return CreateToken(TokenType.DM_Preproc_Punctuator, "&&");
                         }
                     }
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "&=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "&=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '&');
                 }
             }
             case '~': {
                 switch (Advance()) {
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "~=");
-                    case '!': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "~!");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "~=");
+                    case '!':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "~!");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '~');
                 }
             }
             case '%': {
                 switch (Advance()) {
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "%=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "%=");
                     case '%': {
                         if (Advance() == '=') {
                             Advance();
@@ -217,26 +258,36 @@ internal sealed class DMPreprocessorLexer {
             }
             case '^': {
                 switch (Advance()) {
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "^=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "^=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '^');
                 }
             }
             case '!': {
                 switch (Advance()) {
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "!=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "!=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '!');
                 }
             }
             case '=': {
                 switch (Advance()) {
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "==");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "==");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '=');
                 }
             }
             case '-': {
                 switch (Advance()) {
-                    case '-': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "--");
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "-=");
+                    case '-':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "--");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "-=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, '-');
                 }
             }
@@ -249,11 +300,10 @@ internal sealed class DMPreprocessorLexer {
                             if (c == '\\') {
                                 Advance();
 
-                                if (HandleLineEnd()) { //Line splice within a comment
+                                if (HandleLineEnd()) //Line splice within a comment
                                     do {
                                         Advance();
                                     } while (GetCurrent() is ' ' or '\t' || HandleLineEnd());
-                                }
                             }
                         } while (!AtLineEnd() && !AtEndOfSource());
 
@@ -263,7 +313,7 @@ internal sealed class DMPreprocessorLexer {
                         //Skip everything up to the "*/"
                         Advance();
                         var commentDepth = 1;
-                        while (commentDepth > 0) {
+                        while (commentDepth > 0)
                             if (GetCurrent() == '/') {
                                 if (Advance() == '*') {
                                     // We found another comment - up the nest count
@@ -287,24 +337,23 @@ internal sealed class DMPreprocessorLexer {
                             } else if (!HandleLineEnd()) {
                                 Advance();
                             }
-                        }
 
-                        while (GetCurrent() == ' ' || GetCurrent() == '\t') {
-                            Advance();
-                        }
+                        while (GetCurrent() == ' ' || GetCurrent() == '\t') Advance();
 
                         return NextToken(ignoreWhitespace);
                     }
-                    case '=': Advance(); return CreateToken(TokenType.DM_Preproc_Punctuator, "/=");
+                    case '=':
+                        Advance();
+                        return CreateToken(TokenType.DM_Preproc_Punctuator, "/=");
                     default: return CreateToken(TokenType.DM_Preproc_Punctuator, c);
                 }
             }
             case '@': { //Raw string
                 char delimiter = Advance();
-                var startLoc = CurrentLocation();
+                Location startLoc = CurrentLocation();
 
                 // @(XYZ) where XYZ is the delimiter
-                string complexDelimiter = string.Empty;
+                var complexDelimiter = string.Empty;
                 if (delimiter == '(') {
                     Advance();
                     while (GetCurrent() != ')') {
@@ -324,7 +373,7 @@ internal sealed class DMPreprocessorLexer {
                 TokenTextBuilder.Append(delimiter);
 
                 bool isComplex = complexDelimiter != string.Empty;
-                bool isLong = false;
+                var isLong = false;
 
                 c = Advance();
                 if (delimiter == '{') {
@@ -348,19 +397,18 @@ internal sealed class DMPreprocessorLexer {
                         if (GetCurrent() == complexDelimiter[delimIdx]) delimIdx++;
                         else delimIdx = 0;
 
-                        if (delimIdx == complexDelimiter.Length && c == complexDelimiter[^1]) { // latter check ensures a 1-char delimiter actually matches
+                        if (delimIdx == complexDelimiter.Length &&
+                            c == complexDelimiter[^1]) // latter check ensures a 1-char delimiter actually matches
                             break;
-                        }
 
                         c = Advance();
                     } while (!AtEndOfSource());
 
-                    if (AtEndOfSource()) {
+                    if (AtEndOfSource())
                         _compiler.Emit(WarningCode.BadExpression, startLoc,
                             "Unterminated string delimiter");
-                    }
                 } else if (isLong) {
-                    bool nextCharCanTerm = false;
+                    var nextCharCanTerm = false;
 
                     Advance();
                     do {
@@ -381,10 +429,9 @@ internal sealed class DMPreprocessorLexer {
                             nextCharCanTerm = true;
                     } while (!AtEndOfSource());
 
-                    if (AtEndOfSource()) {
+                    if (AtEndOfSource())
                         _compiler.Emit(WarningCode.BadExpression, startLoc,
                             "Unterminated string delimiter");
-                    }
                 } else {
                     while (c != delimiter && !AtLineEnd() && !AtEndOfSource()) {
                         TokenTextBuilder.Append(c);
@@ -397,15 +444,15 @@ internal sealed class DMPreprocessorLexer {
                 if (!HandleLineEnd())
                     Advance();
 
-                string text = TokenTextBuilder.ToString();
+                var text = TokenTextBuilder.ToString();
                 string value;
 
                 if (isComplex) {
                     // Complex strings need to strip @(complexDelimiter) and a potential final newline. Newline after @(complexDelimiter) is already handled
-                    var trimEnd = complexDelimiter.Length;
+                    int trimEnd = complexDelimiter.Length;
                     if (TokenTextBuilder[^(complexDelimiter.Length + 1)] == '\n') trimEnd += 1;
                     if (TokenTextBuilder[^(complexDelimiter.Length + 2)] == '\r') trimEnd += 1;
-                    var trimStart = 3 + complexDelimiter.Length; // 3 is from these chars: @()
+                    int trimStart = 3 + complexDelimiter.Length; // 3 is from these chars: @()
                     value = TokenTextBuilder.ToString(trimStart, TokenTextBuilder.Length - (trimStart + trimEnd));
                 } else if (isLong) {
                     // Long strings ignore a newline immediately after the @{" and before the "}
@@ -429,17 +476,13 @@ internal sealed class DMPreprocessorLexer {
             case '"':
                 return LexString(false);
             case '{':
-                return Advance() == '"' ?
-                    LexString(true) :
-                    CreateToken(TokenType.DM_Preproc_Punctuator, c);
+                return Advance() == '"' ? LexString(true) : CreateToken(TokenType.DM_Preproc_Punctuator, c);
             case '#': {
                 bool isConcat = Advance() == '#';
                 if (isConcat) Advance();
 
                 // Whitespace after '#' is ignored
-                while (GetCurrent() is ' ' or '\t') {
-                    Advance();
-                }
+                while (GetCurrent() is ' ' or '\t') Advance();
 
                 TokenTextBuilder.Clear();
                 while (char.IsAsciiLetterOrDigit(GetCurrent()) || GetCurrent() == '_') {
@@ -447,21 +490,18 @@ internal sealed class DMPreprocessorLexer {
                     Advance();
                 }
 
-                string text = TokenTextBuilder.ToString();
-                if (text == string.Empty) {
-                    return NextToken(ignoreWhitespace); // Skip this token
-                } else if (isConcat) {
-                    return CreateToken(TokenType.DM_Preproc_TokenConcat, $"##{text}", text);
-                }
+                var text = TokenTextBuilder.ToString();
+                if (text == string.Empty) return NextToken(ignoreWhitespace); // Skip this token
 
-                if (TryMacroKeyword(text, out var macroKeyword))
+                if (isConcat) return CreateToken(TokenType.DM_Preproc_TokenConcat, $"##{text}", text);
+
+                if (TryMacroKeyword(text, out Token? macroKeyword))
                     return macroKeyword.Value;
 
                 string macroAttempt = text.ToLower();
-                if (TryMacroKeyword(macroAttempt, out var attemptKeyword)) { // if they mis-capitalized the keyword
+                if (TryMacroKeyword(macroAttempt, out Token? attemptKeyword)) // if they mis-capitalized the keyword
                     _compiler.Emit(WarningCode.MiscapitalizedDirective, attemptKeyword.Value.Location,
                         $"#{text} is not a valid macro keyword. Did you mean '#{macroAttempt}'?");
-                }
 
                 return CreateToken(TokenType.DM_Preproc_ParameterStringify, $"#{text}", text);
             }
@@ -473,8 +513,10 @@ internal sealed class DMPreprocessorLexer {
                         TokenTextBuilder.Append(GetCurrent());
 
                     return CreateToken(TokenType.DM_Preproc_Identifier, TokenTextBuilder.ToString());
-                } else if (char.IsAsciiDigit(c)) {
-                    bool error = false;
+                }
+
+                if (char.IsAsciiDigit(c)) {
+                    var error = false;
 
                     TokenTextBuilder.Clear();
                     TokenTextBuilder.Append(c);
@@ -485,7 +527,7 @@ internal sealed class DMPreprocessorLexer {
                             TokenTextBuilder.Append(next);
                             next = Advance();
                         } else if (c == '#' && next == 'I') { //1.#INF and 1.#IND
-                            if (Advance() != 'N' || Advance() != 'F' && GetCurrent() != 'D') {
+                            if (Advance() != 'N' || (Advance() != 'F' && GetCurrent() != 'D')) {
                                 error = true;
 
                                 break;
@@ -497,11 +539,11 @@ internal sealed class DMPreprocessorLexer {
                         }
 
                         c = next;
-                        if (char.IsAsciiHexDigit(c) || c == '.' || c == 'x' || c == '#' || c == 'e' || c == 'E' || c == 'p' || c == 'P') {
+                        if (char.IsAsciiHexDigit(c) || c == '.' || c == 'x' || c == '#' || c == 'e' || c == 'E' ||
+                            c == 'p' || c == 'P')
                             TokenTextBuilder.Append(c);
-                        } else {
+                        else
                             break;
-                        }
                     }
 
                     return error
@@ -554,27 +596,28 @@ internal sealed class DMPreprocessorLexer {
                 token = null; // maybe should use ref instead of out?
                 return false;
         }
+
         return true;
     }
 
-
-    ///<summary>
-    /// Lex a string <br/>
-    ///</summary>
-    ///<remarks>
-    /// If it contains string interpolations, it splits the string tokens into parts and lex the expressions as normal <br/>
-    /// For example, "There are [amount] of them" becomes: <br/>
-    ///    DM_Preproc_StringBegin("There are "), DM_Preproc_Identifier(amount), DM_Preproc_StringEnd(" of them") <br/>
-    /// If there is no string interpolation, it outputs a DM_Preproc_ConstantString token instead
+    /// <summary>
+    ///     Lex a string <br />
+    /// </summary>
+    /// <remarks>
+    ///     If it contains string interpolations, it splits the string tokens into parts and lex the expressions as normal
+    ///     <br />
+    ///     For example, "There are [amount] of them" becomes: <br />
+    ///     DM_Preproc_StringBegin("There are "), DM_Preproc_Identifier(amount), DM_Preproc_StringEnd(" of them") <br />
+    ///     If there is no string interpolation, it outputs a DM_Preproc_ConstantString token instead
     /// </remarks>
     private Token LexString(bool isLong) {
         char terminator = GetCurrent();
-        StringBuilder textBuilder = new StringBuilder();
+        var textBuilder = new StringBuilder();
         Queue<Token> stringTokens = new();
         string tokenTextStart = isLong ? "{" + terminator : char.ToString(terminator);
         string tokenTextEnd = isLong ? terminator + "}" : char.ToString(terminator);
-        bool isConstant = true;
-        bool foundTerminator = false;
+        var isConstant = true;
+        var foundTerminator = false;
 
         Advance();
         while (!(!isLong && AtLineEnd()) && !AtEndOfSource()) {
@@ -585,7 +628,8 @@ internal sealed class DMPreprocessorLexer {
             } else if (stringC == '[') {
                 textBuilder.Append(stringC);
                 stringTokens.Enqueue(isConstant // First case of '['
-                    ? CreateToken(TokenType.DM_Preproc_StringBegin, tokenTextStart + textBuilder, textBuilder.ToString())
+                    ? CreateToken(TokenType.DM_Preproc_StringBegin, tokenTextStart + textBuilder,
+                        textBuilder.ToString())
                     : CreateToken(TokenType.DM_Preproc_StringMiddle, textBuilder.ToString(), textBuilder.ToString()));
 
                 isConstant = false;
@@ -594,8 +638,9 @@ internal sealed class DMPreprocessorLexer {
                 Advance();
 
                 Token exprToken = NextToken();
-                int bracketNesting = 0;
-                while (!(bracketNesting == 0 && exprToken.Type == TokenType.DM_Preproc_Punctuator_RightBracket) && !AtEndOfSource()) {
+                var bracketNesting = 0;
+                while (!(bracketNesting == 0 && exprToken.Type == TokenType.DM_Preproc_Punctuator_RightBracket) &&
+                       !AtEndOfSource()) {
                     stringTokens.Enqueue(exprToken);
 
                     if (exprToken.Type == TokenType.DM_Preproc_Punctuator_LeftBracket) bracketNesting++;
@@ -611,10 +656,9 @@ internal sealed class DMPreprocessorLexer {
 
                 if (HandleLineEnd()) { //Line splice
                     // Ignore newlines & all incoming whitespace
-                    while (AtLineEnd() || GetCurrent() is ' ' or '\t') {
+                    while (AtLineEnd() || GetCurrent() is ' ' or '\t')
                         if (!HandleLineEnd())
                             Advance(); // Was a space or tab so advance it
-                    }
                 } else {
                     textBuilder.Append(stringC);
                     textBuilder.Append(GetCurrent());
@@ -650,27 +694,26 @@ internal sealed class DMPreprocessorLexer {
 
         var text = textBuilder.ToString();
 
-        if (isConstant) {
+        if (isConstant)
             return CreateToken(TokenType.DM_Preproc_ConstantString, tokenTextStart + text + tokenTextEnd, text);
-        } else {
-            foreach (var token in stringTokens)
-                _pendingTokenQueue.Enqueue(token);
 
-            _pendingTokenQueue.Enqueue(CreateToken(TokenType.DM_Preproc_StringEnd, text + tokenTextEnd, text));
+        foreach (Token token in stringTokens)
+            _pendingTokenQueue.Enqueue(token);
 
-            return _pendingTokenQueue.Dequeue();
-        }
+        _pendingTokenQueue.Enqueue(CreateToken(TokenType.DM_Preproc_StringEnd, text + tokenTextEnd, text));
+
+        return _pendingTokenQueue.Dequeue();
     }
 
     /// <summary>
-    /// Checks if the current position is at the end of a line (carriage return or newline)
+    ///     Checks if the current position is at the end of a line (carriage return or newline)
     /// </summary>
     private bool AtLineEnd() {
         return GetCurrent() is '\r' or '\n';
     }
 
     /// <summary>
-    /// Handles the end of a line by consuming all carriage returns before a newline or the absence of a newline
+    ///     Handles the end of a line by consuming all carriage returns before a newline or the absence of a newline
     /// </summary>
     /// <remarks>If you skip a line ending without using this, the line counter will be incorrect</remarks>
     /// <returns>True if this handled a line ending, otherwise false</returns>
@@ -685,7 +728,8 @@ internal sealed class DMPreprocessorLexer {
                 goto case '\n';
             case '\n':
                 _currentLine++;
-                _currentColumn = 0; // Because Advance will bump this to 1 and any position reads will happen next NextToken() call
+                _currentColumn =
+                    0; // Because Advance will bump this to 1 and any position reads will happen next NextToken() call
 
                 if (c == '\n') // This line could have ended with only \r
                     Advance();
@@ -731,6 +775,7 @@ internal sealed class DMPreprocessorLexer {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Token CreateToken(TokenType type, char text, object? value = null) {
-        return new Token(type, text.ToString(), new Location(File, _previousLine, _previousColumn, _isDMStandard), value);
+        return new Token(type, text.ToString(), new Location(File, _previousLine, _previousColumn, _isDMStandard),
+            value);
     }
 }

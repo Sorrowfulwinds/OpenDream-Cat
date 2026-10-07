@@ -1,7 +1,7 @@
 ﻿namespace DMCompiler.Compiler;
 
 /// <remarks>
-/// All values should be unique.
+///     All values should be unique.
 /// </remarks>
 public enum WarningCode {
     // 0 - 999 are reserved for giving codes to fatal errors which cannot reasonably be demoted to a warning/notice/disable.
@@ -24,6 +24,7 @@ public enum WarningCode {
     DanglingOverride = 405,
     StaticOverride = 406,
     FinalOverride = 407,
+
     // ReSharper disable once InconsistentNaming
     IAmATeaPot = 418, // TODO: Implement the HTCPC protocol for OD
     HardConstContext = 500,
@@ -41,10 +42,13 @@ public enum WarningCode {
     ErrorDirective = 1200,
     WarningDirective = 1201,
     MiscapitalizedDirective = 1300,
-    ErrorRecoveryActivated = 1999, // Error recovery kicked in, should probably be a non-fatal error since it means a chunk of code was so malformed we couldn't compile it
+
+    ErrorRecoveryActivated =
+        1999, // Error recovery kicked in, should probably be a non-fatal error since it means a chunk of code was so malformed we couldn't compile it
 
     // 2000 - 2999 are reserved for compiler configuration of actual behaviour.
-    SoftReservedKeyword = 2000, // For keywords that SHOULD be reserved, but don't have to be. 'null' and 'defined', for instance
+    SoftReservedKeyword =
+        2000, // For keywords that SHOULD be reserved, but don't have to be. 'null' and 'defined', for instance
     ScopeOperandNamedType = 2001, // Scope operator is used on a var named type or parent_type, maybe unintentionally
     DuplicateVariable = 2100,
     DuplicateProcDefinition = 2101,
@@ -54,7 +58,9 @@ public enum WarningCode {
     FallbackBuiltinArgument = 2208, // A builtin (sin(), cos(), etc) with an invalid/fallback argument
     PointlessScopeOperator = 2209,
     PointlessPositionalArgument = 2210,
-    ProcArgumentGlobal = 2211, // Prepending "/" on a proc arg (e.g. "/proc/example(/var/foo)" makes the arg a global var. Ref https://www.byond.com/forum/post/2830750
+
+    ProcArgumentGlobal =
+        2211, // Prepending "/" on a proc arg (e.g. "/proc/example(/var/foo)" makes the arg a global var. Ref https://www.byond.com/forum/post/2830750
     AmbiguousVarStatic = 2212, // Referencing a static variable when an instance variable with the same name exists
     MalformedRange = 2300,
     InvalidRange = 2301,
@@ -62,7 +68,9 @@ public enum WarningCode {
     InvalidOverride = 2303,
     InvalidIndexOperation = 2304,
     MalformedSetStatement = 2305,
-    DanglingVarType = 2401, // For types inferred by a particular var definition and nowhere else, that ends up not existing (not forced-fatal because BYOND doesn't always error)
+
+    DanglingVarType =
+        2401, // For types inferred by a particular var definition and nowhere else, that ends up not existing (not forced-fatal because BYOND doesn't always error)
     DanglingSyntax = 2402, // BYOND often ignores e.g. dangling dereference operators like "var/foo = bar."
     MissingInterpolatedExpression = 2500, // A text macro is missing a required interpolated expression
     AmbiguousResourcePath = 2600,
@@ -78,7 +86,9 @@ public enum WarningCode {
     EmptyBlock = 3100,
     EmptyProc = 3101,
     UnsafeClientAccess = 3200,
-    SuspiciousSwitchCase = 3201, // "else if" cases are actually valid DM, they just spontaneously end the switch context and begin an if-else ladder within the else case of the switch
+
+    SuspiciousSwitchCase =
+        3201, // "else if" cases are actually valid DM, they just spontaneously end the switch context and begin an if-else ladder within the else case of the switch
     AssignmentInConditional = 3202,
     PickWeightedSyntax = 3203,
     AmbiguousInOrder = 3204,
@@ -87,7 +97,7 @@ public enum WarningCode {
 
     // 4000 - 4999 are reserved for runtime configuration. (TODO: Runtime doesn't know about configs yet!)
     ListNegativeSizeException = 4000, // When a list's length is decremented below zero, raise an exception.
-    InitialVarOnPrimitiveException = 4001, // initial(foo.var) where foo is a variable containing a non-datum value.
+    InitialVarOnPrimitiveException = 4001 // initial(foo.var) where foo is a variable containing a non-datum value.
 }
 
 public enum ErrorLevel {
@@ -99,7 +109,7 @@ public enum ErrorLevel {
 }
 
 /// <summary>
-/// Stores the location and message of a notice/warning/error.
+///     Stores the location and message of a notice/warning/error.
 /// </summary>
 public struct CompilerEmission {
     public readonly ErrorLevel Level;
@@ -107,96 +117,103 @@ public struct CompilerEmission {
     public Location Location;
     public readonly string Message;
 
-    public static readonly Dictionary<WarningCode, ErrorLevel> DefaultErrorConfig = new(Enum.GetValues<WarningCode>().Length) {
-        //0-999, must all be error
-        {WarningCode.Unknown, ErrorLevel.Error},
-        {WarningCode.BadToken, ErrorLevel.Error},
-        {WarningCode.BadDirective, ErrorLevel.Error},
-        {WarningCode.BadExpression, ErrorLevel.Error},
-        {WarningCode.MissingExpression, ErrorLevel.Error},
-        {WarningCode.InvalidArgumentCount, ErrorLevel.Error},
-        {WarningCode.InvalidVarDefinition, ErrorLevel.Error},
-        {WarningCode.MissingBody, ErrorLevel.Error},
-        {WarningCode.BadLabel, ErrorLevel.Error},
-        {WarningCode.BadFlowStatement, ErrorLevel.Error},
-        {WarningCode.InvalidReference, ErrorLevel.Error},
-        {WarningCode.BadArgument, ErrorLevel.Error},
-        {WarningCode.InvalidArgumentKey, ErrorLevel.Error},
-        {WarningCode.ArglistOnlyArgument, ErrorLevel.Error},
-        {WarningCode.HardReservedKeyword, ErrorLevel.Error},
-        {WarningCode.ItemDoesntExist, ErrorLevel.Error},
-        {WarningCode.DanglingOverride, ErrorLevel.Error},
-        {WarningCode.StaticOverride, ErrorLevel.Error},
-        {WarningCode.FinalOverride, ErrorLevel.Error},
-        {WarningCode.IAmATeaPot, ErrorLevel.Error},
-        {WarningCode.HardConstContext, ErrorLevel.Error},
-        {WarningCode.WriteToConstant, ErrorLevel.Error},
-        {WarningCode.InvalidInclusion, ErrorLevel.Error},
+    public static readonly Dictionary<WarningCode, ErrorLevel> DefaultErrorConfig =
+        new(Enum.GetValues<WarningCode>().Length) {
+            //0-999, must all be error
+            {WarningCode.Unknown, ErrorLevel.Error},
+            {WarningCode.BadToken, ErrorLevel.Error},
+            {WarningCode.BadDirective, ErrorLevel.Error},
+            {WarningCode.BadExpression, ErrorLevel.Error},
+            {WarningCode.MissingExpression, ErrorLevel.Error},
+            {WarningCode.InvalidArgumentCount, ErrorLevel.Error},
+            {WarningCode.InvalidVarDefinition, ErrorLevel.Error},
+            {WarningCode.MissingBody, ErrorLevel.Error},
+            {WarningCode.BadLabel, ErrorLevel.Error},
+            {WarningCode.BadFlowStatement, ErrorLevel.Error},
+            {WarningCode.InvalidReference, ErrorLevel.Error},
+            {WarningCode.BadArgument, ErrorLevel.Error},
+            {WarningCode.InvalidArgumentKey, ErrorLevel.Error},
+            {WarningCode.ArglistOnlyArgument, ErrorLevel.Error},
+            {WarningCode.HardReservedKeyword, ErrorLevel.Error},
+            {WarningCode.ItemDoesntExist, ErrorLevel.Error},
+            {WarningCode.DanglingOverride, ErrorLevel.Error},
+            {WarningCode.StaticOverride, ErrorLevel.Error},
+            {WarningCode.FinalOverride, ErrorLevel.Error},
+            {WarningCode.IAmATeaPot, ErrorLevel.Error},
+            {WarningCode.HardConstContext, ErrorLevel.Error},
+            {WarningCode.WriteToConstant, ErrorLevel.Error},
+            {WarningCode.InvalidInclusion, ErrorLevel.Error},
 
-        //1000-1999
-        {WarningCode.FileAlreadyIncluded, ErrorLevel.Warning},
-        {WarningCode.MissingIncludedFile, ErrorLevel.Error},
-        {WarningCode.InvalidWarningCode, ErrorLevel.Warning},
-        {WarningCode.InvalidFileDirDefine, ErrorLevel.Warning},
-        {WarningCode.MisplacedDirective, ErrorLevel.Error},
-        {WarningCode.UndefineMissingDirective, ErrorLevel.Warning},
-        {WarningCode.DefinedMissingParen, ErrorLevel.Error},
-        {WarningCode.ErrorDirective, ErrorLevel.Error},
-        {WarningCode.WarningDirective, ErrorLevel.Warning},
-        {WarningCode.MiscapitalizedDirective, ErrorLevel.Warning},
-        {WarningCode.ErrorRecoveryActivated, ErrorLevel.Error},
+            //1000-1999
+            {WarningCode.FileAlreadyIncluded, ErrorLevel.Warning},
+            {WarningCode.MissingIncludedFile, ErrorLevel.Error},
+            {WarningCode.InvalidWarningCode, ErrorLevel.Warning},
+            {WarningCode.InvalidFileDirDefine, ErrorLevel.Warning},
+            {WarningCode.MisplacedDirective, ErrorLevel.Error},
+            {WarningCode.UndefineMissingDirective, ErrorLevel.Warning},
+            {WarningCode.DefinedMissingParen, ErrorLevel.Error},
+            {WarningCode.ErrorDirective, ErrorLevel.Error},
+            {WarningCode.WarningDirective, ErrorLevel.Warning},
+            {WarningCode.MiscapitalizedDirective, ErrorLevel.Warning},
+            {WarningCode.ErrorRecoveryActivated, ErrorLevel.Error},
 
-        //2000-2999
-        {WarningCode.SoftReservedKeyword, ErrorLevel.Warning},
-        {WarningCode.ScopeOperandNamedType, ErrorLevel.Warning},
-        {WarningCode.DuplicateVariable, ErrorLevel.Warning},
-        {WarningCode.DuplicateProcDefinition, ErrorLevel.Error},
-        {WarningCode.PointlessParentCall, ErrorLevel.Warning},
-        {WarningCode.PointlessBuiltinCall, ErrorLevel.Warning},
-        {WarningCode.SuspiciousMatrixCall, ErrorLevel.Warning},
-        {WarningCode.FallbackBuiltinArgument, ErrorLevel.Warning},
-        {WarningCode.PointlessScopeOperator, ErrorLevel.Warning},
-        {WarningCode.MalformedRange, ErrorLevel.Warning},
-        {WarningCode.InvalidRange, ErrorLevel.Error},
-        {WarningCode.InvalidSetStatement, ErrorLevel.Error},
-        {WarningCode.InvalidOverride, ErrorLevel.Warning},
-        {WarningCode.InvalidIndexOperation, ErrorLevel.Warning},
-        {WarningCode.MalformedSetStatement, ErrorLevel.Warning},
-        {WarningCode.DanglingVarType, ErrorLevel.Warning},
-        {WarningCode.DanglingSyntax, ErrorLevel.Warning},
-        {WarningCode.MissingInterpolatedExpression, ErrorLevel.Warning},
-        {WarningCode.AmbiguousResourcePath, ErrorLevel.Warning},
-        {WarningCode.SuspiciousSwitchCase, ErrorLevel.Warning},
-        {WarningCode.PointlessPositionalArgument, ErrorLevel.Warning},
-        {WarningCode.ProcArgumentGlobal, ErrorLevel.Warning}, // Ref BYOND issue https://www.byond.com/forum/post/2830750
-        {WarningCode.AmbiguousVarStatic, ErrorLevel.Warning}, // https://github.com/OpenDreamProject/OpenDream/issues/997
-        // NOTE: The next few pragmas are for OpenDream's experimental type checker
-        // This feature is still in development, elevating these pragmas outside of local testing is discouraged
-        // An RFC to finalize this feature is coming soon(TM)
-        // BEGIN TYPEMAKER
-        {WarningCode.UnsupportedTypeCheck, ErrorLevel.Notice},
-        {WarningCode.InvalidReturnType, ErrorLevel.Notice},
-        {WarningCode.InvalidVarType, ErrorLevel.Notice},
-        {WarningCode.ImplicitNullType, ErrorLevel.Notice},
-        {WarningCode.LostTypeInfo, ErrorLevel.Notice},
-        // END TYPEMAKER
-        {WarningCode.UnimplementedAccess, ErrorLevel.Warning},
-        {WarningCode.UnsupportedAccess, ErrorLevel.Warning},
+            //2000-2999
+            {WarningCode.SoftReservedKeyword, ErrorLevel.Warning},
+            {WarningCode.ScopeOperandNamedType, ErrorLevel.Warning},
+            {WarningCode.DuplicateVariable, ErrorLevel.Warning},
+            {WarningCode.DuplicateProcDefinition, ErrorLevel.Error},
+            {WarningCode.PointlessParentCall, ErrorLevel.Warning},
+            {WarningCode.PointlessBuiltinCall, ErrorLevel.Warning},
+            {WarningCode.SuspiciousMatrixCall, ErrorLevel.Warning},
+            {WarningCode.FallbackBuiltinArgument, ErrorLevel.Warning},
+            {WarningCode.PointlessScopeOperator, ErrorLevel.Warning},
+            {WarningCode.MalformedRange, ErrorLevel.Warning},
+            {WarningCode.InvalidRange, ErrorLevel.Error},
+            {WarningCode.InvalidSetStatement, ErrorLevel.Error},
+            {WarningCode.InvalidOverride, ErrorLevel.Warning},
+            {WarningCode.InvalidIndexOperation, ErrorLevel.Warning},
+            {WarningCode.MalformedSetStatement, ErrorLevel.Warning},
+            {WarningCode.DanglingVarType, ErrorLevel.Warning},
+            {WarningCode.DanglingSyntax, ErrorLevel.Warning},
+            {WarningCode.MissingInterpolatedExpression, ErrorLevel.Warning},
+            {WarningCode.AmbiguousResourcePath, ErrorLevel.Warning},
+            {WarningCode.SuspiciousSwitchCase, ErrorLevel.Warning},
+            {WarningCode.PointlessPositionalArgument, ErrorLevel.Warning}, {
+                WarningCode.ProcArgumentGlobal, ErrorLevel.Warning
+            }, // Ref BYOND issue https://www.byond.com/forum/post/2830750
+            {
+                WarningCode.AmbiguousVarStatic, ErrorLevel.Warning
+            }, // https://github.com/OpenDreamProject/OpenDream/issues/997
+            // NOTE: The next few pragmas are for OpenDream's experimental type checker
+            // This feature is still in development, elevating these pragmas outside of local testing is discouraged
+            // An RFC to finalize this feature is coming soon(TM)
+            // BEGIN TYPEMAKER
+            {WarningCode.UnsupportedTypeCheck, ErrorLevel.Notice},
+            {WarningCode.InvalidReturnType, ErrorLevel.Notice},
+            {WarningCode.InvalidVarType, ErrorLevel.Notice},
+            {WarningCode.ImplicitNullType, ErrorLevel.Notice},
+            {WarningCode.LostTypeInfo, ErrorLevel.Notice},
+            // END TYPEMAKER
+            {WarningCode.UnimplementedAccess, ErrorLevel.Warning},
+            {WarningCode.UnsupportedAccess, ErrorLevel.Warning},
 
-        //3000-3999
-        { WarningCode.EmptyBlock, ErrorLevel.Notice},
-        {WarningCode.EmptyProc, ErrorLevel.Disabled}, // NOTE: If you enable this in OD's default pragma config file, it will emit for OD's DMStandard. Put it in your codebase's pragma config file.
-        {WarningCode.UnsafeClientAccess, ErrorLevel.Disabled}, // NOTE: Only checks for unsafe accesses like "client.foobar" and doesn't consider if the client was already null-checked earlier in the proc
-        {WarningCode.AssignmentInConditional, ErrorLevel.Warning},
-        {WarningCode.PickWeightedSyntax, ErrorLevel.Disabled},
-        {WarningCode.AmbiguousInOrder, ErrorLevel.Warning},
-        {WarningCode.ExtraToken, ErrorLevel.Warning},
-        {WarningCode.RuntimeSearchOperator, ErrorLevel.Disabled},
+            //3000-3999
+            {WarningCode.EmptyBlock, ErrorLevel.Notice}, {
+                WarningCode.EmptyProc, ErrorLevel.Disabled
+            }, // NOTE: If you enable this in OD's default pragma config file, it will emit for OD's DMStandard. Put it in your codebase's pragma config file.
+            {
+                WarningCode.UnsafeClientAccess, ErrorLevel.Disabled
+            }, // NOTE: Only checks for unsafe accesses like "client.foobar" and doesn't consider if the client was already null-checked earlier in the proc
+            {WarningCode.AssignmentInConditional, ErrorLevel.Warning},
+            {WarningCode.PickWeightedSyntax, ErrorLevel.Disabled},
+            {WarningCode.AmbiguousInOrder, ErrorLevel.Warning},
+            {WarningCode.ExtraToken, ErrorLevel.Warning},
+            {WarningCode.RuntimeSearchOperator, ErrorLevel.Disabled},
 
-        //4000-4999
-        {WarningCode.ListNegativeSizeException, ErrorLevel.Disabled},
-        {WarningCode.InitialVarOnPrimitiveException, ErrorLevel.Disabled},
-    };
+            //4000-4999
+            {WarningCode.ListNegativeSizeException, ErrorLevel.Disabled},
+            {WarningCode.InitialVarOnPrimitiveException, ErrorLevel.Disabled}
+        };
 
     public CompilerEmission(ErrorLevel level, Location? location, string message) {
         Level = level;
@@ -212,16 +229,18 @@ public struct CompilerEmission {
         Message = message;
     }
 
-    public override string ToString() => Level switch {
-        ErrorLevel.Disabled => "",
-        ErrorLevel.Notice => $"Notice OD{(int)Code:d4} at {Location.ToString()}: {Message}",
-        ErrorLevel.Warning => $"Warning OD{(int)Code:d4} at {Location.ToString()}: {Message}",
-        ErrorLevel.Error => $"Error OD{(int)Code:d4} at {Location.ToString()}: {Message}",
-        _ => ""
-    };
+    public override string ToString() {
+        return Level switch {
+            ErrorLevel.Disabled => "",
+            ErrorLevel.Notice => $"Notice OD{(int)Code:d4} at {Location.ToString()}: {Message}",
+            ErrorLevel.Warning => $"Warning OD{(int)Code:d4} at {Location.ToString()}: {Message}",
+            ErrorLevel.Error => $"Error OD{(int)Code:d4} at {Location.ToString()}: {Message}",
+            _ => ""
+        };
+    }
 
     /// <summary>
-    /// Write to the console with coloured formatting.
+    ///     Write to the console with coloured formatting.
     /// </summary>
     public void WriteConsole() {
         ConsoleColor? usedColor = Level switch {
@@ -231,9 +250,7 @@ public struct CompilerEmission {
             _ => null
         };
 
-        if (usedColor is null) {
-            return;
-        }
+        if (usedColor is null) return;
 
         Console.ForegroundColor = usedColor.Value;
         Console.Write($"{Level.ToString()} OD{(int)Code:d4}");

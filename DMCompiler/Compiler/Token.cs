@@ -155,7 +155,7 @@ public struct Token(TokenType type, string text, Location location, object? valu
     public Location Location = location;
     public readonly object? Value = value;
 
-    /// <remarks> Use <see cref="PrintableText"/> if you intend to show this to the user.</remarks>
+    /// <remarks> Use <see cref="PrintableText" /> if you intend to show this to the user.</remarks>
     public readonly string Text = text;
 
     public string PrintableText => Text.Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");

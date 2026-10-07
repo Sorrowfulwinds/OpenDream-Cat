@@ -1,4 +1,6 @@
-﻿namespace DMCompiler.Json;
+﻿using DMCompiler.Compiler;
+
+namespace DMCompiler.Json;
 
 public sealed class DreamCompiledJson {
     public required DreamCompiledJsonMetadata Metadata { get; set; }
@@ -12,12 +14,12 @@ public sealed class DreamCompiledJson {
     public required DreamTypeJson[] Types { get; set; }
     public required ProcDefinitionJson[] Procs { get; set; }
 
-    public required Dictionary<Compiler.WarningCode, Compiler.ErrorLevel> OptionalErrors { get; set; }
+    public required Dictionary<WarningCode, ErrorLevel> OptionalErrors { get; set; }
 }
 
 public sealed class DreamCompiledJsonMetadata {
     /// <summary>
-    ///  Hash of all the <c>DreamProcOpcode</c>s
+    ///     Hash of all the <c>DreamProcOpcode</c>s
     /// </summary>
     public required string Version { get; set; }
 }

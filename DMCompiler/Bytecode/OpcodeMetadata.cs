@@ -1,7 +1,9 @@
+using System.Reflection;
+
 namespace DMCompiler.Bytecode;
 
 /// <summary>
-/// Custom attribute for declaring <see cref="OpcodeMetadata"/> metadata for individual opcodes
+///     Custom attribute for declaring <see cref="OpcodeMetadata" /> metadata for individual opcodes
 /// </summary>
 [AttributeUsage(AttributeTargets.Field)]
 internal sealed class OpcodeMetadataAttribute : Attribute {
@@ -18,7 +20,8 @@ internal sealed class OpcodeMetadataAttribute : Attribute {
 }
 
 /// <summary>
-/// Miscellaneous metadata associated with individual <see cref="DreamProcOpcode"/> opcodes using the <see cref="OpcodeMetadataAttribute"/> attribute
+///     Miscellaneous metadata associated with individual <see cref="DreamProcOpcode" /> opcodes using the
+///     <see cref="OpcodeMetadataAttribute" /> attribute
 /// </summary>
 public struct OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, params OpcodeArgType[] requiredArgs) {
     public readonly int StackDelta = stackDelta; // Net change in stack size caused by this opcode
@@ -27,14 +30,14 @@ public struct OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, para
 }
 
 /// <summary>
-/// Automatically builds a cache of the <see cref="OpcodeMetadata"/> attribute for each opcode
+///     Automatically builds a cache of the <see cref="OpcodeMetadata" /> attribute for each opcode
 /// </summary>
 public static class OpcodeMetadataCache {
     private static readonly OpcodeMetadata[] MetadataCache = new OpcodeMetadata[256];
 
     static OpcodeMetadataCache() {
         foreach (DreamProcOpcode opcode in Enum.GetValues(typeof(DreamProcOpcode))) {
-            var field = typeof(DreamProcOpcode).GetField(opcode.ToString());
+            FieldInfo? field = typeof(DreamProcOpcode).GetField(opcode.ToString());
             var attribute = Attribute.GetCustomAttribute(field!, typeof(OpcodeMetadataAttribute));
             var metadataAttribute = (OpcodeMetadataAttribute?)attribute;
             MetadataCache[(byte)opcode] = metadataAttribute?.Metadata ?? new OpcodeMetadata();
@@ -62,5 +65,5 @@ public enum OpcodeArgType {
     Reference,
     FormatCount,
     PickCount,
-    ConcatCount,
+    ConcatCount
 }

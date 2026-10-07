@@ -6,20 +6,20 @@ using DMCompiler.Json;
 namespace DMCompiler.Optimizer;
 
 internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
+    private readonly Dictionary<string, int> _labels = new();
     private readonly List<LocalVariableJson> _localVariables = new();
-    private BinaryWriter? _bytecodeWriter;
-    private Dictionary<string, int> _labels = new();
-    private List<(long Position, string LabelName)> _unresolvedLabels = new();
-    private int _lastFileId = -1;
+    private readonly List<(long Position, string LabelName)> _unresolvedLabels = new();
     public MemoryStream Bytecode = new();
+
+    public List<SourceInfoJson> SourceInfo = new();
+    private BinaryWriter? _bytecodeWriter;
+    private int _lastFileId = -1;
 
     private Location? _location;
 
-    public List<SourceInfoJson> SourceInfo = new();
-
     public byte[]? Serialize(List<IAnnotatedBytecode> annotatedBytecode) {
         _bytecodeWriter ??= new BinaryWriter(Bytecode);
-        foreach (IAnnotatedBytecode bytecodeChunk in annotatedBytecode) {
+        foreach (IAnnotatedBytecode bytecodeChunk in annotatedBytecode)
             if (bytecodeChunk is AnnotatedBytecodeInstruction instruction) {
                 SerializeInstruction(instruction);
             } else if (bytecodeChunk is AnnotatedBytecodeLabel label) {
@@ -38,7 +38,6 @@ internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
             } else {
                 return null;
             }
-        }
 
         ResolveLabels();
 
@@ -75,13 +74,12 @@ internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
         }
 
         _bytecodeWriter.Write((byte)instruction.Opcode);
-        var opcodeMetadata = OpcodeMetadataCache.GetMetadata(instruction.Opcode);
-        if (opcodeMetadata.RequiredArgs.Length != instruction.GetArgs().Count && !opcodeMetadata.VariableArgs) {
+        OpcodeMetadata opcodeMetadata = OpcodeMetadataCache.GetMetadata(instruction.Opcode);
+        if (opcodeMetadata.RequiredArgs.Length != instruction.GetArgs().Count && !opcodeMetadata.VariableArgs)
             throw new Exception("Invalid number of arguments for opcode " + instruction.Opcode);
-        }
 
-        var args = instruction.GetArgs();
-        for (int i = 0; i < args.Count; i++) {
+        List<IAnnotatedBytecode> args = instruction.GetArgs();
+        for (var i = 0; i < args.Count; i++)
             switch (args[i]) {
                 case AnnotatedBytecodeArgumentType annotatedBytecodeArgumentType:
                     _bytecodeWriter.Write((byte)annotatedBytecodeArgumentType.Value);
@@ -138,7 +136,6 @@ internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-        }
     }
 
     private void SerializeLabel(AnnotatedBytecodeLabel label) {
@@ -147,15 +144,14 @@ internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
 
     private void ResolveLabels() {
         _bytecodeWriter ??= new BinaryWriter(Bytecode);
-        foreach ((long position, string labelName) in _unresolvedLabels) {
+        foreach ((long position, string labelName) in _unresolvedLabels)
             if (_labels.TryGetValue(labelName, out int labelPosition)) {
                 _bytecodeWriter.Seek((int)position, SeekOrigin.Begin);
-                _bytecodeWriter.Write((int)labelPosition);
+                _bytecodeWriter.Write(labelPosition);
             } else {
                 compiler.Emit(WarningCode.BadLabel, Location.Internal,
                     "Label \"" + labelName + "\" could not be resolved");
             }
-        }
 
         _unresolvedLabels.Clear();
         _bytecodeWriter.Seek(0, SeekOrigin.End);
@@ -197,7 +193,8 @@ internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
                 break;
 
             default:
-                compiler.ForcedError(_location ?? Location.Unknown, $"Encountered unknown reference type {reference.RefType}");
+                compiler.ForcedError(_location ?? Location.Unknown,
+                    $"Encountered unknown reference type {reference.RefType}");
                 break;
         }
     }

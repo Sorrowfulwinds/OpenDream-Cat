@@ -13,14 +13,15 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     private readonly List<IAnnotatedBytecode>
         _annotatedBytecode = new(250); // 1/6th of max size for bytecode in tgstation
 
+    private readonly Dictionary<string, long> _labels = new();
+
     private readonly List<(long Position, string LabelName)> _unresolvedLabelsInAnnotatedBytecode = new();
+    private OpcodeMetadata? _currentMetadata;
     private int _currentStackSize;
     private Location _location;
     private int _maxStackSize;
     private bool _negativeStackSizeError;
     private int _requiredArgIdx;
-    private OpcodeMetadata? _currentMetadata;
-    private Dictionary<string, long> _labels = new();
 
     public long Position => _annotatedBytecode.Count;
 
@@ -29,21 +30,21 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Writes an opcode to the stream
+    ///     Writes an opcode to the stream
     /// </summary>
     /// <param name="opcode">The opcode to write</param>
     /// <param name="location">The location of the opcode in the source code</param>
     public void WriteOpcode(DreamProcOpcode opcode, Location location) {
         _location = location;
         if (_currentMetadata is not null) {
-            if (_requiredArgIdx < _currentMetadata.Value.RequiredArgs.Length - 1) {
+            if (_requiredArgIdx < _currentMetadata.Value.RequiredArgs.Length - 1)
                 compiler.ForcedError(location, "Expected argument");
-            } else if (_requiredArgIdx > _currentMetadata.Value.RequiredArgs.Length) {
-                compiler.ForcedError(location, "Unexpected argument count. Opcode arguments have likely been mishandled internally");
-            }
+            else if (_requiredArgIdx > _currentMetadata.Value.RequiredArgs.Length)
+                compiler.ForcedError(location,
+                    "Unexpected argument count. Opcode arguments have likely been mishandled internally");
         }
 
-        var metadata = OpcodeMetadataCache.GetMetadata(opcode);
+        OpcodeMetadata metadata = OpcodeMetadataCache.GetMetadata(opcode);
         _requiredArgIdx = 0;
         _currentMetadata = metadata;
 
@@ -56,15 +57,16 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ValidateArgument(Location location, OpcodeArgType argType) {
-        if (_currentMetadata!.Value.RequiredArgs.Length == 0 || _requiredArgIdx >= _currentMetadata.Value.RequiredArgs.Length || _currentMetadata.Value.RequiredArgs[_requiredArgIdx] != argType) {
+        if (_currentMetadata!.Value.RequiredArgs.Length == 0 ||
+            _requiredArgIdx >= _currentMetadata.Value.RequiredArgs.Length ||
+            _currentMetadata.Value.RequiredArgs[_requiredArgIdx] != argType)
             compiler.ForcedError(location, $"Expected {argType.ToString()} argument");
-        }
 
         _requiredArgIdx += 1;
     }
 
     /// <summary>
-    /// Writes a float to the stream
+    ///     Writes a float to the stream
     /// </summary>
     /// <param name="val">The integer to write</param>
     /// <param name="location">The location of the integer in the source code</param>
@@ -75,7 +77,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Writes argument classification to the stream
+    ///     Writes argument classification to the stream
     /// </summary>
     /// <param name="argType">The argument type to write</param>
     /// <param name="location">The location of the integer in the source code</param>
@@ -86,7 +88,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Write a stack delta to the stream
+    ///     Write a stack delta to the stream
     /// </summary>
     /// <param name="delta">The stack delta to write</param>
     /// <param name="location">The location of the integer in the source code</param>
@@ -97,7 +99,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Write a type to the stream
+    ///     Write a type to the stream
     /// </summary>
     /// <param name="type">The type to write</param>
     /// <param name="location">The location of the type in the source code</param>
@@ -108,7 +110,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Writes a string to the stream and stores it in the string table
+    ///     Writes a string to the stream and stores it in the string table
     /// </summary>
     /// <param name="value">The string to write</param>
     /// <param name="location">The location of the string in the source code</param>
@@ -120,13 +122,12 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Write a filter. Filters are stored as reference IDs in the raw bytecode, which refer
-    /// to a string in the string table containing the datum path of the filter.
+    ///     Write a filter. Filters are stored as reference IDs in the raw bytecode, which refer
+    ///     to a string in the string table containing the datum path of the filter.
     /// </summary>
     /// <param name="filterTypeId">The type ID of the filter</param>
     /// <param name="filterPath">The datum path of the filter</param>
     /// <param name="location">The location of the filter in the source code</param>
-    ///
     public void WriteFilterId(int filterTypeId, DreamPath filterPath, Location location) {
         _location = location;
 
@@ -136,7 +137,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Write a list size, restricted to non-negative integers
+    ///     Write a list size, restricted to non-negative integers
     /// </summary>
     /// <param name="value">The size of the list</param>
     /// <param name="location">The location of the list in the source code</param>
@@ -144,15 +145,13 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
         _location = location;
         ValidateArgument(location, OpcodeArgType.ListSize);
 
-        if (value < 0) {
-            compiler.ForcedError(location, "List size cannot be negative");
-        }
+        if (value < 0) compiler.ForcedError(location, "List size cannot be negative");
 
         _annotatedBytecode[^1].AddArg(compiler, new AnnotatedBytecodeListSize(value, location));
     }
 
     /// <summary>
-    /// Writes a label to the stream
+    ///     Writes a label to the stream
     /// </summary>
     /// <param name="s">The label to write</param>
     /// <param name="location">The location of the label in the source code</param>
@@ -201,7 +200,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
 
     internal DMProc.CodeLabel? GetCodeLabel(string name, DMProc.DMProcScope? scope) {
         while (scope != null) {
-            if (scope.LocalCodeLabels.TryGetValue(name, out var localCodeLabel))
+            if (scope.LocalCodeLabels.TryGetValue(name, out DMProc.CodeLabel? localCodeLabel))
                 return localCodeLabel;
 
             scope = scope.ParentScope;
@@ -211,7 +210,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Tracks the maximum possible stack size of the proc
+    ///     Tracks the maximum possible stack size of the proc
     /// </summary>
     /// <param name="sizeDelta">The net change in stack size caused by an operation</param>
     public void ResizeStack(int sizeDelta) {
@@ -224,7 +223,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     }
 
     /// <summary>
-    /// Gets the maximum possible stack size of the proc
+    ///     Gets the maximum possible stack size of the proc
     /// </summary>
     public int GetMaxStackSize() {
         return _maxStackSize;
