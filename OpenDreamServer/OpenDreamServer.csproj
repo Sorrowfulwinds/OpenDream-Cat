@@ -14,7 +14,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <None Remove="server_config.toml" />
+    <None Remove="server_config.toml"/>
   </ItemGroup>
   <ItemGroup>
     <Content Include="server_config.toml">
@@ -22,13 +22,13 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\OpenDreamRuntime\OpenDreamRuntime.csproj" />
-    <ProjectReference Include="..\OpenDreamShared\OpenDreamShared.csproj" />
+    <ProjectReference Include="..\OpenDreamRuntime\OpenDreamRuntime.csproj"/>
+    <ProjectReference Include="..\OpenDreamShared\OpenDreamShared.csproj"/>
   </ItemGroup>
 
-  <Import Project="..\RobustToolbox\Imports\Lidgren.props" />
-  <Import Project="..\RobustToolbox\Imports\Server.props" />
-  <Import Project="..\RobustToolbox\Imports\Shared.props" />
+  <Import Project="..\RobustToolbox\Imports\Lidgren.props"/>
+  <Import Project="..\RobustToolbox\Imports\Server.props"/>
+  <Import Project="..\RobustToolbox\Imports\Shared.props"/>
 
-  <Import Project="..\RobustToolbox\MSBuild\Robust.Properties.targets" />
+  <Import Project="..\RobustToolbox\MSBuild\Robust.Properties.targets"/>
 </Project>
