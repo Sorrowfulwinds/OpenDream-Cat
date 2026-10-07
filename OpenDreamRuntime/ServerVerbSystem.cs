@@ -139,12 +139,11 @@ public sealed partial class ServerVerbSystem : VerbSystem {
 
     public void RunRepeatingVerbs() {
         using (Profiler.BeginZone("Repeating Verbs", color: (uint)Color.OrangeRed.ToArgb())) {
-            foreach (KeyValuePair<DreamConnection, List<(int, ClientObjectReference)>> repeatingVerb in
+            foreach ((DreamConnection client, List<(int, ClientObjectReference)> value) in
                      _repeatingVerbs) {
-                if (repeatingVerb.Value.Count == 0)
+                if (value.Count == 0)
                     return;
-                DreamConnection client = repeatingVerb.Key;
-                (int verbId, ClientObjectReference srcRef) = repeatingVerb.Value.Last();
+                (int verbId, ClientObjectReference srcRef) = value.Last();
 
                 DreamObject? src = _dreamManager.GetFromClientReference(client, srcRef);
                 if (src == null || !_verbIdToProc.TryGetValue(verbId, out DreamProc? verb) ||

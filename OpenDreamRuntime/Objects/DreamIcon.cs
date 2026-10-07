@@ -80,9 +80,8 @@ public sealed class DreamIcon(DreamManager dreamManager, DreamResourceManager re
         Rgba32[] pixels = PixelArrayPool.Rent(span * frameHeight);
 
         var currentFrame = 0;
-        foreach (KeyValuePair<string, IconState> iconStatePair in States) {
-            IconState iconState = iconStatePair.Value;
-            ParsedDMIState newState = new(iconStatePair.Key) {Loop = false, Rewind = false};
+        foreach ((string key, IconState iconState) in States) {
+            ParsedDMIState newState = new(key) {Loop = false, Rewind = false};
 
             newDescription.States.Add(newState.Name, newState);
 

@@ -604,13 +604,11 @@ internal sealed partial class DreamViewOverlay : Overlay {
     }
 
     private void ClearPlanes() {
-        foreach (KeyValuePair<int, DreamPlane> pair in Planes) {
-            DreamPlane plane = pair.Value;
-
+        foreach ((int key, DreamPlane plane) in Planes) {
             // We can remove the plane if there was nothing on it last frame
             if (plane.Sprites.Count == 0 && plane.Master == null) {
                 plane.Dispose();
-                Planes.Remove(pair.Key);
+                Planes.Remove(key);
                 continue;
             }
 

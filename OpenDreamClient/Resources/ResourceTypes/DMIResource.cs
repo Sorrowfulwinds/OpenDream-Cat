@@ -78,9 +78,7 @@ public sealed class DMIResource : DreamResource {
         public State(Texture texture, DMIParser.ParsedDMIState parsedState, int width, int height) {
             Frames = new Dictionary<AtomDirection, AtlasTexture[]>();
 
-            foreach (KeyValuePair<AtomDirection, DMIParser.ParsedDMIFrame[]> pair in parsedState.Directions) {
-                AtomDirection dir = pair.Key;
-                DMIParser.ParsedDMIFrame[] parsedFrames = pair.Value;
+            foreach ((AtomDirection dir, DMIParser.ParsedDMIFrame[] parsedFrames) in parsedState.Directions) {
                 var frames = new AtlasTexture[parsedFrames.Length];
 
                 for (var i = 0; i < parsedFrames.Length; i++) {
