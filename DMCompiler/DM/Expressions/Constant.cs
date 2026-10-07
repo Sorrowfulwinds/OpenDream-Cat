@@ -191,10 +191,14 @@ internal sealed class Resource : Constant {
         foreach (string searchingDirectory in searchingDirectories) {
             string[] directories = Directory.GetDirectories(directory, searchingDirectory, SearchOptions);
 
-            if (directories.Length == 0)
-                return null;
-            if (directories.Length > 1)
-                _isAmbiguous = true;
+            switch (directories.Length)
+            {
+                case 0:
+                    return null;
+                case > 1:
+                    _isAmbiguous = true;
+                    break;
+            }
 
             directory = directories[0];
         }
@@ -212,14 +216,19 @@ internal sealed class Resource : Constant {
     private string? FindFile(string directory, string searching) {
         string[] files = Directory.GetFiles(directory, searching, SearchOptions);
 
-        // GetFiles() can't find "..ogg" on Linux for some reason, so try a direct check for the file
-        if (files.Length == 0) {
-            string combined = System.IO.Path.Combine(directory, searching);
+        switch (files.Length)
+        {
+            // GetFiles() can't find "..ogg" on Linux for some reason, so try a direct check for the file
+            case 0:
+            {
+                string combined = System.IO.Path.Combine(directory, searching);
 
-            return File.Exists(combined) ? combined : null;
+                return File.Exists(combined) ? combined : null;
+            }
+            case > 1:
+                _isAmbiguous = true;
+                break;
         }
-
-        if (files.Length > 1) _isAmbiguous = true;
 
         return files[0];
     }

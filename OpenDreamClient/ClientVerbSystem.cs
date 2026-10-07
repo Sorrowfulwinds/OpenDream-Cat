@@ -205,37 +205,43 @@ public sealed partial class ClientVerbSystem : VerbSystem {
         ClientObjectReference target) {
         foreach ((int Id, ClientObjectReference Src, VerbInfo VerbInfo) verb in GetExecutableVerbs()) {
             DreamValueType? targetType = verb.VerbInfo.GetTargetType();
-            if (targetType == null) {
-                // Verbs without a target but an "in view()/range()" accessibility will still show
-                if (verb.Src.Equals(target) &&
-                    verb.VerbInfo.Accessibility
-                        is VerbAccessibility.InRange or VerbAccessibility.InORange
-                        or VerbAccessibility.InView or VerbAccessibility.InOView)
-                    yield return verb;
+            switch (targetType)
+            {
+                case null:
+                {
+                    // Verbs without a target but an "in view()/range()" accessibility will still show
+                    if (verb.Src.Equals(target) &&
+                        verb.VerbInfo.Accessibility
+                            is VerbAccessibility.InRange or VerbAccessibility.InORange
+                            or VerbAccessibility.InView or VerbAccessibility.InOView)
+                        yield return verb;
 
-                continue;
-            }
-
-            if (targetType == DreamValueType.Anything)
-                yield return verb;
-            else
-                switch (target.Type) {
-                    case ClientObjectReference.RefType.Entity:
-                        EntityUid entity = _entityManager.GetEntity(target.Entity);
-                        bool isMob = _entityManager.HasComponent<DreamMobSightComponent>(entity);
-
-                        if ((targetType & DreamValueType.Mob) != 0x0 && isMob)
-                            yield return verb;
-                        if ((targetType & DreamValueType.Obj) != 0x0 && !isMob)
-                            yield return verb;
-
-                        break;
-                    case ClientObjectReference.RefType.Turf:
-                        if ((targetType & DreamValueType.Turf) != 0x0)
-                            yield return verb;
-
-                        break;
+                    continue;
                 }
+                case DreamValueType.Anything:
+                    yield return verb;
+                    break;
+                default:
+                    switch (target.Type) {
+                        case ClientObjectReference.RefType.Entity:
+                            EntityUid entity = _entityManager.GetEntity(target.Entity);
+                            bool isMob = _entityManager.HasComponent<DreamMobSightComponent>(entity);
+
+                            if ((targetType & DreamValueType.Mob) != 0x0 && isMob)
+                                yield return verb;
+                            if ((targetType & DreamValueType.Obj) != 0x0 && !isMob)
+                                yield return verb;
+
+                            break;
+                        case ClientObjectReference.RefType.Turf:
+                            if ((targetType & DreamValueType.Turf) != 0x0)
+                                yield return verb;
+
+                            break;
+                    }
+
+                    break;
+            }
         }
     }
 

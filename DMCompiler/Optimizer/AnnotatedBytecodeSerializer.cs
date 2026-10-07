@@ -20,23 +20,29 @@ internal class AnnotatedBytecodeSerializer(DMCompiler compiler) {
     public byte[]? Serialize(List<IAnnotatedBytecode> annotatedBytecode) {
         _bytecodeWriter ??= new BinaryWriter(Bytecode);
         foreach (IAnnotatedBytecode bytecodeChunk in annotatedBytecode)
-            if (bytecodeChunk is AnnotatedBytecodeInstruction instruction) {
-                SerializeInstruction(instruction);
-            } else if (bytecodeChunk is AnnotatedBytecodeLabel label) {
-                SerializeLabel(label);
-            } else if (bytecodeChunk is AnnotatedBytecodeVariable localVariable) {
-                if (localVariable.ExitingScope)
-                    _localVariables.Add(new LocalVariableJson {
-                        Offset = (int)Bytecode.Position,
-                        Remove = localVariable.Exit
-                    });
-                else
-                    _localVariables.Add(new LocalVariableJson {
-                        Offset = (int)Bytecode.Position,
-                        Add = localVariable.Name
-                    });
-            } else {
-                return null;
+            switch (bytecodeChunk)
+            {
+                case AnnotatedBytecodeInstruction instruction:
+                    SerializeInstruction(instruction);
+                    break;
+                case AnnotatedBytecodeLabel label:
+                    SerializeLabel(label);
+                    break;
+                case AnnotatedBytecodeVariable localVariable: {
+                    if (localVariable.ExitingScope)
+                        _localVariables.Add(new LocalVariableJson {
+                            Offset = (int)Bytecode.Position,
+                            Remove = localVariable.Exit
+                        });
+                    else
+                        _localVariables.Add(new LocalVariableJson {
+                            Offset = (int)Bytecode.Position,
+                            Add = localVariable.Name
+                        });
+                    break;
+                }
+                default:
+                    return null;
             }
 
         ResolveLabels();

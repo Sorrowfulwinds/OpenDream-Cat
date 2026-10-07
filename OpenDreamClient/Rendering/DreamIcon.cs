@@ -306,17 +306,26 @@ internal sealed class DreamIcon(
                 case AnimationEasing.Bounce
                     : //https://stackoverflow.com/questions/25249829/bouncing-ease-equation-in-c-sharp great match for byond behaviour
                     float bounce = timeFactor * 2.75f;
-                    if (bounce < 1) {
-                        factor = MathF.Pow(bounce, 2);
-                    } else if (bounce < 2) {
-                        bounce -= 1.5f;
-                        factor = MathF.Pow(bounce, 2) + 0.75f;
-                    } else if (bounce < 2.5) {
-                        bounce -= 2.25f;
-                        factor = MathF.Pow(bounce, 2) + 0.9375f;
-                    } else {
-                        bounce -= 2.625f;
-                        factor = MathF.Pow(bounce, 2) + 0.984375f;
+                    switch (bounce)
+                    {
+                        case < 1:
+                            factor = MathF.Pow(bounce, 2);
+                            break;
+                        case < 2:
+                            bounce -= 1.5f;
+                            factor = MathF.Pow(bounce, 2) + 0.75f;
+                            break;
+                        default: {
+                            if (bounce < 2.5) {
+                                bounce -= 2.25f;
+                                factor = MathF.Pow(bounce, 2) + 0.9375f;
+                            } else {
+                                bounce -= 2.625f;
+                                factor = MathF.Pow(bounce, 2) + 0.984375f;
+                            }
+
+                            break;
+                        }
                     }
 
                     break;

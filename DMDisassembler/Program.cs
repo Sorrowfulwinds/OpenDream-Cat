@@ -44,21 +44,28 @@ internal class Program {
         LoadAllTypes();
 
         if (args.Length == 2) {
-            if (args[1] == "crash-on-test") {
-                // crash-on-test is a special mode used by CI to
-                // verify that an entire codebase can be disassembled without errors
-                int errors = TestAll();
+            switch (args[1])
+            {
+                case "crash-on-test":
+                {
+                    // crash-on-test is a special mode used by CI to
+                    // verify that an entire codebase can be disassembled without errors
+                    int errors = TestAll();
 
-                if (errors > 0) {
-                    Console.WriteLine($"Detected {errors} errors. Exiting.");
-                    Environment.Exit(1);
-                } else {
-                    Console.WriteLine("No errors detected. Exiting cleanly.");
-                    Environment.Exit(0);
+                    if (errors > 0) {
+                        Console.WriteLine($"Detected {errors} errors. Exiting.");
+                        Environment.Exit(1);
+                    } else {
+                        Console.WriteLine("No errors detected. Exiting cleanly.");
+                        Environment.Exit(0);
+                    }
+
+                    break;
                 }
-            } else if (args[1] == "dump-all") {
-                DumpAll();
-                Environment.Exit(0);
+                case "dump-all":
+                    DumpAll();
+                    Environment.Exit(0);
+                    break;
             }
         }
 
@@ -263,22 +270,30 @@ internal class Program {
 
         string type = args[1];
         string name = args[2];
-        if (type == "type") {
-            foreach (string typePath in AllTypes.Keys)
-                if (typePath.Contains(name))
-                    Console.WriteLine(typePath);
-        } else if (type == "proc") {
-            if (_selectedType == null) {
-                Console.WriteLine(NoTypeSelectedMessage);
-
-                return;
+        switch (type)
+        {
+            case "type": {
+                foreach (string typePath in AllTypes.Keys)
+                    if (typePath.Contains(name))
+                        Console.WriteLine(typePath);
+                break;
             }
+            case "proc":
+            {
+                if (_selectedType == null) {
+                    Console.WriteLine(NoTypeSelectedMessage);
 
-            foreach (string procName in _selectedType.Procs.Keys)
-                if (procName.Contains(name))
-                    Console.WriteLine(procName);
-        } else {
-            Console.WriteLine("Invalid search type \"" + type + "\"");
+                    return;
+                }
+
+                foreach (string procName in _selectedType.Procs.Keys)
+                    if (procName.Contains(name))
+                        Console.WriteLine(procName);
+                break;
+            }
+            default:
+                Console.WriteLine("Invalid search type \"" + type + "\"");
+                break;
         }
     }
 

@@ -159,23 +159,27 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
         if (value.TryGetValueAsDreamList(out DreamList? list)) {
             int length = list.GetLength();
 
-            if (length >= 3) {
-                using DreamValue x = list.GetValue(new DreamValue(1));
-                using DreamValue y = list.GetValue(new DreamValue(2));
-                using DreamValue z = list.GetValue(new DreamValue(3));
+            switch (length)
+            {
+                case >= 3:
+                {
+                    using DreamValue x = list.GetValue(new DreamValue(1));
+                    using DreamValue y = list.GetValue(new DreamValue(2));
+                    using DreamValue z = list.GetValue(new DreamValue(3));
 
-                vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-                vector.Initialize(new DreamProcArguments(x, y, z));
-                return true;
-            }
+                    vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+                    vector.Initialize(new DreamProcArguments(x, y, z));
+                    return true;
+                }
+                case 2:
+                {
+                    using DreamValue x = list.GetValue(new DreamValue(1));
+                    using DreamValue y = list.GetValue(new DreamValue(2));
 
-            if (length == 2) {
-                using DreamValue x = list.GetValue(new DreamValue(1));
-                using DreamValue y = list.GetValue(new DreamValue(2));
-
-                vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-                vector.Initialize(new DreamProcArguments(x, y));
-                return true;
+                    vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+                    vector.Initialize(new DreamProcArguments(x, y));
+                    return true;
+                }
             }
         }
 

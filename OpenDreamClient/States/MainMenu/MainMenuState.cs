@@ -115,12 +115,17 @@ public sealed partial class MainMenuState : State {
         string[] split = address.Split(':');
         ip = address;
         port = _client.DefaultPort;
-        if (split.Length > 2) throw new ArgumentException("Not a valid Address.");
-
-        // IP:port format.
-        if (split.Length == 2) {
-            ip = split[0];
-            if (!ushort.TryParse(split[1], out port)) throw new ArgumentException("Not a valid port.");
+        switch (split.Length)
+        {
+            case > 2:
+                throw new ArgumentException("Not a valid Address.");
+            // IP:port format.
+            case 2:
+            {
+                ip = split[0];
+                if (!ushort.TryParse(split[1], out port)) throw new ArgumentException("Not a valid port.");
+                break;
+            }
         }
     }
 

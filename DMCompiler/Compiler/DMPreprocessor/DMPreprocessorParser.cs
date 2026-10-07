@@ -289,61 +289,66 @@ internal class DMPreprocessorParser(DMCompiler compiler) {
 
                 return inner;
             case TokenType.DM_Identifier:
-                if (token.Text == "defined") {
-                    Advance();
-                    if (!Check(TokenType.DM_LeftParenthesis)) {
-                        Error("Expected '(' to begin defined() expression");
-                        return DegenerateValue;
+                switch (token.Text)
+                {
+                    case "defined":
+                    {
+                        Advance();
+                        if (!Check(TokenType.DM_LeftParenthesis)) {
+                            Error("Expected '(' to begin defined() expression");
+                            return DegenerateValue;
+                        }
+
+                        Token definedInner = Current();
+
+                        if (definedInner.Type != TokenType.DM_Identifier) {
+                            Error($"Unexpected token {definedInner.PrintableText} - identifier expected");
+                            return DegenerateValue;
+                        }
+
+                        Advance();
+                        if (!Check(TokenType.DM_RightParenthesis))
+                            compiler.Emit(WarningCode.DefinedMissingParen, token.Location,
+                                "Expected ')' to end defined() expression");
+                        //Electing to not return a degenerate value here since "defined(x" actually isn't an ambiguous grammar; we can figure out what they meant.
+                        return _defines!.ContainsKey(definedInner.Text) ? 1.0f : 0.0f;
                     }
+                    case "fexists":
+                    {
+                        Advance();
+                        if (!Check(TokenType.DM_LeftParenthesis)) {
+                            Error("Expected '(' to begin fexists() expression");
+                            return DegenerateValue;
+                        }
 
-                    Token definedInner = Current();
+                        Token fExistsInner = Current();
 
-                    if (definedInner.Type != TokenType.DM_Identifier) {
-                        Error($"Unexpected token {definedInner.PrintableText} - identifier expected");
-                        return DegenerateValue;
+                        if (fExistsInner.Type != TokenType.DM_ConstantString) {
+                            Error($"Unexpected token {fExistsInner.PrintableText} - file path expected");
+                            return DegenerateValue;
+                        }
+
+                        Advance();
+                        if (!Check(TokenType.DM_RightParenthesis))
+                            compiler.Emit(WarningCode.DefinedMissingParen, token.Location,
+                                "Expected ')' to end fexists() expression");
+
+                        string filePath = Path.GetRelativePath(".", fExistsInner.ValueAsString().Replace('\\', '/'));
+
+                        string outputDir = Path.Combine(Path.GetDirectoryName(compiler.Settings.Files?[0]) ?? "/",
+                            Path.GetDirectoryName(fExistsInner.Location.SourceFile) ?? "/");
+                        if (string.IsNullOrEmpty(outputDir))
+                            outputDir = "./";
+
+                        filePath = Path.Combine(outputDir, filePath);
+
+                        return File.Exists(filePath) ? 1.0f : 0.0f;
                     }
-
-                    Advance();
-                    if (!Check(TokenType.DM_RightParenthesis))
-                        compiler.Emit(WarningCode.DefinedMissingParen, token.Location,
-                            "Expected ')' to end defined() expression");
-                    //Electing to not return a degenerate value here since "defined(x" actually isn't an ambiguous grammar; we can figure out what they meant.
-                    return _defines!.ContainsKey(definedInner.Text) ? 1.0f : 0.0f;
+                    default:
+                        Error($"Unexpected identifier {token.PrintableText} in preprocessor expression");
+                        return DegenerateValue;
                 }
 
-                if (token.Text == "fexists") {
-                    Advance();
-                    if (!Check(TokenType.DM_LeftParenthesis)) {
-                        Error("Expected '(' to begin fexists() expression");
-                        return DegenerateValue;
-                    }
-
-                    Token fExistsInner = Current();
-
-                    if (fExistsInner.Type != TokenType.DM_ConstantString) {
-                        Error($"Unexpected token {fExistsInner.PrintableText} - file path expected");
-                        return DegenerateValue;
-                    }
-
-                    Advance();
-                    if (!Check(TokenType.DM_RightParenthesis))
-                        compiler.Emit(WarningCode.DefinedMissingParen, token.Location,
-                            "Expected ')' to end fexists() expression");
-
-                    string filePath = Path.GetRelativePath(".", fExistsInner.ValueAsString().Replace('\\', '/'));
-
-                    string outputDir = Path.Combine(Path.GetDirectoryName(compiler.Settings.Files?[0]) ?? "/",
-                        Path.GetDirectoryName(fExistsInner.Location.SourceFile) ?? "/");
-                    if (string.IsNullOrEmpty(outputDir))
-                        outputDir = "./";
-
-                    filePath = Path.Combine(outputDir, filePath);
-
-                    return File.Exists(filePath) ? 1.0f : 0.0f;
-                }
-
-                Error($"Unexpected identifier {token.PrintableText} in preprocessor expression");
-                return DegenerateValue;
             default:
                 return Constant();
         }

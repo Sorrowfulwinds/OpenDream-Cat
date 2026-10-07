@@ -207,15 +207,20 @@ internal struct ParsedKeybind {
 
         // If we haven't found a key and the first part is a modifier, treat it as the keybind instead of a modifier
         if (!foundKey) {
-            if (parts[0] == "SHIFT") {
-                parsed.Key = KeyNameToKey(parts[0]);
-                parsed.Shift = false;
-            } else if (parts[0] == "CTRL") {
-                parsed.Key = KeyNameToKey(parts[0]);
-                parsed.Ctrl = false;
-            } else if (parts[0] == "ALT") {
-                parsed.Key = KeyNameToKey(parts[0]);
-                parsed.Alt = false;
+            switch (parts[0])
+            {
+                case "SHIFT":
+                    parsed.Key = KeyNameToKey(parts[0]);
+                    parsed.Shift = false;
+                    break;
+                case "CTRL":
+                    parsed.Key = KeyNameToKey(parts[0]);
+                    parsed.Ctrl = false;
+                    break;
+                case "ALT":
+                    parsed.Key = KeyNameToKey(parts[0]);
+                    parsed.Alt = false;
+                    break;
             }
         }
 

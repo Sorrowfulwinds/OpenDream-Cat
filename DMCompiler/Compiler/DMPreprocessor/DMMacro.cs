@@ -116,14 +116,20 @@ internal class DMMacro {
                             new Token(TokenType.DM_Preproc_Punctuator_Comma, ",", Location.Unknown, null));
                 }
             } else {
-                if (token.Type == TokenType.DM_Preproc_ParameterStringify)
-                    expandedTokens.Add(new Token(TokenType.DM_Preproc_ConstantString, $"@#{parameterName}#",
-                        Location.Unknown, parameterName));
-                else if (token.Type == TokenType.DM_Preproc_TokenConcat)
-                    expandedTokens.Add(new Token(TokenType.DM_Preproc_Identifier, parameterName,
-                        Location.Unknown, null));
-                else
-                    expandedTokens.Add(token);
+                switch (token.Type)
+                {
+                    case TokenType.DM_Preproc_ParameterStringify:
+                        expandedTokens.Add(new Token(TokenType.DM_Preproc_ConstantString, $"@#{parameterName}#",
+                            Location.Unknown, parameterName));
+                        break;
+                    case TokenType.DM_Preproc_TokenConcat:
+                        expandedTokens.Add(new Token(TokenType.DM_Preproc_Identifier, parameterName,
+                            Location.Unknown, null));
+                        break;
+                    default:
+                        expandedTokens.Add(token);
+                        break;
+                }
             }
         }
 

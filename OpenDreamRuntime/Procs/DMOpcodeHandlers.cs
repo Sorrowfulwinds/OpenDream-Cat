@@ -128,15 +128,19 @@ internal static partial class DMOpcodeHandlers {
         TreeEntry? filterType) {
         if (!value.TryGetValueAsIDreamList(out IDreamList? list))
             if (value.TryGetValueAsDreamObject(out DreamObject? dreamObject)) {
-                if (dreamObject == null)
-                    return new DreamValueArrayEnumerator([], null);
+                switch (dreamObject)
+                {
+                    case null:
+                        return new DreamValueArrayEnumerator([], null);
+                    case DreamObjectAtom:
+                    {
+                        using DreamValue contents = dreamObject.GetVariable("contents");
 
-                if (dreamObject is DreamObjectAtom) {
-                    using DreamValue contents = dreamObject.GetVariable("contents");
-
-                    list = contents.MustGetValueAsDreamList();
-                } else if (dreamObject is DreamObjectWorld) {
-                    return new WorldContentsEnumerator(atomManager, filterType);
+                        list = contents.MustGetValueAsDreamList();
+                        break;
+                    }
+                    case DreamObjectWorld:
+                        return new WorldContentsEnumerator(atomManager, filterType);
                 }
             }
 
@@ -407,14 +411,15 @@ internal static partial class DMOpcodeHandlers {
 
         if (!interps[nextInterpIndex].TryGetValueAsFloat(out float value)) return;
 
-        if (float.IsNaN(value)) {
-            formattedString.Append('-'); //BYOND prints - for this
-            return;
-        }
-
-        if (value < 0) {
-            formattedString.Append('-');
-            value = MathF.Abs(value);
+        switch (value)
+        {
+            case Single.NaN:
+                formattedString.Append('-'); //BYOND prints - for this
+                return;
+            case < 0:
+                formattedString.Append('-');
+                value = MathF.Abs(value);
+                break;
         }
 
         if (float.IsInfinity(value)) {
@@ -1529,9 +1534,16 @@ internal static partial class DMOpcodeHandlers {
         if (TryGetReferenceComparisonResult(first, second, out DreamValue referenceResult))
             result = referenceResult;
         else if (first.TryGetValueAsFloat(out float lhs) && lhs == 0.0 && second.IsNull) result = new DreamValue(1);
-        else if (first.IsNull && second.TryGetValueAsFloat(out float rhs) && rhs == 0.0) result = new DreamValue(1);
-        else if (first.IsNull && second.TryGetValueAsString(out string? s) && s == "") result = new DreamValue(1);
-        else result = new DreamValue(IsEqual(first, second) || IsGreaterThan(first, second) ? 1 : 0);
+        else switch (first.IsNull)
+        {
+            case true when second.TryGetValueAsFloat(out float rhs) && rhs == 0.0:
+            case true when second.TryGetValueAsString(out string? s) && s == "":
+                result = new DreamValue(1);
+                break;
+            default:
+                result = new DreamValue(IsEqual(first, second) || IsGreaterThan(first, second) ? 1 : 0);
+                break;
+        }
 
         state.Push(result);
         return ProcStatus.Continue;
@@ -1558,9 +1570,16 @@ internal static partial class DMOpcodeHandlers {
         if (TryGetReferenceComparisonResult(first, second, out DreamValue referenceResult))
             result = referenceResult;
         else if (first.TryGetValueAsFloat(out float lhs) && lhs == 0.0 && second.IsNull) result = new DreamValue(1);
-        else if (first.IsNull && second.TryGetValueAsFloat(out float rhs) && rhs == 0.0) result = new DreamValue(1);
-        else if (first.IsNull && second.TryGetValueAsString(out string? s) && s == "") result = new DreamValue(1);
-        else result = new DreamValue(IsEqual(first, second) || IsLessThan(first, second) ? 1 : 0);
+        else switch (first.IsNull)
+        {
+            case true when second.TryGetValueAsFloat(out float rhs) && rhs == 0.0:
+            case true when second.TryGetValueAsString(out string? s) && s == "":
+                result = new DreamValue(1);
+                break;
+            default:
+                result = new DreamValue(IsEqual(first, second) || IsLessThan(first, second) ? 1 : 0);
+                break;
+        }
 
         state.Push(result);
         return ProcStatus.Continue;
@@ -2073,71 +2092,84 @@ internal static partial class DMOpcodeHandlers {
         DreamValue gradientIndex = default, gradientColorSpace = DreamValue.Null;
         List<DreamValue> gradientValues = new();
 
-        // Arguments need specially handled due to the fact that index can be either a keyed arg or the last arg
-        // This is kinda ridiculous...
-        if (argumentInfo.Type == DMCallArgumentsType.FromStackKeyed) {
-            ReadOnlySpan<DreamValue> stack = state.PopCount(argumentInfo.StackSize);
-            int argumentCount = argumentInfo.StackSize / 2;
+        switch (argumentInfo.Type)
+        {
+            // Arguments need specially handled due to the fact that index can be either a keyed arg or the last arg
+            // This is kinda ridiculous...
+            case DMCallArgumentsType.FromStackKeyed:
+            {
+                ReadOnlySpan<DreamValue> stack = state.PopCount(argumentInfo.StackSize);
+                int argumentCount = argumentInfo.StackSize / 2;
 
-            gradientValues.EnsureCapacity(argumentCount - 1);
-            for (var i = 0; i < argumentCount; i++) {
-                using DreamValue argumentKey = stack[i * 2];
-                using DreamValue argumentValue = stack[i * 2 + 1];
+                gradientValues.EnsureCapacity(argumentCount - 1);
+                for (var i = 0; i < argumentCount; i++) {
+                    using DreamValue argumentKey = stack[i * 2];
+                    using DreamValue argumentValue = stack[i * 2 + 1];
 
-                if (argumentKey.TryGetValueAsString(out string? argumentKeyStr)) {
-                    if (argumentKeyStr == "index") {
+                    if (argumentKey.TryGetValueAsString(out string? argumentKeyStr)) {
+                        switch (argumentKeyStr)
+                        {
+                            case "index":
+                                gradientIndex = argumentValue;
+                                continue;
+                            case "space":
+                                gradientColorSpace = argumentValue;
+                                continue;
+                        }
+                    }
+
+                    if (i == argumentCount - 1 && gradientIndex == default) {
                         gradientIndex = argumentValue;
                         continue;
                     }
 
-                    if (argumentKeyStr == "space") {
-                        gradientColorSpace = argumentValue;
-                        continue;
-                    }
+                    gradientValues.Add(argumentValue);
                 }
 
-                if (i == argumentCount - 1 && gradientIndex == default) {
-                    gradientIndex = argumentValue;
-                    continue;
-                }
-
-                gradientValues.Add(argumentValue);
+                break;
             }
-        } else if (argumentInfo.Type == DMCallArgumentsType.FromArgumentList) {
-            using DreamValue argListStack = state.Pop();
-            if (!argListStack.TryGetValueAsDreamList(out DreamList? argList))
-                throw new DMException("Invalid gradient() arguments");
+            case DMCallArgumentsType.FromArgumentList:
+            {
+                using DreamValue argListStack = state.Pop();
+                if (!argListStack.TryGetValueAsDreamList(out DreamList? argList))
+                    throw new DMException("Invalid gradient() arguments");
 
-            List<DreamValue> argListValues = argList.GetValues();
+                List<DreamValue> argListValues = argList.GetValues();
 
-            gradientValues.EnsureCapacity(argListValues.Count - 1);
-            for (var i = 0; i < argListValues.Count; i++) {
-                DreamValue value = argListValues[i];
+                gradientValues.EnsureCapacity(argListValues.Count - 1);
+                for (var i = 0; i < argListValues.Count; i++) {
+                    DreamValue value = argListValues[i];
 
-                if (value.TryGetValueAsString(out string? argumentKey)) {
-                    if (argumentKey == "index") {
-                        gradientIndex = argList.GetValue(value);
+                    if (value.TryGetValueAsString(out string? argumentKey)) {
+                        switch (argumentKey)
+                        {
+                            case "index":
+                                gradientIndex = argList.GetValue(value);
+                                continue;
+                            case "space":
+                                gradientColorSpace = argList.GetValue(value);
+                                continue;
+                        }
+                    }
+
+                    if (i == argListValues.Count - 1 && gradientIndex == default) {
+                        gradientIndex = value;
                         continue;
                     }
 
-                    if (argumentKey == "space") {
-                        gradientColorSpace = argList.GetValue(value);
-                        continue;
-                    }
+                    gradientValues.Add(value);
                 }
 
-                if (i == argListValues.Count - 1 && gradientIndex == default) {
-                    gradientIndex = value;
-                    continue;
-                }
-
-                gradientValues.Add(value);
+                break;
             }
-        } else {
-            using DreamProcArguments arguments = state.PopProcArguments(null, argumentInfo);
+            default:
+            {
+                using DreamProcArguments arguments = state.PopProcArguments(null, argumentInfo);
 
-            gradientIndex = arguments.Values[^1];
-            for (var i = 0; i < arguments.Count - 1; i++) gradientValues.Add(arguments.Values[i]);
+                gradientIndex = arguments.Values[^1];
+                for (var i = 0; i < arguments.Count - 1; i++) gradientValues.Add(arguments.Values[i]);
+                break;
+            }
         }
 
         if (gradientIndex == default)
@@ -2628,14 +2660,22 @@ internal static partial class DMOpcodeHandlers {
             return ProcStatus.Continue;
 
         IEnumerable<DreamConnection> clients;
-        if (receiver is DreamObjectMob {Connection: { } mobConnection})
-            clients = new[] {mobConnection};
-        else if (receiver is DreamObjectClient receiverClient)
-            clients = new[] {receiverClient.Connection};
-        else if (receiver == state.DreamManager.WorldInstance)
-            clients = state.DreamManager.Connections;
-        else
-            throw new DMException($"Invalid browse() recipient: expected mob, client, or world, got {receiver}");
+        switch (receiver)
+        {
+            case DreamObjectMob {Connection: { } mobConnection}:
+                clients = new[] {mobConnection};
+                break;
+            case DreamObjectClient receiverClient:
+                clients = new[] {receiverClient.Connection};
+                break;
+            default: {
+                if (receiver == state.DreamManager.WorldInstance)
+                    clients = state.DreamManager.Connections;
+                else
+                    throw new DMException($"Invalid browse() recipient: expected mob, client, or world, got {receiver}");
+                break;
+            }
+        }
 
         string? browseValue;
         if (bodyStack.TryGetValueAsDreamResource(out DreamResource? resource)) {
@@ -2667,12 +2707,17 @@ internal static partial class DMOpcodeHandlers {
             return ProcStatus.Continue;
 
         DreamConnection? connection;
-        if (receiver is DreamObjectMob receiverMob)
-            connection = receiverMob.Connection;
-        else if (receiver is DreamObjectClient receiverClient)
-            connection = receiverClient.Connection;
-        else
-            throw new DMException("Invalid browse_rsc() recipient");
+        switch (receiver)
+        {
+            case DreamObjectMob receiverMob:
+                connection = receiverMob.Connection;
+                break;
+            case DreamObjectClient receiverClient:
+                connection = receiverClient.Connection;
+                break;
+            default:
+                throw new DMException("Invalid browse_rsc() recipient");
+        }
 
         connection?.BrowseResource(file,
             filename.IsNull ? Path.GetFileName(file.ResourcePath) : filename.GetValueAsString());
@@ -2704,26 +2749,40 @@ internal static partial class DMOpcodeHandlers {
 
         // TODO: When errors are more strict (or a setting for it added), a null receiver should error
 
-        if (receiver is DreamObjectMob receiverMob) {
-            receiverMob.Connection?.OutputControl(message, control);
-        } else if (receiver is DreamObjectClient receiverClient) {
-            receiverClient.Connection.OutputControl(message, control);
-        } else if (receiver is DreamObjectWorld) {
-            // Output to every player
-            foreach (DreamConnection connection in state.DreamManager.Connections)
-                connection.OutputControl(message, control);
-        } else if (receiver is DreamList list) {
-            // Output to every mob in the left-hand list.
-            foreach (DreamValue entry in list.GetValues())
-                if (entry.TryGetValueAsDreamObject(out DreamObject? entryObj)) {
-                    if (entryObj is DreamObjectMob entryMob)
-                        entryMob.Connection?.OutputControl(message, control);
-                    else if (entryObj is DreamObjectClient entryClient)
-                        entryClient.Connection.OutputControl(message, control);
-                }
-        } else {
-            // TODO: BYOND's behavior is to ignore rather than throw here
-            throw new DMException($"Invalid output() recipient: {receiver}");
+        switch (receiver)
+        {
+            case DreamObjectMob receiverMob:
+                receiverMob.Connection?.OutputControl(message, control);
+                break;
+            case DreamObjectClient receiverClient:
+                receiverClient.Connection.OutputControl(message, control);
+                break;
+            case DreamObjectWorld: {
+                // Output to every player
+                foreach (DreamConnection connection in state.DreamManager.Connections)
+                    connection.OutputControl(message, control);
+                break;
+            }
+            case DreamList list: {
+                // Output to every mob in the left-hand list.
+                foreach (DreamValue entry in list.GetValues())
+                    if (entry.TryGetValueAsDreamObject(out DreamObject? entryObj)) {
+                        switch (entryObj)
+                        {
+                            case DreamObjectMob entryMob:
+                                entryMob.Connection?.OutputControl(message, control);
+                                break;
+                            case DreamObjectClient entryClient:
+                                entryClient.Connection.OutputControl(message, control);
+                                break;
+                        }
+                    }
+
+                break;
+            }
+            default:
+                // TODO: BYOND's behavior is to ignore rather than throw here
+                throw new DMException($"Invalid output() recipient: {receiver}");
         }
 
         return ProcStatus.Continue;
@@ -2753,10 +2812,15 @@ internal static partial class DMOpcodeHandlers {
         }
 
         DreamConnection? connection = null;
-        if (recipient is DreamObjectMob recipientMob)
-            connection = recipientMob.Connection;
-        else if (recipient is DreamObjectClient recipientClient)
-            connection = recipientClient.Connection;
+        switch (recipient)
+        {
+            case DreamObjectMob recipientMob:
+                connection = recipientMob.Connection;
+                break;
+            case DreamObjectClient recipientClient:
+                connection = recipientClient.Connection;
+                break;
+        }
 
         if (connection == null) {
             state.Push(DreamValue.Null);
@@ -2803,12 +2867,17 @@ internal static partial class DMOpcodeHandlers {
             return ProcStatus.Continue;
 
         DreamConnection? connection;
-        if (receiver is DreamObjectMob receiverMob)
-            connection = receiverMob.Connection;
-        else if (receiver is DreamObjectClient receiverClient)
-            connection = receiverClient.Connection;
-        else
-            throw new DMException("Invalid ftp() recipient");
+        switch (receiver)
+        {
+            case DreamObjectMob receiverMob:
+                connection = receiverMob.Connection;
+                break;
+            case DreamObjectClient receiverClient:
+                connection = receiverClient.Connection;
+                break;
+            default:
+                throw new DMException("Invalid ftp() recipient");
+        }
 
         if (!file.TryGetValueAsDreamResource(out DreamResource? resource)) {
             if (file.TryGetValueAsString(out string? resourcePath)) {

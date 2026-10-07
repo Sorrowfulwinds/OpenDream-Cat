@@ -303,19 +303,27 @@ public sealed class DMLexer : TokenLexer {
                         Advance();
 
                         string text = preprocToken.Text;
-                        if (text is "1.#INF" or "1#INF")
-                            token = CreateToken(TokenType.DM_Float, text, float.PositiveInfinity);
-                        else if (text is "1.#IND" or "1#IND")
-                            token = CreateToken(TokenType.DM_Float, text, float.NaN);
-                        else if (text.StartsWith("0x") && int.TryParse(text.Substring(2), NumberStyles.HexNumber, null,
-                                     out int intValue))
-                            token = CreateToken(TokenType.DM_Integer, text, intValue);
-                        else if (int.TryParse(text, out intValue))
-                            token = CreateToken(TokenType.DM_Integer, text, intValue);
-                        else if (float.TryParse(text, out float floatValue))
-                            token = CreateToken(TokenType.DM_Float, text, floatValue);
-                        else
-                            token = CreateToken(TokenType.Error, text, "Invalid number");
+                        switch (text)
+                        {
+                            case "1.#INF" or "1#INF":
+                                token = CreateToken(TokenType.DM_Float, text, float.PositiveInfinity);
+                                break;
+                            case "1.#IND" or "1#IND":
+                                token = CreateToken(TokenType.DM_Float, text, float.NaN);
+                                break;
+                            default: {
+                                if (text.StartsWith("0x") && int.TryParse(text.Substring(2), NumberStyles.HexNumber, null,
+                                        out int intValue))
+                                    token = CreateToken(TokenType.DM_Integer, text, intValue);
+                                else if (int.TryParse(text, out intValue))
+                                    token = CreateToken(TokenType.DM_Integer, text, intValue);
+                                else if (float.TryParse(text, out float floatValue))
+                                    token = CreateToken(TokenType.DM_Float, text, floatValue);
+                                else
+                                    token = CreateToken(TokenType.Error, text, "Invalid number");
+                                break;
+                            }
+                        }
 
                         break;
                     }

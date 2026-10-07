@@ -152,10 +152,13 @@ public sealed class Splitter : Container {
 
         if (_left != null && _right == null)
             return (UIBox2.FromDimensions(Vector2.Zero, available), default, default);
-        if (_left == null && _right != null)
-            return (default, default, UIBox2.FromDimensions(Vector2.Zero, available));
-        if (_left == null && _right == null)
-            return (default, default, default);
+        switch (_left)
+        {
+            case null when _right != null:
+                return (default, default, UIBox2.FromDimensions(Vector2.Zero, available));
+            case null when _right == null:
+                return (default, default, default);
+        }
 
         Vector2 leftSize = Vertical
             ? available with {X = available.X * SplitterPercentage - splitterWidth / 2}

@@ -1129,14 +1129,16 @@ public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token
         Whitespace();
 
         DMASTProcStatementSet[] sets = ProcSetEnd(true);
-        if (sets.Length == 0) {
-            Emit(WarningCode.InvalidSetStatement, "Expected set declaration");
-            return new DMASTInvalidProcStatement(loc);
+        switch (sets.Length)
+        {
+            case 0:
+                Emit(WarningCode.InvalidSetStatement, "Expected set declaration");
+                return new DMASTInvalidProcStatement(loc);
+            case > 1:
+                return new DMASTAggregate<DMASTProcStatementSet>(loc, sets);
+            default:
+                return sets[0];
         }
-
-        if (sets.Length > 1)
-            return new DMASTAggregate<DMASTProcStatementSet>(loc, sets);
-        return sets[0];
     }
 
     private DMASTProcStatementSpawn Spawn() {
@@ -1731,19 +1733,28 @@ public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token
 
     private DMASTCallParameter? CallParameter() {
         DMASTExpression? expression = Expression();
-        if (expression == null)
-            return null;
+        switch (expression)
+        {
+            case null:
+                return null;
+            case DMASTAssign assign:
+            {
+                DMASTExpression key = assign.LHS;
+                switch (key)
+                {
+                    case DMASTIdentifier identifier:
+                        key = new DMASTConstantString(key.Location, identifier.Identifier);
+                        break;
+                    case DMASTConstantNull:
+                        key = new DMASTConstantString(key.Location, "null");
+                        break;
+                }
 
-        if (expression is DMASTAssign assign) {
-            DMASTExpression key = assign.LHS;
-            if (key is DMASTIdentifier identifier)
-                key = new DMASTConstantString(key.Location, identifier.Identifier);
-            else if (key is DMASTConstantNull) key = new DMASTConstantString(key.Location, "null");
-
-            return new DMASTCallParameter(assign.Location, assign.RHS, key);
+                return new DMASTCallParameter(assign.Location, assign.RHS, key);
+            }
+            default:
+                return new DMASTCallParameter(expression.Location, expression);
         }
-
-        return new DMASTCallParameter(expression.Location, expression);
     }
 
     private List<DMASTDefinitionParameter> DefinitionParameters(out bool wasIndeterminate) {
@@ -2744,15 +2755,17 @@ public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token
                     }
                 }
                 case "locate": {
-                    if (callParameters.Length > 3) {
-                        Emit(WarningCode.InvalidArgumentCount, callLoc,
-                            "locate() was given too many arguments");
-                        return new DMASTInvalidExpression(callLoc);
+                    switch (callParameters.Length)
+                    {
+                        case > 3:
+                            Emit(WarningCode.InvalidArgumentCount, callLoc,
+                                "locate() was given too many arguments");
+                            return new DMASTInvalidExpression(callLoc);
+                        //locate(X, Y, Z)
+                        case 3:
+                            return new DMASTLocateCoordinates(callLoc, callParameters[0].Value, callParameters[1].Value,
+                                callParameters[2].Value);
                     }
-
-                    if (callParameters.Length == 3) //locate(X, Y, Z)
-                        return new DMASTLocateCoordinates(callLoc, callParameters[0].Value, callParameters[1].Value,
-                            callParameters[2].Value);
 
                     Whitespace();
 
@@ -2765,11 +2778,15 @@ public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token
                     }
 
                     DMASTExpression? type = null;
-                    if (callParameters.Length == 2) {
-                        type = callParameters[0].Value;
-                        container = callParameters[1].Value;
-                    } else if (callParameters.Length == 1) {
-                        type = callParameters[0].Value;
+                    switch (callParameters.Length)
+                    {
+                        case 2:
+                            type = callParameters[0].Value;
+                            container = callParameters[1].Value;
+                            break;
+                        case 1:
+                            type = callParameters[0].Value;
+                            break;
                     }
 
                     return new DMASTLocate(callLoc, type, container);

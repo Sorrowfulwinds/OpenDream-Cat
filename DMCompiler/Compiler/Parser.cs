@@ -27,12 +27,16 @@ public class Parser<TSourceType> {
         } else {
             _currentToken = Lexer.GetNextToken();
 
-            if (_currentToken.Type == TokenType.Error) {
-                Emit(WarningCode.BadToken, _currentToken.ValueAsString());
-                Advance();
-            } else if (_currentToken.Type == TokenType.Warning) {
-                Warning(_currentToken.ValueAsString());
-                Advance();
+            switch (_currentToken.Type)
+            {
+                case TokenType.Error:
+                    Emit(WarningCode.BadToken, _currentToken.ValueAsString());
+                    Advance();
+                    break;
+                case TokenType.Warning:
+                    Warning(_currentToken.ValueAsString());
+                    Advance();
+                    break;
             }
         }
 

@@ -62,10 +62,15 @@ internal static class DreamProcNativeRoot {
         }
 
         DreamConnection? connection = null;
-        if (usr is DreamObjectMob usrMob)
-            connection = usrMob.Connection;
-        else if (usr is DreamObjectClient usrClient)
-            connection = usrClient.Connection;
+        switch (usr)
+        {
+            case DreamObjectMob usrMob:
+                connection = usrMob.Connection;
+                break;
+            case DreamObjectClient usrClient:
+                connection = usrClient.Connection;
+                break;
+        }
 
         if (connection == null)
             return new DreamValue("OK"); // Returns "OK" if Usr is invalid
@@ -311,8 +316,14 @@ internal static class DreamProcNativeRoot {
         if (end <= 0) end += text.Length + 1;
         else if (end > text.Length + 1) end = text.Length + 1;
 
-        if (start == 0) return DreamValue.EmptyString;
-        if (start < 0) start += text.Length + 1;
+        switch (start)
+        {
+            case 0:
+                return DreamValue.EmptyString;
+            case < 0:
+                start += text.Length + 1;
+                break;
+        }
 
         return new DreamValue(text.Substring(start - 1, end - start));
     }
@@ -334,8 +345,14 @@ internal static class DreamProcNativeRoot {
         if (end <= 0) end += textElements.LengthInTextElements + 1;
         else if (end > textElements.LengthInTextElements + 1) end = textElements.LengthInTextElements + 1;
 
-        if (start == 0) return DreamValue.EmptyString;
-        if (start < 0) start += textElements.LengthInTextElements + 1;
+        switch (start)
+        {
+            case 0:
+                return DreamValue.EmptyString;
+            case < 0:
+                start += textElements.LengthInTextElements + 1;
+                break;
+        }
 
         if (start > textElements.LengthInTextElements)
             return new DreamValue(string.Empty);
@@ -1711,25 +1728,29 @@ internal static class DreamProcNativeRoot {
 
         if (!number.TryGetValueAsFloat(out float floatNum)) return new DreamValue("0");
 
-        if (bundle.Arguments.Length == 1) return new DreamValue(floatNum.ToString("g6"));
-
-        if (bundle.Arguments.Length == 2) {
-            if (!bundle.GetArgument(1, "A").TryGetValueAsInteger(out int sigFig))
+        switch (bundle.Arguments.Length)
+        {
+            case 1:
                 return new DreamValue(floatNum.ToString("g6"));
+            case 2:
+            {
+                if (!bundle.GetArgument(1, "A").TryGetValueAsInteger(out int sigFig))
+                    return new DreamValue(floatNum.ToString("g6"));
 
-            return new DreamValue(floatNum.ToString($"g{sigFig}"));
+                return new DreamValue(floatNum.ToString($"g{sigFig}"));
+            }
+            case 3:
+            {
+                int digits = Math.Max(bundle.GetArgument(1, "A").MustGetValueAsInteger(), 1);
+                int radix = bundle.GetArgument(2, "B").MustGetValueAsInteger();
+                var intNum = (int)floatNum;
+
+                return new DreamValue(DreamProcNativeHelpers.ToBase(intNum, radix).PadLeft(digits, '0'));
+            }
+            default:
+                // Maybe an exception is better?
+                return new DreamValue("0");
         }
-
-        if (bundle.Arguments.Length == 3) {
-            int digits = Math.Max(bundle.GetArgument(1, "A").MustGetValueAsInteger(), 1);
-            int radix = bundle.GetArgument(2, "B").MustGetValueAsInteger();
-            var intNum = (int)floatNum;
-
-            return new DreamValue(DreamProcNativeHelpers.ToBase(intNum, radix).PadLeft(digits, '0'));
-        }
-
-        // Maybe an exception is better?
-        return new DreamValue("0");
     }
 
     [DreamProc("ohearers")]
@@ -1869,18 +1890,24 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("L", Type = DreamValueTypeFlag.Float)]
     [DreamProcParameter("H", Type = DreamValueTypeFlag.Float)]
     public static DreamValue NativeProc_rand(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (bundle.Arguments.Length == 0) return new DreamValue(bundle.DreamManager.Random.NextSingle());
+        switch (bundle.Arguments.Length)
+        {
+            case 0:
+                return new DreamValue(bundle.DreamManager.Random.NextSingle());
+            case 1:
+            {
+                bundle.GetArgument(0, "L").TryGetValueAsInteger(out int high);
 
-        if (bundle.Arguments.Length == 1) {
-            bundle.GetArgument(0, "L").TryGetValueAsInteger(out int high);
+                return new DreamValue(bundle.DreamManager.Random.Next(high + 1)); // rand() is inclusive on both ends
+            }
+            default:
+            {
+                bundle.GetArgument(0, "L").TryGetValueAsInteger(out int low);
+                bundle.GetArgument(1, "H").TryGetValueAsInteger(out int high);
 
-            return new DreamValue(bundle.DreamManager.Random.Next(high + 1)); // rand() is inclusive on both ends
-        } else {
-            bundle.GetArgument(0, "L").TryGetValueAsInteger(out int low);
-            bundle.GetArgument(1, "H").TryGetValueAsInteger(out int high);
-
-            return new DreamValue(bundle.DreamManager.Random.Next(Math.Min(low, high),
-                Math.Max(low, high) + 1)); // rand() is inclusive on both ends
+                return new DreamValue(bundle.DreamManager.Random.Next(Math.Min(low, high),
+                    Math.Max(low, high) + 1)); // rand() is inclusive on both ends
+            }
         }
     }
 
@@ -2317,13 +2344,18 @@ internal static class DreamProcNativeRoot {
         bundle.GetArgument(2, "End").TryGetValueAsInteger(out int end);
         bundle.GetArgument(3, "Insert").TryGetValueAsString(out string? insertText);
 
-        if (text == null)
-            if (string.IsNullOrEmpty(insertText))
-                return DreamValue.Null;
-            else
+        switch (text)
+        {
+            case null:
+            {
+                if (string.IsNullOrEmpty(insertText))
+                    return DreamValue.Null;
+                else
+                    return new DreamValue(insertText);
+            }
+            case "":
                 return new DreamValue(insertText);
-        if (text == "")
-            return new DreamValue(insertText);
+        }
 
         //runtime if start = 0 runtime error: bad text or out of bounds
 
@@ -2353,13 +2385,19 @@ internal static class DreamProcNativeRoot {
         bundle.GetArgument(2, "End").TryGetValueAsInteger(out int end);
         bundle.GetArgument(3, "Insert").TryGetValueAsString(out string? insertText);
 
-        if (text == null) //this is for BYOND compat, and causes the function to ignore start/end if text is null or empty
-            if (string.IsNullOrEmpty(insertText))
-                return DreamValue.Null;
-            else
+        switch (text)
+        {
+            //this is for BYOND compat, and causes the function to ignore start/end if text is null or empty
+            case null:
+            {
+                if (string.IsNullOrEmpty(insertText))
+                    return DreamValue.Null;
+                else
+                    return new DreamValue(insertText);
+            }
+            case "":
                 return new DreamValue(insertText);
-        if (text == "")
-            return new DreamValue(insertText);
+        }
 
         //runtime if start = 0 runtime error: bad text or out of bounds
         var textElements = new StringInfo(text);
@@ -2527,8 +2565,15 @@ internal static class DreamProcNativeRoot {
         if (!bundle.GetArgument(0, "T").TryGetValueAsString(out string? text)) return new DreamValue(0);
 
         bundle.GetArgument(1, "pos").TryGetValueAsInteger(out int pos); //1-indexed
-        if (pos == 0) pos = 1; //0 is same as 1
-        else if (pos < 0) pos += text.Length + 1; //Wraps around
+        switch (pos)
+        {
+            case 0:
+                pos = 1; //0 is same as 1
+                break;
+            case < 0:
+                pos += text.Length + 1; //Wraps around
+                break;
+        }
 
         if (pos > text.Length || pos < 1) return new DreamValue(0);
 
@@ -2544,8 +2589,15 @@ internal static class DreamProcNativeRoot {
         var textElements = new StringInfo(text);
 
         bundle.GetArgument(1, "pos").TryGetValueAsInteger(out int pos); //1-indexed
-        if (pos == 0) pos = 1; //0 is same as 1
-        else if (pos < 0) pos += textElements.LengthInTextElements + 1; //Wraps around
+        switch (pos)
+        {
+            case 0:
+                pos = 1; //0 is same as 1
+                break;
+            case < 0:
+                pos += textElements.LengthInTextElements + 1; //Wraps around
+                break;
+        }
 
         if (pos > textElements.LengthInTextElements || pos < 1) return new DreamValue(0);
 

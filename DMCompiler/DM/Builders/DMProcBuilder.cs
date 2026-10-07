@@ -398,14 +398,20 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                         DMExpression outputVar = _exprBuilder.Create(outputExpr);
                         DMExpression list = _exprBuilder.Create(exprIn.RHS);
 
-                        if (outputVar is Local outputLocal) {
-                            outputLocal.LocalVar.ExplicitValueType = statementFor.DMTypes;
-                            if (outputLocal.LocalVar is DMProc.LocalConstVariable)
+                        switch (outputVar)
+                        {
+                            case Local outputLocal:
+                            {
+                                outputLocal.LocalVar.ExplicitValueType = statementFor.DMTypes;
+                                if (outputLocal.LocalVar is DMProc.LocalConstVariable)
+                                    compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
+                                        "Cannot change constant value");
+                                break;
+                            }
+                            case Field {IsConst: true}:
                                 compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
                                     "Cannot change constant value");
-                        } else if (outputVar is Field {IsConst: true}) {
-                            compiler.Emit(WarningCode.WriteToConstant, outputExpr.Location,
-                                "Cannot change constant value");
+                                break;
                         }
 
                         ProcessStatementForList(list, outputVar, null, statementFor.DMTypes, statementFor.Body);
@@ -420,10 +426,14 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         proc.EndScope();
 
         IEnumerable<DMASTVarDeclExpression> FindVarDecls(DMASTExpression? expr) {
-            if (expr is null)
-                yield break;
-            if (expr is DMASTVarDeclExpression p)
-                yield return p;
+            switch (expr)
+            {
+                case null:
+                    yield break;
+                case DMASTVarDeclExpression p:
+                    yield return p;
+                    break;
+            }
 
             foreach (DMASTExpression leaf in expr.Leaves())
             foreach (DMASTVarDeclExpression decl in FindVarDecls(leaf))

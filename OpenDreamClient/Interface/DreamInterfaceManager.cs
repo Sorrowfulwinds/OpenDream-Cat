@@ -299,9 +299,31 @@ internal sealed partial class DreamInterfaceManager : IDreamInterfaceManager {
                     StringBuilder currentArg = new();
                     var stringCapture = false;
                     for (var i = 0; i < argsRaw[1].Length; i++) {
-                        if (argsRaw[1][i] == '"') {
-                            currentArg.Append('"');
-                            if (stringCapture) {
+                        switch (argsRaw[1][i])
+                        {
+                            case '"':
+                            {
+                                currentArg.Append('"');
+                                if (stringCapture) {
+                                    string result = HandleEmbeddedWinget(null, currentArg.ToString(), out bool hadWinget);
+
+                                    // 64x64 or 64,64 gets split into two "64 64" args
+                                    if (hadWinget && result.Split('x', ',') is {Length: 2} wingetSplit &&
+                                        float.TryParse(wingetSplit[0], out _) && float.TryParse(wingetSplit[1], out _)) {
+                                        args.Add(wingetSplit[0]);
+                                        args.Add(wingetSplit[1]);
+                                    } else {
+                                        args.Add(result);
+                                    }
+
+                                    currentArg.Clear();
+                                }
+
+                                stringCapture = !stringCapture;
+                                continue;
+                            }
+                            case ' ' when !stringCapture:
+                            {
                                 string result = HandleEmbeddedWinget(null, currentArg.ToString(), out bool hadWinget);
 
                                 // 64x64 or 64,64 gets split into two "64 64" args
@@ -314,29 +336,12 @@ internal sealed partial class DreamInterfaceManager : IDreamInterfaceManager {
                                 }
 
                                 currentArg.Clear();
+                                continue;
                             }
-
-                            stringCapture = !stringCapture;
-                            continue;
+                            default:
+                                currentArg.Append(argsRaw[1][i]);
+                                break;
                         }
-
-                        if (argsRaw[1][i] == ' ' && !stringCapture) {
-                            string result = HandleEmbeddedWinget(null, currentArg.ToString(), out bool hadWinget);
-
-                            // 64x64 or 64,64 gets split into two "64 64" args
-                            if (hadWinget && result.Split('x', ',') is {Length: 2} wingetSplit &&
-                                float.TryParse(wingetSplit[0], out _) && float.TryParse(wingetSplit[1], out _)) {
-                                args.Add(wingetSplit[0]);
-                                args.Add(wingetSplit[1]);
-                            } else {
-                                args.Add(result);
-                            }
-
-                            currentArg.Clear();
-                            continue;
-                        }
-
-                        currentArg.Append(argsRaw[1][i]);
                     }
 
                     if (currentArg.ToString() is { } arg && !string.IsNullOrEmpty(arg)) {
@@ -362,21 +367,27 @@ internal sealed partial class DreamInterfaceManager : IDreamInterfaceManager {
                     for (var i = 0; i < verbInfo.Arguments.Length; i++) {
                         DreamValueType argumentType = verbInfo.Arguments[i].Types;
 
-                        if (argumentType is DreamValueType.Text or DreamValueType.Message
-                            or DreamValueType.CommandText) {
-                            arguments[i] = args[i];
-                        } else if (argumentType == DreamValueType.Num) {
-                            if (!float.TryParse(args[i], out float numArg)) {
-                                _sawmill.Error(
-                                    $"Invalid number argument \"{args[i]}\"; ignoring command ({fullCommand})");
-                                return;
-                            }
+                        switch (argumentType)
+                        {
+                            case DreamValueType.Text or DreamValueType.Message
+                                or DreamValueType.CommandText:
+                                arguments[i] = args[i];
+                                break;
+                            case DreamValueType.Num:
+                            {
+                                if (!float.TryParse(args[i], out float numArg)) {
+                                    _sawmill.Error(
+                                        $"Invalid number argument \"{args[i]}\"; ignoring command ({fullCommand})");
+                                    return;
+                                }
 
-                            arguments[i] = numArg;
-                        } else {
-                            _sawmill.Error(
-                                $"Parsing verb args of type {argumentType} is unimplemented; ignoring command ({fullCommand})");
-                            return;
+                                arguments[i] = numArg;
+                                break;
+                            }
+                            default:
+                                _sawmill.Error(
+                                    $"Parsing verb args of type {argumentType} is unimplemented; ignoring command ({fullCommand})");
+                                return;
                         }
                     }
 
@@ -601,32 +612,36 @@ internal sealed partial class DreamInterfaceManager : IDreamInterfaceManager {
         string[] elementIds =
             controlId.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        if (elementIds.Length == 0) {
-            string? queryResult = queryValue switch {
-                // The server will actually never query this because it can predict the answer to be "true"
-                // But also have it here in case a local winget ever wants it
-                "hwmode" => "true",
-                "windows" => string.Join(';',
-                    Windows.Where(pair => !pair.Value.WindowDescriptor.IsPane.Value).Select(pair => pair.Key)),
-                "panes" => string.Join(';',
-                    Windows.Where(pair => pair.Value.WindowDescriptor.IsPane.Value).Select(pair => pair.Key)),
-                "menus" => string.Join(';', Menus.Keys),
-                "macros" => string.Join(';', MacroSets.Keys),
-                "url" => _netManager.ServerChannel?.RemoteEndPoint.ToString() ??
-                         string.Empty, // TODO: Port should be 0 "if connected to a local .dmb file"
-                "dpi" => _clyde.DefaultWindowScale.X.ToString(CultureInfo.InvariantCulture),
-                _ => null
-            };
+        switch (elementIds.Length)
+        {
+            case 0:
+            {
+                string? queryResult = queryValue switch {
+                    // The server will actually never query this because it can predict the answer to be "true"
+                    // But also have it here in case a local winget ever wants it
+                    "hwmode" => "true",
+                    "windows" => string.Join(';',
+                        Windows.Where(pair => !pair.Value.WindowDescriptor.IsPane.Value).Select(pair => pair.Key)),
+                    "panes" => string.Join(';',
+                        Windows.Where(pair => pair.Value.WindowDescriptor.IsPane.Value).Select(pair => pair.Key)),
+                    "menus" => string.Join(';', Menus.Keys),
+                    "macros" => string.Join(';', MacroSets.Keys),
+                    "url" => _netManager.ServerChannel?.RemoteEndPoint.ToString() ??
+                             string.Empty, // TODO: Port should be 0 "if connected to a local .dmb file"
+                    "dpi" => _clyde.DefaultWindowScale.X.ToString(CultureInfo.InvariantCulture),
+                    _ => null
+                };
 
-            if (queryResult is null) {
-                _sawmill.Error($"Special winget \"{queryValue}\" is not implemented");
-                return string.Empty;
+                if (queryResult is null) {
+                    _sawmill.Error($"Special winget \"{queryValue}\" is not implemented");
+                    return string.Empty;
+                }
+
+                return forceJson ? $"\"{HttpUtility.JavaScriptStringEncode(queryResult)}\"" : queryResult;
             }
-
-            return forceJson ? $"\"{HttpUtility.JavaScriptStringEncode(queryResult)}\"" : queryResult;
+            case 1:
+                return GetProperty(elementIds[0]);
         }
-
-        if (elementIds.Length == 1) return GetProperty(elementIds[0]);
 
         var result = new StringBuilder(elementIds.Length * 6 - 1);
 
@@ -703,11 +718,16 @@ internal sealed partial class DreamInterfaceManager : IDreamInterfaceManager {
         if (pBrowse.HtmlSource == null && referencedElement != null) {
             // Closing the referenced window or browser
 
-            if (referencedElement is ControlWindow window)
-                window.CloseChildWindow();
-            else if (referencedElement is ControlBrowser browser)
+            switch (referencedElement)
+            {
+                case ControlWindow window:
+                    window.CloseChildWindow();
+                    break;
                 // TODO: What does "closing" the browser mean? Redirect to a blank page or remove the control entirely?
-                browser.SetFileSource(null);
+                case ControlBrowser browser:
+                    browser.SetFileSource(null);
+                    break;
+            }
         } else if (pBrowse.HtmlSource != null) {
             var htmlFileName =
                 $"browse_{pBrowse.Window}_{_random.Next()}"; // TODO: Possible collisions and explicit file names
@@ -789,16 +809,22 @@ internal sealed partial class DreamInterfaceManager : IDreamInterfaceManager {
 
         // TODO: This can be a topic call
 
-        if (uri.Scheme is "http" or "https") {
-            _uriOpener.OpenUri(message.Url);
-        } else if (uri.Scheme is "ss14" or "ss14s") {
-            if (_gameController.LaunchState.FromLauncher)
-                _gameController.Redial(message.Url, "link() used to connect to another server.");
-            else
-                _sawmill.Warning(
-                    "link() only supports connecting to other servers when utilizing the launcher. Ignoring.");
-        } else {
-            _sawmill.Warning($"Received link \"{message.Url}\" which is not supported. Ignoring.");
+        switch (uri.Scheme)
+        {
+            case "http" or "https":
+                _uriOpener.OpenUri(message.Url);
+                break;
+            case "ss14" or "ss14s": {
+                if (_gameController.LaunchState.FromLauncher)
+                    _gameController.Redial(message.Url, "link() used to connect to another server.");
+                else
+                    _sawmill.Warning(
+                        "link() only supports connecting to other servers when utilizing the launcher. Ignoring.");
+                break;
+            }
+            default:
+                _sawmill.Warning($"Received link \"{message.Url}\" which is not supported. Ignoring.");
+                break;
         }
     }
 

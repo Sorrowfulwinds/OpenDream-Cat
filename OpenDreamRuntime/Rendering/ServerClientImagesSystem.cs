@@ -14,10 +14,15 @@ public sealed partial class ServerClientImagesSystem : SharedClientImagesSystem 
         EntityUid locEntity = EntityUid.Invalid;
         Vector3 turfCoords = Vector3.Zero;
 
-        if (loc is DreamObjectMovable movable)
-            locEntity = movable.Entity;
-        else if (loc is DreamObjectTurf turf)
-            turfCoords = new Vector3(turf.X, turf.Y, turf.Z);
+        switch (loc)
+        {
+            case DreamObjectMovable movable:
+                locEntity = movable.Entity;
+                break;
+            case DreamObjectTurf turf:
+                turfCoords = new Vector3(turf.X, turf.Y, turf.Z);
+                break;
+        }
 
         NetEntity ent = GetNetEntity(locEntity);
         EntityUid imageObjectEntity = imageObject.Entity;
@@ -34,10 +39,15 @@ public sealed partial class ServerClientImagesSystem : SharedClientImagesSystem 
         EntityUid locEntity = EntityUid.Invalid;
         Vector3 turfCoords = Vector3.Zero;
 
-        if (loc is DreamObjectMovable movable)
-            locEntity = movable.Entity;
-        else if (loc is DreamObjectTurf turf)
-            turfCoords = new Vector3(turf.X, turf.Y, turf.Z);
+        switch (loc)
+        {
+            case DreamObjectMovable movable:
+                locEntity = movable.Entity;
+                break;
+            case DreamObjectTurf turf:
+                turfCoords = new Vector3(turf.X, turf.Y, turf.Z);
+                break;
+        }
 
         NetEntity ent = GetNetEntity(locEntity);
         EntityUid imageObjectEntity = imageObject.Entity;

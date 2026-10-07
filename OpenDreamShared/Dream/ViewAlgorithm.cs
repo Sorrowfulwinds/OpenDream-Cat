@@ -190,10 +190,12 @@ public static class ViewAlgorithm {
             if (tile == null)
                 continue;
 
-            if (checkingVis2 && tile.Vis2 == d)
-                return true;
-            if (!checkingVis2 && tile.Vis == d)
-                return true;
+            switch (checkingVis2)
+            {
+                case true when tile.Vis2 == d:
+                case false when tile.Vis == d:
+                    return true;
+            }
         }
 
         return false;

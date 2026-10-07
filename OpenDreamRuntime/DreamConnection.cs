@@ -493,12 +493,18 @@ public sealed partial class DreamConnection {
                     string key = optionSeparated[0];
                     string value = optionSeparated[1];
 
-                    if (key == "window") {
-                        window = value;
-                    } else if (key == "size") {
-                        string[] sizeSeparated = value.Split("x", 2);
+                    switch (key)
+                    {
+                        case "window":
+                            window = value;
+                            break;
+                        case "size":
+                        {
+                            string[] sizeSeparated = value.Split("x", 2);
 
-                        size = (int.Parse(sizeSeparated[0]), int.Parse(sizeSeparated[1]));
+                            size = (int.Parse(sizeSeparated[0]), int.Parse(sizeSeparated[1]));
+                            break;
+                        }
                     }
                 }
             }

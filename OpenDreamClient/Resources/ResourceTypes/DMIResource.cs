@@ -97,11 +97,16 @@ public sealed class DMIResource : DreamResource {
         public AtlasTexture[] GetFrames(AtomDirection direction) {
             // Find another direction to use if this one doesn't exist
             if (!Frames.ContainsKey(direction)) {
-                // The diagonal directions attempt to use east/west
-                if (direction is AtomDirection.Northeast or AtomDirection.Southeast)
-                    direction = AtomDirection.East;
-                else if (direction is AtomDirection.Northwest or AtomDirection.Southwest)
-                    direction = AtomDirection.West;
+                switch (direction)
+                {
+                    // The diagonal directions attempt to use east/west
+                    case AtomDirection.Northeast or AtomDirection.Southeast:
+                        direction = AtomDirection.East;
+                        break;
+                    case AtomDirection.Northwest or AtomDirection.Southwest:
+                        direction = AtomDirection.West;
+                        break;
+                }
 
                 // Use the south direction if the above still isn't valid
                 if (!Frames.ContainsKey(direction))

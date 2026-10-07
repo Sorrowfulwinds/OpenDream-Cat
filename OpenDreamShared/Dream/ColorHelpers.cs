@@ -34,13 +34,21 @@ public static class ColorHelpers {
     [Pure]
     public static bool TryParseColor(string color, out Color colorOut, string defaultAlpha = "ff") {
         if (color.StartsWith('#')) {
-            if (color.Length == 4 || color.Length == 5) { //4-bit color; repeat each digit
-                string alphaComponent = color.Length == 5 ? new string(color[4], 2) : defaultAlpha;
+            switch (color.Length)
+            {
+                case 4:
+                case 5:
+                {
+                    //4-bit color; repeat each digit
+                    string alphaComponent = color.Length == 5 ? new string(color[4], 2) : defaultAlpha;
 
-                color = new string('#', 1) + new string(color[1], 2) + new string(color[2], 2) +
-                        new string(color[3], 2) + alphaComponent;
-            } else if (color.Length == 7) { //Missing alpha
-                color += defaultAlpha;
+                    color = new string('#', 1) + new string(color[1], 2) + new string(color[2], 2) +
+                            new string(color[3], 2) + alphaComponent;
+                    break;
+                }
+                case 7: //Missing alpha
+                    color += defaultAlpha;
+                    break;
             }
 
             colorOut = Color.FromHex(color, Color.White);

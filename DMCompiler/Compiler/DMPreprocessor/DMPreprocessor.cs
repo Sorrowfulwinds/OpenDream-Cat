@@ -293,111 +293,122 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
             return;
         }
 
-        // #define FILE_DIR is a little special
-        // Every define will add to a list of directories to check for resource files
-        if (defineIdentifier.Text == "FILE_DIR") {
-            Token dirToken = GetNextToken(true);
-            string? dirTokenValue = dirToken.Type switch {
-                TokenType.DM_Preproc_ConstantString => dirToken.ValueAsString(),
-                TokenType.DM_Preproc_Punctuator_Period => ".",
-                _ => null
-            };
+        switch (defineIdentifier.Text)
+        {
+            // #define FILE_DIR is a little special
+            // Every define will add to a list of directories to check for resource files
+            case "FILE_DIR":
+            {
+                Token dirToken = GetNextToken(true);
+                string? dirTokenValue = dirToken.Type switch {
+                    TokenType.DM_Preproc_ConstantString => dirToken.ValueAsString(),
+                    TokenType.DM_Preproc_Punctuator_Period => ".",
+                    _ => null
+                };
 
-            if (dirTokenValue is null) {
-                compiler.Emit(WarningCode.BadDirective, dirToken.Location,
-                    $"\"{dirToken.Text}\" is not a valid directory");
+                if (dirTokenValue is null) {
+                    compiler.Emit(WarningCode.BadDirective, dirToken.Location,
+                        $"\"{dirToken.Text}\" is not a valid directory");
+                    return;
+                }
+
+                DMPreprocessorLexer currentLexer = _lexerStack.Peek();
+                string dir = Path.Combine(currentLexer.IncludeDirectory ?? string.Empty, dirTokenValue);
+                compiler.AddResourceDirectory(dir, dirToken.Location);
+
+                // In BYOND it goes on to set the FILE_DIR macro's value to the added directory
+                // I don't see any reason to do that
                 return;
             }
-
-            DMPreprocessorLexer currentLexer = _lexerStack.Peek();
-            string dir = Path.Combine(currentLexer.IncludeDirectory ?? string.Empty, dirTokenValue);
-            compiler.AddResourceDirectory(dir, dirToken.Location);
-
-            // In BYOND it goes on to set the FILE_DIR macro's value to the added directory
-            // I don't see any reason to do that
-            return;
+            case "defined":
+                compiler.Emit(WarningCode.SoftReservedKeyword, defineIdentifier.Location,
+                    "Reserved keyword 'defined' cannot be used as macro name");
+                break;
         }
-
-        if (defineIdentifier.Text == "defined")
-            compiler.Emit(WarningCode.SoftReservedKeyword, defineIdentifier.Location,
-                "Reserved keyword 'defined' cannot be used as macro name");
 
         List<string>? parameters = null;
         List<Token> macroTokens = new(1);
 
         Token macroToken = GetNextToken();
-        if (macroToken.Type == TokenType.DM_Preproc_Punctuator_LeftParenthesis) { // We're a macro function!
-            parameters = new List<string>(1);
-            //Read in the parameters
-            var canConsumeComma = false;
-            var foundVariadic = false;
-            while (true) {
-                Token parameterToken = GetNextToken(true);
-                switch (parameterToken.Type) {
-                    case TokenType.DM_Preproc_Identifier:
-                        canConsumeComma = true;
-                        if (foundVariadic) {
-                            compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
-                                $"Variadic argument '{parameters.Last()}' must be the last argument");
-                            foundVariadic = false; // Reduces error spam if there's several arguments after it
-                            continue;
-                        }
+        switch (macroToken.Type)
+        {
+            case TokenType.DM_Preproc_Punctuator_LeftParenthesis:
+            {
+                // We're a macro function!
+                parameters = new List<string>(1);
+                //Read in the parameters
+                var canConsumeComma = false;
+                var foundVariadic = false;
+                while (true) {
+                    Token parameterToken = GetNextToken(true);
+                    switch (parameterToken.Type) {
+                        case TokenType.DM_Preproc_Identifier:
+                            canConsumeComma = true;
+                            if (foundVariadic) {
+                                compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
+                                    $"Variadic argument '{parameters.Last()}' must be the last argument");
+                                foundVariadic = false; // Reduces error spam if there's several arguments after it
+                                continue;
+                            }
 
-                        if (Check(TokenType.DM_Preproc_Punctuator_Period)) { // Check for a variadic
+                            if (Check(TokenType.DM_Preproc_Punctuator_Period)) { // Check for a variadic
+                                if (!Check(TokenType.DM_Preproc_Punctuator_Period) ||
+                                    !Check(TokenType.DM_Preproc_Punctuator_Period))
+                                    compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
+                                        $"Invalid macro parameter, '{parameterToken.Text}...' expected");
+
+                                parameters.Add($"{parameterToken.Text}...");
+                                foundVariadic = true;
+                                // Consciously not setting canConsumeComma to false here. Users can have a little dangling comma, as a treat :o)
+                                continue;
+                            }
+
+                            parameters.Add(parameterToken.Text);
+                            continue;
+                        case TokenType.DM_Preproc_Punctuator_Period: // One of those "..." things, maybe?
                             if (!Check(TokenType.DM_Preproc_Punctuator_Period) ||
                                 !Check(TokenType.DM_Preproc_Punctuator_Period))
                                 compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
-                                    $"Invalid macro parameter, '{parameterToken.Text}...' expected");
+                                    "Invalid macro parameter, '...' expected");
 
-                            parameters.Add($"{parameterToken.Text}...");
-                            foundVariadic = true;
-                            // Consciously not setting canConsumeComma to false here. Users can have a little dangling comma, as a treat :o)
+                            canConsumeComma = true;
+                            if (foundVariadic) { // Placed here so we properly consume this bogus '...' parameter if need be
+                                compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
+                                    $"Variadic argument '{parameters.Last()}' must be the last argument");
+                                foundVariadic = false; // Reduces error spam if there's several arguments after it
+                                continue;
+                            }
+
+                            parameters.Add("...");
                             continue;
-                        }
-
-                        parameters.Add(parameterToken.Text);
-                        continue;
-                    case TokenType.DM_Preproc_Punctuator_Period: // One of those "..." things, maybe?
-                        if (!Check(TokenType.DM_Preproc_Punctuator_Period) ||
-                            !Check(TokenType.DM_Preproc_Punctuator_Period))
-                            compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
-                                "Invalid macro parameter, '...' expected");
-
-                        canConsumeComma = true;
-                        if (foundVariadic) { // Placed here so we properly consume this bogus '...' parameter if need be
-                            compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
-                                $"Variadic argument '{parameters.Last()}' must be the last argument");
-                            foundVariadic = false; // Reduces error spam if there's several arguments after it
+                        case TokenType.DM_Preproc_Punctuator_Comma:
+                            if (!canConsumeComma)
+                                compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
+                                    "Unexpected ',' in macro parameter list");
+                            canConsumeComma = false;
                             continue;
-                        }
+                        case TokenType.DM_Preproc_Punctuator_RightParenthesis:
+                            break;
+                        case TokenType.EndOfFile:
+                            compiler.Emit(WarningCode.BadDirective, macroToken.Location,
+                                "Missing ')' in macro definition"); // Location points to the left paren!
+                            PushToken(parameterToken);
+                            break;
+                        default:
+                            compiler.Emit(WarningCode.BadDirective, parameterToken.Location, "Expected a macro parameter");
+                            return;
+                    }
 
-                        parameters.Add("...");
-                        continue;
-                    case TokenType.DM_Preproc_Punctuator_Comma:
-                        if (!canConsumeComma)
-                            compiler.Emit(WarningCode.BadDirective, parameterToken.Location,
-                                "Unexpected ',' in macro parameter list");
-                        canConsumeComma = false;
-                        continue;
-                    case TokenType.DM_Preproc_Punctuator_RightParenthesis:
-                        break;
-                    case TokenType.EndOfFile:
-                        compiler.Emit(WarningCode.BadDirective, macroToken.Location,
-                            "Missing ')' in macro definition"); // Location points to the left paren!
-                        PushToken(parameterToken);
-                        break;
-                    default:
-                        compiler.Emit(WarningCode.BadDirective, parameterToken.Location, "Expected a macro parameter");
-                        return;
+                    break; // If the switch gets here, the loop ends.
                 }
 
-                break; // If the switch gets here, the loop ends.
+                macroToken = GetNextToken(true);
+                break;
             }
-
-            macroToken = GetNextToken(true);
-        } else if (macroToken.Type == TokenType.DM_Preproc_Whitespace) {
-            // Whitespace between the identifier and a left-paren turns it into a non-function macro.
-            macroToken = GetNextToken();
+            case TokenType.DM_Preproc_Whitespace:
+                // Whitespace between the identifier and a left-paren turns it into a non-function macro.
+                macroToken = GetNextToken();
+                break;
         }
 
         while (macroToken.Type != TokenType.Newline && macroToken.Type != TokenType.EndOfFile)

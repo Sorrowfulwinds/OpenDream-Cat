@@ -55,14 +55,18 @@ public static class DMIParser {
         var reader = new BinaryReader(stream);
         uint headerSize = reader.ReadUInt32();
         uint width, height;
-        if (headerSize == 12) { // Old DIB header
-            width = reader.ReadUInt16();
-            height = reader.ReadUInt16();
-        } else if (headerSize == 40) { // New DIB header
-            width = reader.ReadUInt32();
-            height = reader.ReadUInt32();
-        } else {
-            throw new Exception($"Unrecognized BMP header (size {headerSize})");
+        switch (headerSize)
+        {
+            case 12: // Old DIB header
+                width = reader.ReadUInt16();
+                height = reader.ReadUInt16();
+                break;
+            case 40: // New DIB header
+                width = reader.ReadUInt32();
+                height = reader.ReadUInt32();
+                break;
+            default:
+                throw new Exception($"Unrecognized BMP header (size {headerSize})");
         }
 
         // TODO: Use CreateSplitStates if world.map_format == TILED_ICON_MAP
@@ -435,11 +439,16 @@ public static class DMIParser {
         public ParsedDMIFrame[] GetFrames(AtomDirection direction = AtomDirection.South) {
             // Find another direction to use if this one doesn't exist
             if (!Directions.ContainsKey(direction)) {
-                // The diagonal directions attempt to use east/west
-                if (direction is AtomDirection.Northeast or AtomDirection.Southeast)
-                    direction = AtomDirection.East;
-                else if (direction is AtomDirection.Northwest or AtomDirection.Southwest)
-                    direction = AtomDirection.West;
+                switch (direction)
+                {
+                    // The diagonal directions attempt to use east/west
+                    case AtomDirection.Northeast or AtomDirection.Southeast:
+                        direction = AtomDirection.East;
+                        break;
+                    case AtomDirection.Northwest or AtomDirection.Southwest:
+                        direction = AtomDirection.West;
+                        break;
+                }
 
                 // Use the south direction if the above still isn't valid
                 if (!Directions.ContainsKey(direction))

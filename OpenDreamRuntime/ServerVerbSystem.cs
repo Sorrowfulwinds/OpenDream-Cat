@@ -234,19 +234,24 @@ public sealed partial class ServerVerbSystem : VerbSystem {
         if (verb.VerbId == null) // Not even a verb
             return false;
 
-        if (src is DreamObjectClient client) {
-            if (!client.ClientVerbs.Verbs.Contains(verb))
-                return false; // Not inside client.verbs
+        switch (src)
+        {
+            case DreamObjectClient client:
+            {
+                if (!client.ClientVerbs.Verbs.Contains(verb))
+                    return false; // Not inside client.verbs
 
-            // Client verbs ignore "set src" checks
-            // Deviates from BYOND, where anything but usr and world shows the verb in the statpanel but is not executable
-            return true;
-        }
-
-        if (src is DreamObjectAtom atom) {
-            ImmutableAppearance appearance = _atomManager.MustGetAppearance(atom);
-            if (appearance.Verbs.Contains(verb.VerbId.Value) is not true) // Inside atom.verbs?
-                return false;
+                // Client verbs ignore "set src" checks
+                // Deviates from BYOND, where anything but usr and world shows the verb in the statpanel but is not executable
+                return true;
+            }
+            case DreamObjectAtom atom:
+            {
+                ImmutableAppearance appearance = _atomManager.MustGetAppearance(atom);
+                if (appearance.Verbs.Contains(verb.VerbId.Value) is not true) // Inside atom.verbs?
+                    return false;
+                break;
+            }
         }
 
         VerbInfo verbInfo = _verbs[verb.VerbId.Value];

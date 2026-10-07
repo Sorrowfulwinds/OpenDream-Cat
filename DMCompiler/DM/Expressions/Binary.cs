@@ -22,13 +22,17 @@ internal sealed class Add(Location location, DMExpression lhs, DMExpression rhs)
             return false;
         }
 
-        if (lhs is Number lhsNum && rhs is Number rhsNum) {
-            constant = new Number(Location, lhsNum.Value + rhsNum.Value);
-        } else if (lhs is String lhsString && rhs is String rhsString) {
-            constant = new String(Location, lhsString.Value + rhsString.Value);
-        } else {
-            constant = null;
-            return false;
+        switch (lhs)
+        {
+            case Number lhsNum when rhs is Number rhsNum:
+                constant = new Number(Location, lhsNum.Value + rhsNum.Value);
+                break;
+            case String lhsString when rhs is String rhsString:
+                constant = new String(Location, lhsString.Value + rhsString.Value);
+                break;
+            default:
+                constant = null;
+                return false;
         }
 
         return true;
@@ -432,13 +436,17 @@ internal sealed class GreaterThan(Location location, DMExpression lhs, DMExpress
             return false;
         }
 
-        if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, 0 > rhsNum1.Value ? 1 : 0);
-        } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, lhsNum.Value > rhsNum2.Value ? 1 : 0);
-        } else {
-            constant = null;
-            return false;
+        switch (lhs)
+        {
+            case Null when rhs is Number rhsNum1:
+                constant = new Number(Location, 0 > rhsNum1.Value ? 1 : 0);
+                break;
+            case Number lhsNum when rhs is Number rhsNum2:
+                constant = new Number(Location, lhsNum.Value > rhsNum2.Value ? 1 : 0);
+                break;
+            default:
+                constant = null;
+                return false;
         }
 
         return true;
@@ -476,13 +484,17 @@ internal sealed class GreaterThanOrEqual(Location location, DMExpression lhs, DM
             return false;
         }
 
-        if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, 0 >= rhsNum1.Value ? 1 : 0);
-        } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, lhsNum.Value >= rhsNum2.Value ? 1 : 0);
-        } else {
-            constant = null;
-            return false;
+        switch (lhs)
+        {
+            case Null when rhs is Number rhsNum1:
+                constant = new Number(Location, 0 >= rhsNum1.Value ? 1 : 0);
+                break;
+            case Number lhsNum when rhs is Number rhsNum2:
+                constant = new Number(Location, lhsNum.Value >= rhsNum2.Value ? 1 : 0);
+                break;
+            default:
+                constant = null;
+                return false;
         }
 
         return true;
@@ -508,13 +520,17 @@ internal sealed class LessThan(Location location, DMExpression lhs, DMExpression
             return false;
         }
 
-        if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, 0 < rhsNum1.Value ? 1 : 0);
-        } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, lhsNum.Value < rhsNum2.Value ? 1 : 0);
-        } else {
-            constant = null;
-            return false;
+        switch (lhs)
+        {
+            case Null when rhs is Number rhsNum1:
+                constant = new Number(Location, 0 < rhsNum1.Value ? 1 : 0);
+                break;
+            case Number lhsNum when rhs is Number rhsNum2:
+                constant = new Number(Location, lhsNum.Value < rhsNum2.Value ? 1 : 0);
+                break;
+            default:
+                constant = null;
+                return false;
         }
 
         return true;
@@ -541,13 +557,17 @@ internal sealed class LessThanOrEqual(Location location, DMExpression lhs, DMExp
             return false;
         }
 
-        if (lhs is Null && rhs is Number rhsNum1) {
-            constant = new Number(Location, 0 <= rhsNum1.Value ? 1 : 0);
-        } else if (lhs is Number lhsNum && rhs is Number rhsNum2) {
-            constant = new Number(Location, lhsNum.Value <= rhsNum2.Value ? 1 : 0);
-        } else {
-            constant = null;
-            return false;
+        switch (lhs)
+        {
+            case Null when rhs is Number rhsNum1:
+                constant = new Number(Location, 0 <= rhsNum1.Value ? 1 : 0);
+                break;
+            case Number lhsNum when rhs is Number rhsNum2:
+                constant = new Number(Location, lhsNum.Value <= rhsNum2.Value ? 1 : 0);
+                break;
+            default:
+                constant = null;
+                return false;
         }
 
         return true;

@@ -58,25 +58,31 @@ internal class DMObjectTree(DMCompiler compiler) {
             return dmObject;
 
         DMObject? parent = null;
-        if (path.Elements.Length > 1)
-            parent = GetOrCreateDMObject(path.FromElements(0,
-                -2)); // Create all parent classes as dummies, if we're being dummy-created too
-        else if (path.Elements.Length == 1)
-            switch (path.LastElement) {
-                case "client":
-                case "datum":
-                case "list":
-                case "alist":
-                case "vector":
-                case "savefile":
-                case "world":
-                case "callee":
-                    parent = GetOrCreateDMObject(DreamPath.Root);
-                    break;
-                default:
-                    parent = GetOrCreateDMObject(compiler.Settings.NoStandard ? DreamPath.Root : DreamPath.Datum);
-                    break;
-            }
+        switch (path.Elements.Length)
+        {
+            case > 1:
+                parent = GetOrCreateDMObject(path.FromElements(0,
+                    -2)); // Create all parent classes as dummies, if we're being dummy-created too
+                break;
+            case 1:
+                switch (path.LastElement) {
+                    case "client":
+                    case "datum":
+                    case "list":
+                    case "alist":
+                    case "vector":
+                    case "savefile":
+                    case "world":
+                    case "callee":
+                        parent = GetOrCreateDMObject(DreamPath.Root);
+                        break;
+                    default:
+                        parent = GetOrCreateDMObject(compiler.Settings.NoStandard ? DreamPath.Root : DreamPath.Datum);
+                        break;
+                }
+
+                break;
+        }
 
         if (path != DreamPath.Root && parent == null) // Parent SHOULD NOT be null here! (unless we're root lol)
             throw new Exception($"Type {path} did not have a parent");

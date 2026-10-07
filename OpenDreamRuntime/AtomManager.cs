@@ -522,12 +522,19 @@ public sealed partial class AtomManager {
 
         appearance.EnabledMouseEvents = GetEnabledMouseEvents(atom);
 
-        if (atom is DreamObjectTurf turf)
-            _dreamMapManager.SetTurfAppearance(turf, appearance);
-        else if (atom is DreamObjectMovable movable)
-            DMISpriteSystem?.SetSpriteAppearance(
-                new Entity<DMISpriteComponent>(movable.Entity, movable.SpriteComponent), appearance);
-        else if (atom is DreamObjectArea area) _dreamMapManager.SetAreaAppearance(area, appearance);
+        switch (atom)
+        {
+            case DreamObjectTurf turf:
+                _dreamMapManager.SetTurfAppearance(turf, appearance);
+                break;
+            case DreamObjectMovable movable:
+                DMISpriteSystem?.SetSpriteAppearance(
+                    new Entity<DMISpriteComponent>(movable.Entity, movable.SpriteComponent), appearance);
+                break;
+            case DreamObjectArea area:
+                _dreamMapManager.SetAreaAppearance(area, appearance);
+                break;
+        }
     }
 
     public void SetMovableScreenLoc(DreamObjectMovable movable, ScreenLocation screenLocation) {
@@ -546,31 +553,34 @@ public sealed partial class AtomManager {
         DMISpriteComponent? targetComponent = null;
         uint? turfId = null;
 
-        if (atom is DreamObjectMovable movable) {
-            targetEntity = movable.Entity;
-            targetComponent = movable.SpriteComponent;
-            appearance = TryGetAppearance(atom, out ImmutableAppearance? movableAppearance)
-                ? movableAppearance.ToMutable()
-                : MutableAppearance.GetCopy(GetAppearanceFromDefinition(atom.ObjectDefinition));
-        } else if (atom is DreamObjectImage {IsMutableAppearance: false} image) {
-            targetEntity = image.Entity;
-            targetComponent = image.SpriteComponent;
-            appearance = MustGetAppearance(atom).ToMutable();
-        } else if (atom is DreamObjectTurf turf) {
-            targetEntity = EntityUid.Invalid;
-            appearance = turf.Appearance.ToMutable();
-        } else if (atom is DreamObjectArea area) {
-            return;
-            //TODO: animate area appearance
-            //area appearance should be an overlay on turfs, so could maybe get away with animating that?
-        } else if (atom is DreamObjectClient client) {
-            return;
+        switch (atom)
+        {
+            case DreamObjectMovable movable:
+                targetEntity = movable.Entity;
+                targetComponent = movable.SpriteComponent;
+                appearance = TryGetAppearance(atom, out ImmutableAppearance? movableAppearance)
+                    ? movableAppearance.ToMutable()
+                    : MutableAppearance.GetCopy(GetAppearanceFromDefinition(atom.ObjectDefinition));
+                break;
+            case DreamObjectImage {IsMutableAppearance: false} image:
+                targetEntity = image.Entity;
+                targetComponent = image.SpriteComponent;
+                appearance = MustGetAppearance(atom).ToMutable();
+                break;
+            case DreamObjectTurf turf:
+                targetEntity = EntityUid.Invalid;
+                appearance = turf.Appearance.ToMutable();
+                break;
+            case DreamObjectArea area:
             //TODO: animate client appearance
-        } else if (atom is DreamObjectFilter filter) {
-            return;
+            case DreamObjectClient client:
             //TODO: animate filters
-        } else {
-            throw new ArgumentException($"Cannot animate appearance of {atom}");
+            case DreamObjectFilter filter:
+                return;
+                //TODO: animate area appearance
+                //area appearance should be an overlay on turfs, so could maybe get away with animating that?
+            default:
+                throw new ArgumentException($"Cannot animate appearance of {atom}");
         }
 
         animate(appearance);
@@ -579,12 +589,16 @@ public sealed partial class AtomManager {
             // Don't send the updated appearance to clients, they will animate it
             DMISpriteSystem?.SetSpriteAppearance(new Entity<DMISpriteComponent>(targetEntity, targetComponent),
                 appearance, false);
-        } else if (atom is DreamObjectTurf turf) {
-            //TODO: turf appearances are just set to the end appearance, they do not get properly animated
-            _dreamMapManager.SetTurfAppearance(turf, appearance);
-            turfId = turf.Appearance.MustGetId();
-        } else if (atom is DreamObjectArea area) {
-            //fuck knows, this will trigger a bunch of turf updates to? idek
+        } else switch (atom)
+        {
+            case DreamObjectTurf turf:
+                //TODO: turf appearances are just set to the end appearance, they do not get properly animated
+                _dreamMapManager.SetTurfAppearance(turf, appearance);
+                turfId = turf.Appearance.MustGetId();
+                break;
+            case DreamObjectArea area:
+                //fuck knows, this will trigger a bunch of turf updates to? idek
+                break;
         }
 
         AppearanceSystem?.Animate(targetEntity, appearance, duration, easing, loop, flags, delay, chainAnim, turfId);

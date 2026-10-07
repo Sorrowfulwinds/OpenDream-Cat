@@ -634,21 +634,22 @@ internal class Initial(Location location, DMExpression expr) : DMExpression(loca
     protected DMExpression Expression { get; } = expr;
 
     public override void EmitPushValue(ExpressionContext ctx) {
-        if (Expression is LValue lValue) {
-            lValue.EmitPushInitial(ctx);
-            return;
+        switch (Expression)
+        {
+            case LValue lValue:
+                lValue.EmitPushInitial(ctx);
+                return;
+            case Arglist arglist:
+                // This happens silently in BYOND
+                ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
+                    "calling initial() on arglist() returns the current value");
+                arglist.EmitPushArglist(ctx);
+                return;
+            default:
+                ctx.Compiler.Emit(WarningCode.BadArgument, Expression.Location, $"can't get initial value of {Expression}");
+                ctx.Proc.PushNullAndError();
+                break;
         }
-
-        if (Expression is Arglist arglist) {
-            // This happens silently in BYOND
-            ctx.Compiler.Emit(WarningCode.PointlessBuiltinCall, Location,
-                "calling initial() on arglist() returns the current value");
-            arglist.EmitPushArglist(ctx);
-            return;
-        }
-
-        ctx.Compiler.Emit(WarningCode.BadArgument, Expression.Location, $"can't get initial value of {Expression}");
-        ctx.Proc.PushNullAndError();
     }
 }
 

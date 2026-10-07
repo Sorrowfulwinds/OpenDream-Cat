@@ -643,8 +643,16 @@ internal sealed class DMPreprocessorLexer {
                        !AtEndOfSource()) {
                     stringTokens.Enqueue(exprToken);
 
-                    if (exprToken.Type == TokenType.DM_Preproc_Punctuator_LeftBracket) bracketNesting++;
-                    if (exprToken.Type == TokenType.DM_Preproc_Punctuator_RightBracket) bracketNesting--;
+                    switch (exprToken.Type)
+                    {
+                        case TokenType.DM_Preproc_Punctuator_LeftBracket:
+                            bracketNesting++;
+                            break;
+                        case TokenType.DM_Preproc_Punctuator_RightBracket:
+                            bracketNesting--;
+                            break;
+                    }
+
                     exprToken = NextToken();
                 }
 
@@ -687,10 +695,13 @@ internal sealed class DMPreprocessorLexer {
         if (!AtEndOfSource() && !HandleLineEnd())
             Advance();
 
-        if (!isLong && !foundTerminator)
-            return CreateToken(TokenType.Error, string.Empty, $"Expected '{terminator}' to end string");
-        if (isLong && !foundTerminator)
-            return CreateToken(TokenType.Error, string.Empty, "Expected '}' to end long string");
+        switch (isLong)
+        {
+            case false when !foundTerminator:
+                return CreateToken(TokenType.Error, string.Empty, $"Expected '{terminator}' to end string");
+            case true when !foundTerminator:
+                return CreateToken(TokenType.Error, string.Empty, "Expected '}' to end long string");
+        }
 
         var text = textBuilder.ToString();
 

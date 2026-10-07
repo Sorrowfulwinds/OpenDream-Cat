@@ -220,12 +220,15 @@ public sealed partial class DreamManager {
     }
 
     public ClientObjectReference GetClientReference(DreamObjectAtom atom) {
-        if (atom is DreamObjectMovable movable)
-            return new ClientObjectReference(_entityManager.GetNetEntity(movable.Entity));
-
-        if (atom is DreamObjectTurf turf) return new ClientObjectReference((turf.X, turf.Y), turf.Z);
-
-        throw new NotImplementedException($"Cannot create a client reference for {atom}");
+        switch (atom)
+        {
+            case DreamObjectMovable movable:
+                return new ClientObjectReference(_entityManager.GetNetEntity(movable.Entity));
+            case DreamObjectTurf turf:
+                return new ClientObjectReference((turf.X, turf.Y), turf.Z);
+            default:
+                throw new NotImplementedException($"Cannot create a client reference for {atom}");
+        }
     }
 
     public void HandleException(Exception e, string msg = "", string file = "", int line = 0,

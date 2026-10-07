@@ -76,10 +76,17 @@ internal sealed class DMProc {
 
             foreach (DMASTProcStatement statement in _astDefinition!.Body?.SetStatements ??
                                                      Array.Empty<DMASTProcStatementSet>())
-                if (statement is DMASTAggregate<DMASTProcStatementSet> setAggregate)
-                    foreach (DMASTProcStatementSet setStatement in setAggregate.Statements)
+                switch (statement)
+                {
+                    case DMASTAggregate<DMASTProcStatementSet> setAggregate: {
+                        foreach (DMASTProcStatementSet setStatement in setAggregate.Statements)
+                            ProcessSetStatement(setStatement);
+                        break;
+                    }
+                    case DMASTProcStatementSet setStatement:
                         ProcessSetStatement(setStatement);
-                else if (statement is DMASTProcStatementSet setStatement) ProcessSetStatement(setStatement);
+                        break;
+                }
         }
     }
 
@@ -445,13 +452,19 @@ internal sealed class DMProc {
                 VerbName = nameStr.Value;
                 break;
             case "category":
-                if (constant is String str)
-                    VerbCategory = str.Value;
-                else if (constant is Null)
-                    VerbCategory = null;
-                else
-                    _compiler.Emit(WarningCode.BadExpression, constant.Location,
-                        "category attribute must be a string or null");
+                switch (constant)
+                {
+                    case String str:
+                        VerbCategory = str.Value;
+                        break;
+                    case Null:
+                        VerbCategory = null;
+                        break;
+                    default:
+                        _compiler.Emit(WarningCode.BadExpression, constant.Location,
+                            "category attribute must be a string or null");
+                        break;
+                }
 
                 break;
             case "desc":

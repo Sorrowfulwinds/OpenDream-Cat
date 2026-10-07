@@ -124,10 +124,14 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     }
 
     public readonly override string ToString() {
-        if (Type == DreamValueType.Float)
-            return _floatValue.ToString(CultureInfo.InvariantCulture);
-        if (Type == 0)
-            return "<Uninitialized DreamValue>";
+        switch (Type)
+        {
+            case DreamValueType.Float:
+                return _floatValue.ToString(CultureInfo.InvariantCulture);
+            case 0:
+                return "<Uninitialized DreamValue>";
+        }
+
         if (_refValue == null) return "null";
 
         if (Type == DreamValueType.String) return $"\"{_refValue}\"";
@@ -415,14 +419,18 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
                     return str;
                 }
 
-                if (floatValue > 16777216f) return floatValue.ToString("g6");
-
-                // ReSharper disable once CompareOfFloatsByEqualityOperator
-                if (floatValue >= 1000000 && (int)floatValue == floatValue) return floatValue.ToString("g8");
-
-                if (float.IsNaN(floatValue)) return "nan";
-
-                return floatValue.ToString("g6");
+                switch (floatValue)
+                {
+                    case > 16777216f:
+                        return floatValue.ToString("g6");
+                    // ReSharper disable once CompareOfFloatsByEqualityOperator
+                    case >= 1000000 when (int)floatValue == floatValue:
+                        return floatValue.ToString("g8");
+                    case Single.NaN:
+                        return "nan";
+                    default:
+                        return floatValue.ToString("g6");
+                }
 
             case DreamValueType.DreamResource:
                 DreamResource rsc = MustGetValueAsDreamResource();

@@ -189,50 +189,61 @@ internal static partial class DreamProcNativeHelpers {
             }
         }
 
-        if (center is DreamObjectArea areaCenter) { // yeah you can do this
-            rangeList.AddValue(new DreamValue(areaCenter)); // dodges the invisibility check
-            seenAreas.Add(areaCenter);
-            foreach (DreamObjectTurf turf in areaCenter.Turfs) {
-                AddToList(new DreamValue(turf));
-                foreach (DreamValue content in turf.Contents.EnumerateValues()) AddToList(content);
-            }
-
-            return rangeList;
-        }
-
-        if (center is DreamObjectTurf turfCenter) {
-            if (includeCenter) { // if we're orange, we want to skip the else block too
-                AddToList(new DreamValue(center));
-                foreach (DreamValue content in turfCenter.Contents.EnumerateValues()) AddToList(content);
-            }
-        } else { // we're getting the range of a container
-            // add our contents first
-            if (includeCenter) {
-                if (center.TryGetVariable("contents", out DreamValue centerContents) &&
-                    centerContents.TryGetValueAsDreamList(out DreamList? centerContentsList))
-                    foreach (DreamValue content in centerContentsList.EnumerateValues())
-                        AddToList(content);
-
-                centerContents.Dispose();
-            }
-
-            // the loc's contents will include us
-            if (center.TryGetVariable("loc", out DreamValue centerLoc)) {
-                if (centerLoc.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? centerLocObject)) {
-                    AddToList(centerLoc);
-
-                    using DreamValue contents = centerLocObject.GetVariable("contents");
-                    if (contents.TryGetValueAsDreamList(out DreamList? locContentsList))
-                        foreach (DreamValue content in locContentsList.EnumerateValues()) {
-                            if (!includeCenter && content.TryGetValueAsDreamObject(out DreamObject? dreamObject) &&
-                                dreamObject == center)
-                                continue;
-                            AddToList(content);
-                        }
+        switch (center)
+        {
+            case DreamObjectArea areaCenter:
+            {
+                // yeah you can do this
+                rangeList.AddValue(new DreamValue(areaCenter)); // dodges the invisibility check
+                seenAreas.Add(areaCenter);
+                foreach (DreamObjectTurf turf in areaCenter.Turfs) {
+                    AddToList(new DreamValue(turf));
+                    foreach (DreamValue content in turf.Contents.EnumerateValues()) AddToList(content);
                 }
 
-                centerLoc.Dispose();
-                if (centerLocObject is not DreamObjectTurf) return rangeList;
+                return rangeList;
+            }
+            case DreamObjectTurf turfCenter: {
+                if (includeCenter) { // if we're orange, we want to skip the else block too
+                    AddToList(new DreamValue(center));
+                    foreach (DreamValue content in turfCenter.Contents.EnumerateValues()) AddToList(content);
+                }
+
+                break;
+            }
+            default:
+            {
+                // we're getting the range of a container
+                // add our contents first
+                if (includeCenter) {
+                    if (center.TryGetVariable("contents", out DreamValue centerContents) &&
+                        centerContents.TryGetValueAsDreamList(out DreamList? centerContentsList))
+                        foreach (DreamValue content in centerContentsList.EnumerateValues())
+                            AddToList(content);
+
+                    centerContents.Dispose();
+                }
+
+                // the loc's contents will include us
+                if (center.TryGetVariable("loc", out DreamValue centerLoc)) {
+                    if (centerLoc.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? centerLocObject)) {
+                        AddToList(centerLoc);
+
+                        using DreamValue contents = centerLocObject.GetVariable("contents");
+                        if (contents.TryGetValueAsDreamList(out DreamList? locContentsList))
+                            foreach (DreamValue content in locContentsList.EnumerateValues()) {
+                                if (!includeCenter && content.TryGetValueAsDreamObject(out DreamObject? dreamObject) &&
+                                    dreamObject == center)
+                                    continue;
+                                AddToList(content);
+                            }
+                    }
+
+                    centerLoc.Dispose();
+                    if (centerLocObject is not DreamObjectTurf) return rangeList;
+                }
+
+                break;
             }
         }
 
@@ -364,11 +375,16 @@ internal static partial class DreamProcNativeHelpers {
         if (!haystackValue.TryGetValueAsString(out string? haystack))
             return DreamValue.Null;
 
-        if (start == 0)
-            return new DreamValue(haystack);
+        switch (start)
+        {
+            case 0:
+                return new DreamValue(haystack);
+            // Negative wrap-around
+            case < 0:
+                start = Math.Max(start + haystack.Length + 1, 1);
+                break;
+        }
 
-        if (start < 0) // Negative wrap-around
-            start = Math.Max(start + haystack.Length + 1, 1);
         if (end <= 0) // Zero or negative wrap-around
             end = Math.Max(end + haystack.Length + 1, start);
 

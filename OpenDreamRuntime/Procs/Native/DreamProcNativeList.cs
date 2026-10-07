@@ -29,17 +29,21 @@ internal static class DreamProcNativeList {
         int end = bundle.GetArgument(1, "End").MustGetValueAsInteger(); //1-indexed
         var list = (IDreamList)src!;
 
-        if (list is DreamList) {
-            var listCopy = (DreamList)list.CreateCopy(start, end);
-            return new DreamValue(listCopy);
+        switch (list)
+        {
+            case DreamList:
+            {
+                var listCopy = (DreamList)list.CreateCopy(start, end);
+                return new DreamValue(listCopy);
+            }
+            case DreamAssocList:
+            {
+                var listCopy = (DreamAssocList)list.CreateCopy(start, end);
+                return new DreamValue(listCopy);
+            }
+            default:
+                throw new Exception("Unhandled IDreamList child in NativeProc_Copy.");
         }
-
-        if (list is DreamAssocList) {
-            var listCopy = (DreamAssocList)list.CreateCopy(start, end);
-            return new DreamValue(listCopy);
-        }
-
-        throw new Exception("Unhandled IDreamList child in NativeProc_Copy.");
     }
 
     [DreamProc("Cut")]
