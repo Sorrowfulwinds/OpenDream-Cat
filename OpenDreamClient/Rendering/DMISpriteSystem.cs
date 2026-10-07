@@ -74,7 +74,7 @@ internal sealed partial class DMISpriteSystem : EntitySystem {
     }
 
     private void OnIconSizeChanged(EntityUid uid) {
-        if (!_entityManager.TryGetComponent<TransformComponent>(uid, out TransformComponent? transform))
+        if (!_entityManager.TryGetComponent(uid, out TransformComponent? transform))
             return;
 
         _lookupSystem.FindAndAddToEntityTree(uid, xform: transform);

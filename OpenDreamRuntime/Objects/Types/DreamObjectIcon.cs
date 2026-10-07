@@ -21,7 +21,7 @@ public sealed class DreamObjectIcon : DreamObject {
         DreamValue moving = args.GetArgument(4);
 
         if (!icon.IsNull) {
-            if (icon.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? iconObj)) {
+            if (icon.TryGetValueAsDreamObject(out DreamObjectIcon? iconObj)) {
                 // Copy directly only when no constructor selectors were supplied; otherwise filter the source DMI.
                 if (state.IsNull && dir.IsNull && frame.IsNull && moving.IsNull)
                     Icon.CopyFrom(iconObj.Icon);

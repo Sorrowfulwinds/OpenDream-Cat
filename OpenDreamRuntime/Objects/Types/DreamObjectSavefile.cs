@@ -500,7 +500,7 @@ public sealed class DreamObjectSavefile : DreamObject {
 
                 if (val.TryGetValueAsDreamObject(out DreamObject? dreamObject) && !(dreamObject is null)) {
                     //dreamobject can be null if it's disposed
-                    if (val.TryGetValueAsDreamObject<DreamObjectSavefile>(out DreamObjectSavefile? savefile)) {
+                    if (val.TryGetValueAsDreamObject(out DreamObjectSavefile? savefile)) {
                         //if this is a savefile, just return a filedata object with it encoded
                         savefile.Flush(); //flush the savefile to make sure the backing resource is up to date
                         return new SfDreamFileValue {

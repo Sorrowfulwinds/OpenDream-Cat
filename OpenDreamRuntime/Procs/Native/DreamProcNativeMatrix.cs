@@ -9,7 +9,7 @@ internal static class DreamProcNativeMatrix {
     [DreamProcParameter("Matrix2", Type = DreamValueTypeFlag.DreamObject)]
     public static DreamValue NativeProc_Add(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         DreamValue possibleMatrix = bundle.GetArgument(0, "Matrix2");
-        if (possibleMatrix.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixArg)) {
+        if (possibleMatrix.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixArg)) {
             DreamObjectMatrix.AddMatrix((DreamObjectMatrix)src!, matrixArg);
 
             src!.IncRef();
@@ -35,7 +35,7 @@ internal static class DreamProcNativeMatrix {
         src!.IncRef();
 
         DreamValue possibleMatrix = bundle.GetArgument(0, "Matrix2");
-        if (possibleMatrix.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixArg)) {
+        if (possibleMatrix.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixArg)) {
             DreamObjectMatrix.MultiplyMatrix((DreamObjectMatrix)src, matrixArg);
             return new DreamValue(src);
         }
@@ -71,7 +71,7 @@ internal static class DreamProcNativeMatrix {
     [DreamProcParameter("Matrix2", Type = DreamValueTypeFlag.DreamObject)]
     public static DreamValue NativeProc_Subtract(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         DreamValue possibleMatrix = bundle.GetArgument(0, "Matrix2");
-        if (possibleMatrix.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixArg)) {
+        if (possibleMatrix.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixArg)) {
             DreamObjectMatrix.SubtractMatrix((DreamObjectMatrix)src!, matrixArg);
 
             src!.IncRef();

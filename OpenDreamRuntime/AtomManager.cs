@@ -267,7 +267,7 @@ public sealed partial class AtomManager {
                 break;
             case "transform":
                 float[] transformArray =
-                    value.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? transform)
+                    value.TryGetValueAsDreamObject(out DreamObjectMatrix? transform)
                         ? DreamObjectMatrix.MatrixToTransformFloatArray(transform)
                         : MutableAppearance.Default.Transform;
 
@@ -610,7 +610,7 @@ public sealed partial class AtomManager {
             return true;
         }
 
-        if (value.TryGetValueAsDreamObject<DreamObjectImage>(out DreamObjectImage? copyFromImage)) {
+        if (value.TryGetValueAsDreamObject(out DreamObjectImage? copyFromImage)) {
             appearance = MustGetAppearance(copyFromImage).ToMutable();
             return true;
         }
@@ -620,7 +620,7 @@ public sealed partial class AtomManager {
             return true;
         }
 
-        if (value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? copyFromAtom)) {
+        if (value.TryGetValueAsDreamObject(out DreamObjectAtom? copyFromAtom)) {
             appearance = MustGetAppearance(copyFromAtom).ToMutable();
             return true;
         }
@@ -703,7 +703,7 @@ public sealed partial class AtomManager {
         SetAppearanceVar(appearance, "mouse_drop_zone", mouseDropZone);
 
         if (def.TryGetVariable("transform", out DreamValue transformVar) &&
-            transformVar.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? transformMatrix))
+            transformVar.TryGetValueAsDreamObject(out DreamObjectMatrix? transformMatrix))
             appearance.Transform = DreamObjectMatrix.MatrixToTransformFloatArray(transformMatrix);
 
         if (def.Verbs != null)

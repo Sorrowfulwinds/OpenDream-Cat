@@ -242,7 +242,7 @@ public sealed class DreamObjectImage : DreamObject {
                         filterObject.DecRef();
                     } else { // It's a list of filters
                         foreach (DreamValue filter in valueList.EnumerateValues()) {
-                            if (!filter.TryGetValueAsDreamObject<DreamObjectFilter>(
+                            if (!filter.TryGetValueAsDreamObject(
                                     out DreamObjectFilter? filterObject)) {
                                 if (!filter.TryGetValueAsDreamList(out DreamList? filterValues))
                                     continue;

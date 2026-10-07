@@ -129,7 +129,7 @@ public sealed class DreamObjectClient : DreamObject {
     protected override void SetVar(string varName, DreamValue value) {
         switch (varName) {
             case "mob": {
-                value.TryGetValueAsDreamObject<DreamObjectMob>(out DreamObjectMob? newMob);
+                value.TryGetValueAsDreamObject(out DreamObjectMob? newMob);
 
                 Connection.Mob = newMob;
                 break;
@@ -140,7 +140,7 @@ public sealed class DreamObjectClient : DreamObject {
                 Connection.StatObj = value;
                 break;
             case "eye": {
-                value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? newEye);
+                value.TryGetValueAsDreamObject(out DreamObjectAtom? newEye);
                 if (newEye is not (DreamObjectMovable or null))
                     throw new DMException($"Cannot set eye to non-movable {value}"); // TODO: You can set it to a turf
 

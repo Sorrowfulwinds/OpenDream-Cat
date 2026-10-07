@@ -270,7 +270,7 @@ public sealed partial class DreamConnection {
     }
 
     public void OutputDreamValue(DreamValue value) {
-        if (value.TryGetValueAsDreamObject<DreamObjectSound>(out DreamObjectSound? sound)) {
+        if (value.TryGetValueAsDreamObject(out DreamObjectSound? sound)) {
             var msg = new MsgSound {
                 SoundData = new SoundData {
                     Channel = sound.Channel,

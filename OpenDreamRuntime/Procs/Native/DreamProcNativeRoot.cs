@@ -127,8 +127,8 @@ internal static class DreamProcNativeRoot {
         DreamValue arg1 = bundle.GetArgument(0, "Start");
         DreamValue arg2 = bundle.GetArgument(1, "End");
 
-        if (arg1.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? startT)) {
-            if (!arg2.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? endT))
+        if (arg1.TryGetValueAsDreamObject(out DreamObjectTurf? startT)) {
+            if (!arg2.TryGetValueAsDreamObject(out DreamObjectTurf? endT))
                 return new DreamValue(bundle.ObjectTree.CreateList());
 
             return new DreamValue(Block(bundle.ObjectTree, bundle.MapManager, startT, endT));
@@ -160,8 +160,8 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Target", Type = DreamValueTypeFlag.DreamObject)]
     public static DreamValue NativeProc_bounds_dist(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         if (!bundle.GetArgument(0, "Reference")
-                .TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? origin) ||
-            !bundle.GetArgument(1, "Target").TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? target))
+                .TryGetValueAsDreamObject(out DreamObjectAtom? origin) ||
+            !bundle.GetArgument(1, "Target").TryGetValueAsDreamObject(out DreamObjectAtom? target))
             return new DreamValue(float.PositiveInfinity);
 
         (int X, int Y, int Z) position1 = bundle.AtomManager.GetAtomPosition(origin);
@@ -380,7 +380,7 @@ internal static class DreamProcNativeRoot {
             srcFile = icon;
         else if (arg1.TryGetValueAsDreamResource(out DreamResource? arg1Rsc))
             srcFile = arg1Rsc;
-        else if (arg1.TryGetValueAsDreamObject<DreamObjectSavefile>(out DreamObjectSavefile? savefile))
+        else if (arg1.TryGetValueAsDreamObject(out DreamObjectSavefile? savefile))
             srcFile = savefile.Resource;
         else if (arg1.TryGetValueAsString(out string? srcPath)) srcFile = bundle.ResourceManager.LoadResource(srcPath);
 
@@ -713,7 +713,7 @@ internal static class DreamProcNativeRoot {
         DreamValue iconArg = bundle.GetArgument(0, "Icon");
         DreamValue objectArg = bundle.GetArgument(1, "Object");
 
-        if (!objectArg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? atom))
+        if (!objectArg.TryGetValueAsDreamObject(out DreamObjectAtom? atom))
             return DreamValue.Null;
 
         ImmutableAppearance appearance = bundle.AtomManager.MustGetAppearance(atom);
@@ -798,9 +798,9 @@ internal static class DreamProcNativeRoot {
         DreamValue trgArg = bundle.GetArgument(1, "Trg");
         var minArg = (int)bundle.GetArgument(2, "Min").UnsafeGetValueAsFloat();
 
-        if (!refArg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? refAtom))
+        if (!refArg.TryGetValueAsDreamObject(out DreamObjectAtom? refAtom))
             return DreamValue.Null;
-        if (!trgArg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? trgAtom))
+        if (!trgArg.TryGetValueAsDreamObject(out DreamObjectAtom? trgAtom))
             return DreamValue.Null;
 
         (int X, int Y, int Z) loc = bundle.AtomManager.GetAtomPosition(refAtom);
@@ -831,9 +831,9 @@ internal static class DreamProcNativeRoot {
         DreamValue trgArg = bundle.GetArgument(1, "Trg");
         var minArg = (int)bundle.GetArgument(2, "Min").UnsafeGetValueAsFloat();
 
-        if (!refArg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? refAtom))
+        if (!refArg.TryGetValueAsDreamObject(out DreamObjectAtom? refAtom))
             return DreamValue.Null;
-        if (!trgArg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? trgAtom))
+        if (!trgArg.TryGetValueAsDreamObject(out DreamObjectAtom? trgAtom))
             return DreamValue.Null;
 
         (int X, int Y, int Z) loc = bundle.AtomManager.GetAtomPosition(refAtom);
@@ -915,7 +915,7 @@ internal static class DreamProcNativeRoot {
 
         DreamValue arg = bundle.GetArgument(0, "Icon");
 
-        if (arg.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? iconObj))
+        if (arg.TryGetValueAsDreamObject(out DreamObjectIcon? iconObj))
             // Fast path for /icon, we don't need to generate the entire DMI
             return new DreamValue(bundle.ObjectTree.CreateList(iconObj.Icon.States.Keys.ToArray()));
 
@@ -1378,7 +1378,7 @@ internal static class DreamProcNativeRoot {
                 return new DreamValue(matrix);
             case 1: // Clone the matrix.
                 DreamValue firstArg = bundle.GetArgument(0, "a");
-                if (!firstArg.TryGetValueAsDreamObject<DreamObjectMatrix>(
+                if (!firstArg.TryGetValueAsDreamObject(
                         out DreamObjectMatrix? argObject)) // Expecting a matrix here
                     throw new ArgumentException($"/matrix() called with invalid argument '{firstArg}'");
                 matrix = DreamObjectMatrix.MatrixClone(bundle.ObjectTree, argObject);
@@ -1423,14 +1423,14 @@ internal static class DreamProcNativeRoot {
         DreamValue secondArgument = bundle.GetArgument(1, "b");
         switch (opcode) {
             case MatrixOpcode.Copy: // Clone the matrix. Basically a redundant version of matrix(m).
-                if (!firstArgument.TryGetValueAsDreamObject<DreamObjectMatrix>(
+                if (!firstArgument.TryGetValueAsDreamObject(
                         out DreamObjectMatrix? argObject)) // Expecting a matrix here
                     throw new ArgumentException($"/matrix() called with invalid argument '{firstArgument}'");
 
                 matrix = DreamObjectMatrix.MatrixClone(bundle.ObjectTree, argObject);
                 return new DreamValue(matrix);
             case MatrixOpcode.Invert:
-                if (!firstArgument.TryGetValueAsDreamObject<DreamObjectMatrix>(
+                if (!firstArgument.TryGetValueAsDreamObject(
                         out DreamObjectMatrix? matrixInput)) // Expecting a matrix here
                     throw new ArgumentException($"/matrix() called with invalid argument '{firstArgument}'");
 
@@ -1444,7 +1444,7 @@ internal static class DreamProcNativeRoot {
                 throw new ArgumentException("/matrix provided for MATRIX_INVERT cannot be inverted");
             case MatrixOpcode.Rotate:
                 DreamValue angleArgument = firstArgument;
-                if (firstArgument.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixToRotate))
+                if (firstArgument.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixToRotate))
                     angleArgument = secondArgument; //We have a matrix to rotate, and an angle to rotate it by.
                 if (!angleArgument.TryGetValueAsFloat(out float rotationAngle))
                     throw new ArgumentException($"/matrix() called with invalid rotation angle '{firstArgument}'");
@@ -1475,7 +1475,7 @@ internal static class DreamProcNativeRoot {
                 //matrix(m1,x,y,MATRIX_SCALE)
                 float horizontalScale;
                 float verticalScale;
-                if (firstArgument.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixArgument)) {
+                if (firstArgument.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixArgument)) {
                     // scaling a matrix
                     DreamObjectMatrix scaledMatrix = doModify
                         ? matrixArgument
@@ -1522,7 +1522,7 @@ internal static class DreamProcNativeRoot {
                 //matrix(x, y, MATRIX_TRANSLATE)
                 //matrix(m1, x, y, MATRIX_TRANSLATE)
                 if (bundle.Arguments.Length == 4) { // the 4-arg situation
-                    if (!firstArgument.TryGetValueAsDreamObject<DreamObjectMatrix>(
+                    if (!firstArgument.TryGetValueAsDreamObject(
                             out DreamObjectMatrix? targetMatrix)) // Expecting a matrix here
                         throw new ArgumentException(
                             $"/matrix() called with invalid argument '{firstArgument}', expecting matrix");
@@ -2447,7 +2447,7 @@ internal static class DreamProcNativeRoot {
 
         DreamValue delim = bundle.GetArgument(1, "Delimiter"); //can either be a regex or string
 
-        if (delim.TryGetValueAsDreamObject<DreamObjectRegex>(out DreamObjectRegex? regexObject)) {
+        if (delim.TryGetValueAsDreamObject(out DreamObjectRegex? regexObject)) {
             if (includeDelimiters) {
                 var values = new List<string>();
                 var pos = 0;
@@ -2758,7 +2758,7 @@ internal static class DreamProcNativeRoot {
         DreamValue dirArg = bundle.GetArgument(0, "dir");
         DreamValue angleArg = bundle.GetArgument(1, "angle");
 
-        if (dirArg.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? icon)) {
+        if (dirArg.TryGetValueAsDreamObject(out DreamObjectIcon? icon)) {
             DreamObjectIcon clonedIcon = icon.Clone();
 
             icon.Turn(angleArg);
@@ -2769,7 +2769,7 @@ internal static class DreamProcNativeRoot {
         if (!angleArg.TryGetValueAsFloat(out float angle)) angle = 0;
 
         // If Dir is actually a matrix, call /matrix.Turn
-        if (dirArg.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrix)) {
+        if (dirArg.TryGetValueAsDreamObject(out DreamObjectMatrix? matrix)) {
             // Clone matrix here since it's specified to return a new one
             DreamObjectMatrix clonedMatrix = DreamObjectMatrix.MatrixClone(bundle.ObjectTree, matrix);
 
@@ -3105,7 +3105,7 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Lag", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     [DreamProcParameter("Speed", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_walk(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? refAtom))
+        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject(out DreamObjectMovable? refAtom))
             return DreamValue.Null;
 
         // Per the ref, calling walk(Ref, 0) halts walking
@@ -3127,7 +3127,7 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Lag", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     [DreamProcParameter("Speed", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_walk_rand(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? refAtom))
+        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject(out DreamObjectMovable? refAtom))
             return DreamValue.Null;
 
         bundle.GetArgument(1, "Lag").TryGetValueAsInteger(out int lag);
@@ -3144,10 +3144,10 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Lag", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     [DreamProcParameter("Speed", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_walk_towards(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? refAtom))
+        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject(out DreamObjectMovable? refAtom))
             return DreamValue.Null;
 
-        if (!bundle.GetArgument(1, "Trg").TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? trgAtom)) {
+        if (!bundle.GetArgument(1, "Trg").TryGetValueAsDreamObject(out DreamObjectAtom? trgAtom)) {
             bundle.WalkManager.StopWalks(refAtom);
             return DreamValue.Null;
         }
@@ -3166,10 +3166,10 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Lag", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     [DreamProcParameter("Speed", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_walk_to(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? refAtom))
+        if (!bundle.GetArgument(0, "Ref").TryGetValueAsDreamObject(out DreamObjectMovable? refAtom))
             return DreamValue.Null;
 
-        if (!bundle.GetArgument(1, "Trg").TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? trgAtom)) {
+        if (!bundle.GetArgument(1, "Trg").TryGetValueAsDreamObject(out DreamObjectAtom? trgAtom)) {
             bundle.WalkManager.StopWalks(refAtom);
             return DreamValue.Null;
         }
@@ -3196,9 +3196,9 @@ internal static class DreamProcNativeRoot {
 
         DreamConnection? connection;
 
-        if (player.TryGetValueAsDreamObject<DreamObjectMob>(out DreamObjectMob? mob))
+        if (player.TryGetValueAsDreamObject(out DreamObjectMob? mob))
             connection = mob.Connection;
-        else if (player.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? client))
+        else if (player.TryGetValueAsDreamObject(out DreamObjectClient? client))
             connection = client.Connection;
         else
             throw new ArgumentException($"Invalid \"player\" argument {player}");
@@ -3216,9 +3216,9 @@ internal static class DreamProcNativeRoot {
             return DreamValue.EmptyString;
 
         DreamConnection? connection = null;
-        if (player.TryGetValueAsDreamObject<DreamObjectMob>(out DreamObjectMob? mob))
+        if (player.TryGetValueAsDreamObject(out DreamObjectMob? mob))
             connection = mob.Connection;
-        else if (player.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? client))
+        else if (player.TryGetValueAsDreamObject(out DreamObjectClient? client))
             connection = client.Connection;
 
         if (connection == null) throw new DMException($"Invalid client {player}");
@@ -3237,9 +3237,9 @@ internal static class DreamProcNativeRoot {
             return new DreamValue(string.Empty);
 
         DreamConnection? connection = null;
-        if (player.TryGetValueAsDreamObject<DreamObjectMob>(out DreamObjectMob? mob))
+        if (player.TryGetValueAsDreamObject(out DreamObjectMob? mob))
             connection = mob.Connection;
-        else if (player.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? client))
+        else if (player.TryGetValueAsDreamObject(out DreamObjectClient? client))
             connection = client.Connection;
 
         if (connection == null) throw new DMException($"Invalid client {player}");
@@ -3262,9 +3262,9 @@ internal static class DreamProcNativeRoot {
         string? winsetControlId = !controlId.IsNull ? controlId.GetValueAsString() : null;
 
         DreamConnection? connection = null;
-        if (player.TryGetValueAsDreamObject<DreamObjectMob>(out DreamObjectMob? mob))
+        if (player.TryGetValueAsDreamObject(out DreamObjectMob? mob))
             connection = mob.Connection;
-        else if (player.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? client))
+        else if (player.TryGetValueAsDreamObject(out DreamObjectClient? client))
             connection = client.Connection;
 
         if (connection == null) throw new ArgumentException($"Invalid \"player\" argument {player}");

@@ -150,7 +150,7 @@ public static class DreamFilterHelpers {
         }
 
         if (fieldType == typeof(Matrix3x2)) {
-            if (value.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixObject))
+            if (value.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixObject))
                 return new Matrix3x2(
                     matrixObject.A, matrixObject.D,
                     matrixObject.B, matrixObject.E,

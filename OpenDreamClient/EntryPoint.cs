@@ -106,7 +106,7 @@ public sealed partial class EntryPoint : GameClient {
     }
 
     private void RxAllAppearances(MsgAllAppearances message) {
-        if (!_entitySystemManager.TryGetEntitySystem<ClientAppearanceSystem>(
+        if (!_entitySystemManager.TryGetEntitySystem(
                 out ClientAppearanceSystem? clientAppearanceSystem)) {
             Logger.GetSawmill("opendream").Error("Received MsgAllAppearances before initializing entity systems");
             return;

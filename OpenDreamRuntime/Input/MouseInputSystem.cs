@@ -71,7 +71,7 @@ internal sealed partial class MouseInputSystem : SharedMouseInputSystem {
 
     private void OnStatClicked(StatClickedEvent e, EntitySessionEventArgs sessionEvent) {
         using DreamValue atom = _refManager.LocateRef(e.AtomRef);
-        if (!atom.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? dreamObject))
+        if (!atom.TryGetValueAsDreamObject(out DreamObjectAtom? dreamObject))
             return;
 
         HandleAtomClick(e, dreamObject, sessionEvent);

@@ -248,13 +248,13 @@ internal static partial class DMOpcodeHandlers {
 
                 // TODO: Name and Desc arguments
 
-                if (destination.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? atom))
+                if (destination.TryGetValueAsDreamObject(out DreamObjectAtom? atom))
                     state.Proc.AtomManager.UpdateAppearance(atom, appearance => {
                         state.Proc.VerbSystem.RegisterVerb(proc);
 
                         appearance.Verbs.Add(proc.VerbId!.Value);
                     });
-                else if (destination.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? client))
+                else if (destination.TryGetValueAsDreamObject(out DreamObjectClient? client))
                     client.ClientVerbs.AddValue(val);
 
                 return ProcStatus.Continue;
@@ -271,7 +271,7 @@ internal static partial class DMOpcodeHandlers {
             // Turfs are special. They're never created outside of map initialization
             // So instead this will replace an existing turf's type and return that same turf
             DreamValue loc = newArguments.GetArgument(0);
-            if (!loc.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turf))
+            if (!loc.TryGetValueAsDreamObject(out DreamObjectTurf? turf))
                 ThrowInvalidTurfLoc(loc);
 
             state.Proc.DreamMapManager.SetTurf(turf, objectDef, newArguments);
@@ -649,7 +649,7 @@ internal static partial class DMOpcodeHandlers {
                     continue;
                 case FormatSuffix.Icon:
                     DreamValue iconValue = interps[nextInterpIndex];
-                    if (!iconValue.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? atom))
+                    if (!iconValue.TryGetValueAsDreamObject(out DreamObjectAtom? atom))
                         continue;
                     if (!state.Proc.AtomManager.TryGetAppearance(atom, out ImmutableAppearance? appearance))
                         continue;
@@ -1647,7 +1647,7 @@ internal static partial class DMOpcodeHandlers {
             type = typeObject.ObjectDefinition.TreeEntry;
         } else if (typeValue.TryGetValueAsAppearance(out _)) {
             // /image matches an appearance
-            if (value.TryGetValueAsDreamObject<DreamObjectImage>(out DreamObjectImage? imageObject))
+            if (value.TryGetValueAsDreamObject(out DreamObjectImage? imageObject))
                 return doCast ? new DreamValue(imageObject) : DreamValue.True;
 
             return nullOrFalse;
@@ -2046,7 +2046,7 @@ internal static partial class DMOpcodeHandlers {
         using DreamValue d = state.Pop();
         using DreamValue l = state.Pop();
 
-        if (!l.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? loc)) {
+        if (!l.TryGetValueAsDreamObject(out DreamObjectAtom? loc)) {
             state.Push(DreamValue.Null);
             return ProcStatus.Continue;
         }
@@ -2072,12 +2072,12 @@ internal static partial class DMOpcodeHandlers {
         using DreamValue loc2R = state.Pop();
         using DreamValue loc1R = state.Pop();
 
-        if (!loc1R.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? loc1)) {
+        if (!loc1R.TryGetValueAsDreamObject(out DreamObjectAtom? loc1)) {
             state.Push(new DreamValue(0));
             return ProcStatus.Continue;
         }
 
-        if (!loc2R.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? loc2)) {
+        if (!loc2R.TryGetValueAsDreamObject(out DreamObjectAtom? loc2)) {
             state.Push(new DreamValue(0));
             return ProcStatus.Continue;
         }
@@ -2306,7 +2306,7 @@ internal static partial class DMOpcodeHandlers {
                         if (isRelative)
                             switch (arg.Key) {
                                 case "transform":
-                                    if (!animateValue.TryGetValueAsDreamObject<DreamObjectMatrix>(
+                                    if (!animateValue.TryGetValueAsDreamObject(
                                             out DreamObjectMatrix? multTransform))
                                         break;
 
@@ -2637,7 +2637,7 @@ internal static partial class DMOpcodeHandlers {
         } else {
             using DreamValue leftValue = state.GetReferenceValue(leftRef);
 
-            if (leftValue.TryGetValueAsDreamObject<DreamObjectSavefile>(out DreamObjectSavefile? savefile)) {
+            if (leftValue.TryGetValueAsDreamObject(out DreamObjectSavefile? savefile)) {
                 // Savefiles get some special treatment.
                 // "savefile >> B" is the same as "B = savefile[current_dir]"
                 using DreamValue result = savefile.OperatorInput();
@@ -2885,7 +2885,7 @@ internal static partial class DMOpcodeHandlers {
                     return ProcStatus.Continue; // Do nothing
 
                 resource = state.Proc.DreamResourceManager.LoadResource(resourcePath);
-            } else if (file.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? icon)) {
+            } else if (file.TryGetValueAsDreamObject(out DreamObjectIcon? icon)) {
                 resource = icon.Icon.GenerateDMI();
             } else {
                 throw new DMException($"{file} is not a valid file");

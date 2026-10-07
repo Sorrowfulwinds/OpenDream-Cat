@@ -123,7 +123,7 @@ internal static partial class DreamProcNativeHelpers {
         DreamObjectAtom? center = usr;
 
         foreach (DreamValue arg in arguments)
-            if (arg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? centerObject))
+            if (arg.TryGetValueAsDreamObject(out DreamObjectAtom? centerObject))
                 center = centerObject;
             else if (arg.TryGetValueAsInteger(out int distValue))
                 range = new ViewRange(distValue);
@@ -173,7 +173,7 @@ internal static partial class DreamProcNativeHelpers {
         DreamList rangeList = center.ObjectDefinition.ObjectTree.CreateList(range.Height * range.Width);
 
         void AddToList(DreamValue value) {
-            if (value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? atomValue)) {
+            if (value.TryGetValueAsDreamObject(out DreamObjectAtom? atomValue)) {
                 using DreamValue appearanceValue = atomValue.GetVariable("appearance");
                 using MutableAppearance appearance = appearanceValue.MustGetValueAsAppearance();
                 if (appearance.Invisibility >= 101)
@@ -181,7 +181,7 @@ internal static partial class DreamProcNativeHelpers {
             }
 
             rangeList.AddValue(value);
-            if (value.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turfValue) &&
+            if (value.TryGetValueAsDreamObject(out DreamObjectTurf? turfValue) &&
                 !seenAreas.Contains(turfValue.Cell.Area)) {
                 DreamObjectArea area = turfValue.Cell.Area;
                 rangeList.AddValue(new DreamValue(area));
@@ -226,7 +226,7 @@ internal static partial class DreamProcNativeHelpers {
 
                 // the loc's contents will include us
                 if (center.TryGetVariable("loc", out DreamValue centerLoc)) {
-                    if (centerLoc.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? centerLocObject)) {
+                    if (centerLoc.TryGetValueAsDreamObject(out DreamObjectAtom? centerLocObject)) {
                         AddToList(centerLoc);
 
                         using DreamValue contents = centerLocObject.GetVariable("contents");
@@ -368,7 +368,7 @@ internal static partial class DreamProcNativeHelpers {
         DreamValue replacementValue, int start, int end, bool exact) {
         // TODO: byte support if/when we support working with bytes
 
-        if (needleValue.TryGetValueAsDreamObject<DreamObjectRegex>(out DreamObjectRegex? regexObject))
+        if (needleValue.TryGetValueAsDreamObject(out DreamObjectRegex? regexObject))
             // Equivalent to regex.Replace according to spec
             return DreamProcNativeRegex.RegexReplace(regexObject, haystackValue, replacementValue, start, end);
 

@@ -160,7 +160,7 @@ internal sealed partial class ClientAppearanceSystem : SharedAppearanceSystem {
                     });
         } else { //image or movable
             EntityUid ent = _entityManager.GetEntity(e.Entity);
-            if (!_entityManager.TryGetComponent<DMISpriteComponent>(ent, out DMISpriteComponent? sprite))
+            if (!_entityManager.TryGetComponent(ent, out DMISpriteComponent? sprite))
                 return;
 
             LoadAppearance(e.TargetAppearanceId,

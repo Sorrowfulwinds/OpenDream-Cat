@@ -77,7 +77,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
 
                 return;
             }
-        } else if (arg1.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? vectorCopy)) {
+        } else if (arg1.TryGetValueAsDreamObject(out DreamObjectVector? vectorCopy)) {
             // new /vector(vector)
             Is3D = vectorCopy.Is3D;
             X = vectorCopy.X;
@@ -225,7 +225,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     #region Operators
 
     public override DreamValue OperatorAdd(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             var output = new DreamObjectVector(ObjectDefinition) {
                 X = X + right.X,
                 Y = Y + right.Y,
@@ -240,7 +240,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     public override DreamValue OperatorSubtract(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             var output = new DreamObjectVector(ObjectDefinition) {
                 X = X - right.X,
                 Y = Y - right.Y,
@@ -265,7 +265,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             return new DreamValue(output);
         }
 
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             var output = new DreamObjectVector(ObjectDefinition) {
                 X = X * right.X,
                 Y = Y * right.Y,
@@ -287,7 +287,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             return new DreamValue(this);
         }
 
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             X *= right.X;
             Y *= right.Y;
             Z *= right.Z;
@@ -312,7 +312,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             return new DreamValue(output);
         }
 
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             if (right.X == 0 || right.Y == 0 || (Is3D && right.Z == 0))
                 throw new DivideByZeroException("Cannot divide vector by zero vector component");
 
@@ -338,7 +338,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             return new DreamValue(this);
         }
 
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             if (right.X == 0 || right.Y == 0 || (Is3D && right.Z == 0))
                 throw new DivideByZeroException("Cannot divide vector by zero vector component");
             X /= right.X;
@@ -352,7 +352,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     public override DreamValue OperatorAppend(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             X += right.X;
             Y += right.Y;
             Z += right.Z;
@@ -366,7 +366,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     public override DreamValue OperatorRemove(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectVector? right)) {
             X -= right.X;
             Y -= right.Y;
             Z -= right.Z;

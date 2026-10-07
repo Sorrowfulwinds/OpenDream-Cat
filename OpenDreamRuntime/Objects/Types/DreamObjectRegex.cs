@@ -16,7 +16,7 @@ public sealed class DreamObjectRegex(DreamObjectDefinition objectDefinition) : D
         DreamValue pattern = args.GetArgument(0);
         DreamValue flags = args.GetArgument(1);
 
-        if (pattern.TryGetValueAsDreamObject<DreamObjectRegex>(out DreamObjectRegex? copyFrom)) {
+        if (pattern.TryGetValueAsDreamObject(out DreamObjectRegex? copyFrom)) {
             Regex = copyFrom.Regex;
             IsGlobal = copyFrom.IsGlobal;
         } else if (pattern.TryGetValueAsString(out string? patternString)) {

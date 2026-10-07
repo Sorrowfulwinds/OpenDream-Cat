@@ -147,7 +147,7 @@ public sealed partial class DreamResourceManager {
     }
 
     public bool TryLoadIcon(DreamValue value, [NotNullWhen(true)] out IconResource? icon) {
-        if (value.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? iconObj)) {
+        if (value.TryGetValueAsDreamObject(out DreamObjectIcon? iconObj)) {
             icon = iconObj.Icon.GenerateDMI();
             return true;
         }

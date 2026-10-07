@@ -75,7 +75,7 @@ internal static class DreamProcNativeWorld {
     [DreamProcParameter("exception", Type = DreamValue.DreamValueTypeFlag.DreamObject)]
     public static DreamValue NativeProc_Error(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         DreamValue exceptionArg = bundle.GetArgument(0, "exception");
-        if (!exceptionArg.TryGetValueAsDreamObject<DreamObjectException>(
+        if (!exceptionArg.TryGetValueAsDreamObject(
                 out DreamObjectException? exception)) // Ignore anything not an /exception
             return DreamValue.Null;
         if (!exception.Desc.TryGetValueAsString(out string? exceptionDesc))

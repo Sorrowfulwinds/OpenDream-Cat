@@ -537,9 +537,9 @@ public class DreamList : DreamObject, IDreamList {
 
         foreach (DreamValue value in EnumerateValues()) {
             DreamConnection? connection = null;
-            if (value.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? dreamClient))
+            if (value.TryGetValueAsDreamObject(out DreamObjectClient? dreamClient))
                 connection = dreamClient.Connection;
-            else if (value.TryGetValueAsDreamObject<DreamObjectMob>(out DreamObjectMob? dreamMob))
+            else if (value.TryGetValueAsDreamObject(out DreamObjectMob? dreamMob))
                 connection = dreamMob.Connection;
 
             if (connection is null || !passedConnections.Add(connection))
@@ -1028,12 +1028,12 @@ public sealed class DreamVisContentsList : DreamList {
 
     public override void AddValue(DreamValue value) {
         EntityUid entity;
-        if (value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable)) {
+        if (value.TryGetValueAsDreamObject(out DreamObjectMovable? movable)) {
             if (_visContents.Contains(movable))
                 return; // vis_contents cannot contain duplicates
             _visContents.Add(movable);
             entity = movable.Entity;
-        } else if (value.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turf)) {
+        } else if (value.TryGetValueAsDreamObject(out DreamObjectTurf? turf)) {
             if (_visContents.Contains(turf))
                 return; // vis_contents cannot contain duplicates
             _visContents.Add(turf);
@@ -1055,7 +1055,7 @@ public sealed class DreamVisContentsList : DreamList {
     }
 
     public override void RemoveValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? movable))
             return;
 
         _visContents.Remove(movable);
@@ -1072,7 +1072,7 @@ public sealed class DreamVisContentsList : DreamList {
     }
 
     public override bool ContainsValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? dreamObject))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectAtom? dreamObject))
             return false;
 
         return _visContents.Contains(dreamObject);
@@ -1163,7 +1163,7 @@ public sealed class DreamFilterList(DreamObjectDefinition listDef, DreamObject o
     }
 
     public override void SetValue(DreamValue key, DreamValue value, bool allowGrowth = false) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectFilter>(out DreamObjectFilter? filterObject) && !value.IsNull)
+        if (!value.TryGetValueAsDreamObject(out DreamObjectFilter? filterObject) && !value.IsNull)
             throw new DMException($"Cannot set value of filter list to {value}");
         if (!key.TryGetValueAsInteger(out int filterIndex) || filterIndex < 1)
             throw new DMException($"Invalid index into filter list: {key}");
@@ -1174,7 +1174,7 @@ public sealed class DreamFilterList(DreamObjectDefinition listDef, DreamObject o
     public override void AddValue(DreamValue value) {
         if (value.IsNull) // "filters += null" is just ignored
             return;
-        if (!value.TryGetValueAsDreamObject<DreamObjectFilter>(out DreamObjectFilter? filterObject))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectFilter? filterObject))
             throw new DMException($"Cannot add {value} to filter list");
 
         //This is dynamic to prevent the compiler from optimising the SerializationManager.CreateCopy() call to the DreamFilter type
@@ -1191,7 +1191,7 @@ public sealed class DreamFilterList(DreamObjectDefinition listDef, DreamObject o
         int filterIndex = -1;
         if (value.TryGetValueAsString(out string? filterName)) // You can also do atom.filters -= "name"
             filterIndex = GetIndexOfFilter(filterName);
-        else if (value.TryGetValueAsDreamObject<DreamObjectFilter>(out DreamObjectFilter? filterObject))
+        else if (value.TryGetValueAsDreamObject(out DreamObjectFilter? filterObject))
             filterIndex = GetIndexOfFilter(filterObject.Filter);
 
         if (filterIndex < 0) // Failed to find the filter in the list
@@ -1259,7 +1259,7 @@ public sealed class ClientScreenList(
     }
 
     public override void AddValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? movable))
             return;
 
         screenOverlaySystem?.AddScreenObject(connection, movable);
@@ -1268,7 +1268,7 @@ public sealed class ClientScreenList(
     }
 
     public override void RemoveValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? movable))
             return;
 
         screenOverlaySystem?.RemoveScreenObject(connection, movable);
@@ -1281,7 +1281,7 @@ public sealed class ClientScreenList(
 
         for (int i = start - 1; i < end - 1; i++) {
             using DreamValue value = _screenObjects[i];
-            if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable))
+            if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? movable))
                 continue;
 
             screenOverlaySystem?.RemoveScreenObject(connection, movable);
@@ -1328,7 +1328,7 @@ public sealed class ClientImagesList(
     }
 
     public override void AddValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectImage>(out DreamObjectImage? image))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectImage? image))
             return;
 
         clientImagesSystem?.AddImageObject(connection, image);
@@ -1336,7 +1336,7 @@ public sealed class ClientImagesList(
     }
 
     public override void RemoveValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectImage>(out DreamObjectImage? image))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectImage? image))
             return;
 
         clientImagesSystem?.RemoveImageObject(connection, image);
@@ -1347,7 +1347,7 @@ public sealed class ClientImagesList(
         if (end == 0 || end > _imageObjects.Count + 1) end = _imageObjects.Count + 1;
 
         for (int i = start - 1; i < end - 1; i++) {
-            if (!_imageObjects[i].TryGetValueAsDreamObject<DreamObjectImage>(out DreamObjectImage? image))
+            if (!_imageObjects[i].TryGetValueAsDreamObject(out DreamObjectImage? image))
                 continue;
 
             clientImagesSystem?.RemoveImageObject(connection, image);
@@ -1447,7 +1447,7 @@ public sealed class TurfContentsList(DreamObjectDefinition listDef, DreamObjectT
     }
 
     public override void AddValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? movable))
             throw new DMException($"Cannot add {value} to turf contents");
 
         movable.SetLoc(Cell.Turf);
@@ -1469,7 +1469,7 @@ public sealed class TurfContentsList(DreamObjectDefinition listDef, DreamObjectT
     }
 
     public override bool ContainsValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? dreamObject))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? dreamObject))
             return false;
 
         return dreamObject.Loc == turf;
@@ -1523,14 +1523,14 @@ public sealed class AreaContentsList(DreamObjectDefinition listDef, DreamObjectA
     }
 
     public override void AddValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turf))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectTurf? turf))
             throw new DMException($"Cannot add {value} to area contents");
 
         turf.Cell.Area = area;
     }
 
     public override void RemoveValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turf))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectTurf? turf))
             throw new DMException($"Cannot remove {value} from area contents");
 
         turf.Cell.Area = DreamMapManager.DefaultArea;
@@ -1554,7 +1554,7 @@ public sealed class AreaContentsList(DreamObjectDefinition listDef, DreamObjectA
     }
 
     public override bool ContainsValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? atom))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectAtom? atom))
             return false;
 
         if (atom is DreamObjectArea) // areas do not contain themselves
@@ -1637,14 +1637,14 @@ public sealed class MovableContentsList(
     }
 
     public override void AddValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? dreamObject))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? dreamObject))
             throw new DMException($"Cannot add {value} to movable contents");
 
         dreamObject.SetLoc(owner);
     }
 
     public override void RemoveValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? movable))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? movable))
             throw new DMException($"Cannot remove {value} from movable contents");
         if (movable.Loc != owner)
             return; // This object wasn't in our contents to begin with
@@ -1653,7 +1653,7 @@ public sealed class MovableContentsList(
     }
 
     public override bool ContainsValue(DreamValue value) {
-        if (!value.TryGetValueAsDreamObject<DreamObjectMovable>(out DreamObjectMovable? dreamObject))
+        if (!value.TryGetValueAsDreamObject(out DreamObjectMovable? dreamObject))
             return false;
 
         return dreamObject.Loc == owner;

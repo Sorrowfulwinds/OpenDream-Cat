@@ -65,7 +65,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             F = 0f;
         } else {
             DreamValue copyMatrixOrA = args.GetArgument(0);
-            if (copyMatrixOrA.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixToCopy)) {
+            if (copyMatrixOrA.TryGetValueAsDreamObject(out DreamObjectMatrix? matrixToCopy)) {
                 A = matrixToCopy.A;
                 B = matrixToCopy.B;
                 C = matrixToCopy.C;
@@ -160,7 +160,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     #region Operators
 
     public override DreamValue OperatorAdd(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectMatrix? right)) {
             DreamObject output = MakeMatrix(ObjectTree,
                 A + right.A, // a
                 B + right.B, // b
@@ -177,7 +177,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorSubtract(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectMatrix? right)) {
             DreamObject output = MakeMatrix(ObjectTree,
                 A - right.A, // a
                 B - right.B, // b
@@ -203,7 +203,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             return new DreamValue(output);
         }
 
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectMatrix? right)) {
             DreamObjectMatrix output = MakeMatrix(ObjectTree,
                 right.A * A + right.D * B, // a
                 right.B * A + right.E * B, // b
@@ -232,7 +232,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             return new DreamValue(output);
         }
 
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectMatrix? right)) {
             //matrix divided by matrix isn't a thing, but in BYOND it's apparently multiplication by the inverse, because of course it is
             DreamObjectMatrix rightCopy = MatrixClone(ObjectTree, right);
             using var rightCopyDreamValue = new DreamValue(rightCopy);
@@ -250,7 +250,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorEquivalent(DreamValue b) {
-        if (!b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right))
+        if (!b.TryGetValueAsDreamObject(out DreamObjectMatrix? right))
             return DreamValue.False;
 
         return A.Equals(right.A) && B.Equals(right.B) &&
@@ -261,7 +261,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorAppend(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectMatrix? right)) {
             A += right.A;
             B += right.B;
             C += right.C;
@@ -276,7 +276,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorRemove(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+        if (b.TryGetValueAsDreamObject(out DreamObjectMatrix? right)) {
             A -= right.A;
             B -= right.B;
             C -= right.C;

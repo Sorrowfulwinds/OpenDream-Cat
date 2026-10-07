@@ -68,7 +68,7 @@ public class DreamObjectMovable : DreamObjectAtom {
             MetaDataSystem?.SetEntityDescription(Entity, GetRTEntityDesc(), metaData);
         }
 
-        args.GetArgument(0).TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? loc);
+        args.GetArgument(0).TryGetValueAsDreamObject(out DreamObjectAtom? loc);
         SetLoc(loc); //loc is set before /New() is ever called
     }
 
@@ -139,7 +139,7 @@ public class DreamObjectMovable : DreamObjectAtom {
                 break;
             }
             case "loc": {
-                if (!value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? newLoc) && !value.IsNull)
+                if (!value.TryGetValueAsDreamObject(out DreamObjectAtom? newLoc) && !value.IsNull)
                     throw new DMException($"Invalid loc {value}");
 
                 SetLoc(newLoc);
@@ -165,7 +165,7 @@ public class DreamObjectMovable : DreamObjectAtom {
                 ScreenLoc = screenLoc;
                 break;
             case "particles":
-                value.TryGetValueAsDreamObject<DreamObjectParticles>(out DreamObjectParticles? particles);
+                value.TryGetValueAsDreamObject(out DreamObjectParticles? particles);
 
                 Particles = particles;
                 break;

@@ -882,7 +882,7 @@ public static unsafe partial class ByondApi {
                     // Turfs are special. They're never created outside of map initialization
                     // So instead this will replace an existing turf's type and return that same turf
                     DreamValue loc = args.GetArgument(0);
-                    if (!loc.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turf))
+                    if (!loc.TryGetValueAsDreamObject(out DreamObjectTurf? turf))
                         return SetLastError($"Invalid turf loc {loc}");
 
                     _dreamMapManager!.SetTurf(turf, objectDef, args);
@@ -946,7 +946,7 @@ public static unsafe partial class ByondApi {
                     // Turfs are special. They're never created outside of map initialization
                     // So instead this will replace an existing turf's type and return that same turf
                     DreamValue loc = args.GetArgument(0);
-                    if (!loc.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turf))
+                    if (!loc.TryGetValueAsDreamObject(out DreamObjectTurf? turf))
                         return SetLastError($"Invalid turf loc {loc}");
 
                     _dreamMapManager!.SetTurf(turf, objectDef, args);
@@ -1006,7 +1006,7 @@ public static unsafe partial class ByondApi {
         return RunOnMainThread<byte>(_ => {
             try {
                 using DreamValue srcVal = ValueFromDreamApi(*src);
-                if (!srcVal.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? srcObj))
+                if (!srcVal.TryGetValueAsDreamObject(out DreamObjectAtom? srcObj))
                     return SetLastError("src argument was not an atom");
 
                 (int x, int y, int z) = _atomManager!.GetAtomPosition(srcObj);
