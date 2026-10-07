@@ -9,7 +9,6 @@ namespace OpenDreamShared.Interface.Descriptors;
 
 public sealed partial class MacroSetDescriptor : ElementDescriptor {
     private readonly List<MacroDescriptor> _macros = new();
-    public IReadOnlyList<MacroDescriptor> Macros => _macros;
 
     public MacroSetDescriptor(string id) {
         Type = new DMFPropertyString("MACRO_SET");
@@ -18,10 +17,12 @@ public sealed partial class MacroSetDescriptor : ElementDescriptor {
 
     [UsedImplicitly]
     public MacroSetDescriptor() {
-
     }
 
-    public override MacroDescriptor CreateChildDescriptor(ISerializationManager serializationManager, MappingDataNode attributes) {
+    public IReadOnlyList<MacroDescriptor> Macros => _macros;
+
+    public override MacroDescriptor CreateChildDescriptor(ISerializationManager serializationManager,
+        MappingDataNode attributes) {
         var macro = serializationManager.Read<MacroDescriptor>(attributes, notNullableOverride: true);
 
         _macros.Add(macro);
@@ -29,7 +30,7 @@ public sealed partial class MacroSetDescriptor : ElementDescriptor {
     }
 
     public override ElementDescriptor CreateCopy(ISerializationManager serializationManager, string id) {
-        var copy = serializationManager.CreateCopy(this, notNullableOverride: true);
+        MacroSetDescriptor copy = serializationManager.CreateCopy(this, notNullableOverride: true);
 
         copy._id = new DMFPropertyString(id);
         return copy;
@@ -38,9 +39,7 @@ public sealed partial class MacroSetDescriptor : ElementDescriptor {
 
 [UsedImplicitly]
 public sealed partial class MacroDescriptor : ElementDescriptor {
-    [DataField("name")]
-    public DMFPropertyString Name { get; private set; }
+    [DataField("name")] public DMFPropertyString Name { get; private set; }
 
-    [DataField("command")]
-    public string Command { get; private set; } = default!;
+    [DataField("command")] public string Command { get; private set; } = default!;
 }

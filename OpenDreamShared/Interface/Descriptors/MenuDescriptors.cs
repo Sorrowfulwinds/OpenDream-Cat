@@ -9,7 +9,6 @@ namespace OpenDreamShared.Interface.Descriptors;
 
 public sealed partial class MenuDescriptor : ElementDescriptor {
     private readonly List<MenuElementDescriptor> _elements = new();
-    public IReadOnlyList<MenuElementDescriptor> Elements => _elements;
 
     public MenuDescriptor(string id) {
         Type = new DMFPropertyString("MENU");
@@ -18,10 +17,12 @@ public sealed partial class MenuDescriptor : ElementDescriptor {
 
     [UsedImplicitly]
     public MenuDescriptor() {
-
     }
 
-    public override MenuElementDescriptor CreateChildDescriptor(ISerializationManager serializationManager, MappingDataNode attributes) {
+    public IReadOnlyList<MenuElementDescriptor> Elements => _elements;
+
+    public override MenuElementDescriptor CreateChildDescriptor(ISerializationManager serializationManager,
+        MappingDataNode attributes) {
         var menuElement = serializationManager.Read<MenuElementDescriptor>(attributes, notNullableOverride: true);
 
         _elements.Add(menuElement);
@@ -29,7 +30,7 @@ public sealed partial class MenuDescriptor : ElementDescriptor {
     }
 
     public override ElementDescriptor CreateCopy(ISerializationManager serializationManager, string id) {
-        var copy = serializationManager.CreateCopy(this, notNullableOverride: true);
+        MenuDescriptor copy = serializationManager.CreateCopy(this, notNullableOverride: true);
 
         copy._id = new DMFPropertyString(id);
         return copy;
@@ -37,36 +38,30 @@ public sealed partial class MenuDescriptor : ElementDescriptor {
 }
 
 public sealed partial class MenuElementDescriptor : ElementDescriptor {
-    [DataField("name")]
-    public DMFPropertyString Name { get; set; }
+    [DataField("name")] public DMFPropertyString Name { get; set; }
 
-    [DataField("command")]
-    public DMFPropertyString Command { get; private set; }
+    [DataField("command")] public DMFPropertyString Command { get; private set; }
 
-    [DataField("category")]
-    public DMFPropertyString Category { get; private set; }
+    [DataField("category")] public DMFPropertyString Category { get; private set; }
 
-    [DataField("can-check")]
-    public DMFPropertyBool CanCheck { get; private set; }
+    [DataField("can-check")] public DMFPropertyBool CanCheck { get; private set; }
 
-    [DataField("is-checked")]
-    public DMFPropertyBool IsChecked { get; set; }
+    [DataField("is-checked")] public DMFPropertyBool IsChecked { get; set; }
 
-    [DataField("group")]
-    public DMFPropertyString Group { get; private set; }
+    [DataField("group")] public DMFPropertyString Group { get; private set; }
 
-    [DataField("index")]
-    public DMFPropertyNum Index { get; private set; }
+    [DataField("index")] public DMFPropertyNum Index { get; private set; }
 
     public MenuElementDescriptor WithCategory(ISerializationManager serialization, DMFPropertyString category) {
-        var copy = serialization.CreateCopy(this, notNullableOverride: true);
+        MenuElementDescriptor copy = serialization.CreateCopy(this, notNullableOverride: true);
 
         copy.Category = category;
         return copy;
     }
 
     // Menu elements can have other menu elements as children
-    public override MenuElementDescriptor CreateChildDescriptor(ISerializationManager serializationManager, MappingDataNode attributes) {
+    public override MenuElementDescriptor CreateChildDescriptor(ISerializationManager serializationManager,
+        MappingDataNode attributes) {
         return serializationManager.Read<MenuElementDescriptor>(attributes, notNullableOverride: true);
     }
 }

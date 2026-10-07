@@ -7,10 +7,11 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Dream;
 
 /// <summary>
-/// Used by the client to refer to something that could be either its own client, a turf, or an entity
+///     Used by the client to refer to something that could be either its own client, a turf, or an entity
 /// </summary>
 /// <remarks>This should only be used on the client or when communicating with the client</remarks>
-[Serializable, NetSerializable]
+[Serializable]
+[NetSerializable]
 public struct ClientObjectReference : IEquatable<ClientObjectReference> {
     public enum RefType {
         Client,
@@ -18,7 +19,7 @@ public struct ClientObjectReference : IEquatable<ClientObjectReference> {
         Entity
     }
 
-    public static readonly ClientObjectReference Client = new() { Type = RefType.Client };
+    public static readonly ClientObjectReference Client = new() {Type = RefType.Client};
 
     public RefType Type;
     public NetEntity Entity;

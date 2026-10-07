@@ -1,28 +1,46 @@
-﻿using Robust.Shared.Maths;
-using Robust.Shared.Serialization;
-using System;
-using System.Numerics;
+﻿using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using JetBrains.Annotations;
+using Robust.Shared.Maths;
+using Robust.Shared.Serialization;
 
 namespace OpenDreamShared.Dream;
 
 /// <summary>
-/// Holds the 5x4 matrix data necessary to encapsulate a color matrix: https://www.byond.com/docs/ref/#/{notes}/color-matrix
+///     Holds the 5x4 matrix data necessary to encapsulate a color matrix:
+///     https://www.byond.com/docs/ref/#/{notes}/color-matrix
 /// </summary>
 /// <remarks>
-/// This is going to be one of those structs that gets, absolutely destroyed by the fact <br/>
-/// that fixed arrays are """"""unsafe"""""" in this language.
+///     This is going to be one of those structs that gets, absolutely destroyed by the fact <br />
+///     that fixed arrays are """"""unsafe"""""" in this language.
 /// </remarks>
-[Serializable, NetSerializable, StructLayout(LayoutKind.Sequential)]
+[Serializable]
+[NetSerializable]
+[StructLayout(LayoutKind.Sequential)]
 public struct ColorMatrix(
-    float m11, float m12, float m13, float m14,
-    float m21, float m22, float m23, float m24,
-    float m31, float m32, float m33, float m34,
-    float m41, float m42, float m43, float m44,
-    float m51, float m52, float m53, float m54) {
+    float m11,
+    float m12,
+    float m13,
+    float m14,
+    float m21,
+    float m22,
+    float m23,
+    float m24,
+    float m31,
+    float m32,
+    float m33,
+    float m34,
+    float m41,
+    float m42,
+    float m43,
+    float m44,
+    float m51,
+    float m52,
+    float m53,
+    float m54) {
     public float c11 = m11;
     public float c12 = m12;
     public float c13 = m13;
@@ -48,32 +66,35 @@ public struct ColorMatrix(
     public float c53 = m53;
     public float c54 = m54;
 
-    public ColorMatrix(in ColorMatrix cloned) : this(cloned.c11, cloned.c12, cloned.c13, cloned.c14, cloned.c21, cloned.c22, cloned.c23, cloned.c24, cloned.c31, cloned.c32, cloned.c33, cloned.c34, cloned.c41, cloned.c42, cloned.c43, cloned.c44, cloned.c51, cloned.c52, cloned.c53, cloned.c54) {
+    public ColorMatrix(in ColorMatrix cloned) : this(cloned.c11, cloned.c12, cloned.c13, cloned.c14, cloned.c21,
+        cloned.c22, cloned.c23, cloned.c24, cloned.c31, cloned.c32, cloned.c33, cloned.c34, cloned.c41, cloned.c42,
+        cloned.c43, cloned.c44, cloned.c51, cloned.c52, cloned.c53, cloned.c54) {
         //I have never, ever missed the "pointer to member access" goofball operator from C++
         //until this exact, debilitating moment
     }
 
     /// <summary>
-    /// Constructs a ColorMatrix that is equivalent to the given color, during transformations.
+    ///     Constructs a ColorMatrix that is equivalent to the given color, during transformations.
     /// </summary>
     /// <remarks>Note: This constructor assumes that floats are zero-initialized.</remarks>
     /// <param name="basicColor"></param>
-    public ColorMatrix(in Color basicColor) : this(basicColor.R, 0, 0, 0, 0, basicColor.G, 0, 0, 0, 0, basicColor.B, 0, 0, 0, 0, basicColor.A, 0, 0, 0, 0) {
+    public ColorMatrix(in Color basicColor) : this(basicColor.R, 0, 0, 0, 0, basicColor.G, 0, 0, 0, 0, basicColor.B, 0,
+        0, 0, 0, basicColor.A, 0, 0, 0, 0) {
     }
 
     public static ColorMatrix Identity =>
-        new (1F, 0F, 0F, 0F,
-             0F, 1F, 0F, 0F,
-             0F, 0F, 1F, 0F,
-             0F, 0F, 0F, 1F,
-             0F, 0F, 0F, 0F);
+        new(1F, 0F, 0F, 0F,
+            0F, 1F, 0F, 0F,
+            0F, 0F, 1F, 0F,
+            0F, 0F, 0F, 1F,
+            0F, 0F, 0F, 0F);
 
     public void SetRow(int row, in Color color) {
         SetRow(row, color.R, color.G, color.B, color.A);
     }
 
     public void SetRow(int row, float r, float g, float b, float a) {
-        switch(row) {
+        switch (row) {
             case 0:
                 c11 = r;
                 c12 = g;
@@ -111,7 +132,7 @@ public struct ColorMatrix(
     }
 
     /// <summary>
-    /// Gets the diagonal values in this matrix. Used for detecting whether this matrix is convertible into a Color.
+    ///     Gets the diagonal values in this matrix. Used for detecting whether this matrix is convertible into a Color.
     /// </summary>
     /// <returns></returns>
     [Pure]
@@ -123,7 +144,7 @@ public struct ColorMatrix(
     }
 
     /// <summary>
-    /// Returns all of the values in this struct, in order.
+    ///     Returns all of the values in this struct, in order.
     /// </summary>
     [Pure]
     public IEnumerable<float> GetValues() {
@@ -167,14 +188,14 @@ public struct ColorMatrix(
     }
 
     /// <summary>
-    /// Fastest possible comparison between two color matrices.
+    ///     Fastest possible comparison between two color matrices.
     /// </summary>
     /// <remarks>
-    /// STRONGLY prefer using this over <see cref="ValueType.Equals(object?)"/> if at all possible, <br/>
-    /// since that (default) method actually does a lot of boxing, which causes LUDICROUS memory churning when running targets. <br/><br/>
-    ///
-    /// This method avoids implementing <see cref="IEquatable{T}"/> since that would make the argument be copied - <br/>
-    /// the argument in that interface lacks an 'in' modifier and one cannot be provided!
+    ///     STRONGLY prefer using this over <see cref="ValueType.Equals(object?)" /> if at all possible, <br />
+    ///     since that (default) method actually does a lot of boxing, which causes LUDICROUS memory churning when running
+    ///     targets. <br /><br />
+    ///     This method avoids implementing <see cref="IEquatable{T}" /> since that would make the argument be copied - <br />
+    ///     the argument in that interface lacks an 'in' modifier and one cannot be provided!
     /// </remarks>
     [Pure]
     public bool Equals(in ColorMatrix other) {
@@ -190,7 +211,7 @@ public struct ColorMatrix(
     }
 
     public override int GetHashCode() {
-        HashCode hashCode = new HashCode();
+        var hashCode = new HashCode();
         hashCode.Add(c11);
         hashCode.Add(c12);
         hashCode.Add(c13);
@@ -220,7 +241,7 @@ public struct ColorMatrix(
     }
 
     /// <summary>
-    /// Multiplies two instances.
+    ///     Multiplies two instances.
     /// </summary>
     /// <param name="left">The left operand of the multiplication.</param>
     /// <param name="right">The right operand of the multiplication.</param>
@@ -260,7 +281,7 @@ public struct ColorMatrix(
             rM43 = right.c43,
             rM44 = right.c44;
 
-        result = new() {
+        result = new ColorMatrix {
             c11 = lM11 * rM11 + lM12 * rM21 + lM13 * rM31 + lM14 * rM41,
             c12 = lM11 * rM12 + lM12 * rM22 + lM13 * rM32 + lM14 * rM42,
             c13 = lM11 * rM13 + lM12 * rM23 + lM13 * rM33 + lM14 * rM43,
@@ -281,34 +302,35 @@ public struct ColorMatrix(
     }
 
     /// <summary>
-    /// Linearly interpolates between two instances.
+    ///     Linearly interpolates between two instances.
     /// </summary>
     /// <param name="left">The left operand of the interpolation.</param>
     /// <param name="right">The right operand of the interpolation.</param>
     /// <param name="factor">The amount to interpolate between them. 0..1 is equivalent to left..right.</param>
     /// <param name="result">A new instance that is the result of the interpolation</param>
-    public static void Interpolate(ref readonly ColorMatrix left, ref readonly ColorMatrix right, float factor, out ColorMatrix result) {
+    public static void Interpolate(ref readonly ColorMatrix left, ref readonly ColorMatrix right, float factor,
+        out ColorMatrix result) {
         result = new ColorMatrix(
-                    ((1-factor) * left.c11) + (factor * right.c11),
-                    ((1-factor) * left.c12) + (factor * right.c12),
-                    ((1-factor) * left.c13) + (factor * right.c13),
-                    ((1-factor) * left.c14) + (factor * right.c14),
-                    ((1-factor) * left.c21) + (factor * right.c21),
-                    ((1-factor) * left.c22) + (factor * right.c22),
-                    ((1-factor) * left.c23) + (factor * right.c23),
-                    ((1-factor) * left.c24) + (factor * right.c24),
-                    ((1-factor) * left.c31) + (factor * right.c31),
-                    ((1-factor) * left.c32) + (factor * right.c32),
-                    ((1-factor) * left.c33) + (factor * right.c33),
-                    ((1-factor) * left.c34) + (factor * right.c34),
-                    ((1-factor) * left.c41) + (factor * right.c41),
-                    ((1-factor) * left.c42) + (factor * right.c42),
-                    ((1-factor) * left.c43) + (factor * right.c43),
-                    ((1-factor) * left.c44) + (factor * right.c44),
-                    ((1-factor) * left.c51) + (factor * right.c51),
-                    ((1-factor) * left.c52) + (factor * right.c52),
-                    ((1-factor) * left.c53) + (factor * right.c53),
-                    ((1-factor) * left.c54) + (factor * right.c54)
-                );
+            (1 - factor) * left.c11 + factor * right.c11,
+            (1 - factor) * left.c12 + factor * right.c12,
+            (1 - factor) * left.c13 + factor * right.c13,
+            (1 - factor) * left.c14 + factor * right.c14,
+            (1 - factor) * left.c21 + factor * right.c21,
+            (1 - factor) * left.c22 + factor * right.c22,
+            (1 - factor) * left.c23 + factor * right.c23,
+            (1 - factor) * left.c24 + factor * right.c24,
+            (1 - factor) * left.c31 + factor * right.c31,
+            (1 - factor) * left.c32 + factor * right.c32,
+            (1 - factor) * left.c33 + factor * right.c33,
+            (1 - factor) * left.c34 + factor * right.c34,
+            (1 - factor) * left.c41 + factor * right.c41,
+            (1 - factor) * left.c42 + factor * right.c42,
+            (1 - factor) * left.c43 + factor * right.c43,
+            (1 - factor) * left.c44 + factor * right.c44,
+            (1 - factor) * left.c51 + factor * right.c51,
+            (1 - factor) * left.c52 + factor * right.c52,
+            (1 - factor) * left.c53 + factor * right.c53,
+            (1 - factor) * left.c54 + factor * right.c54
+        );
     }
 }

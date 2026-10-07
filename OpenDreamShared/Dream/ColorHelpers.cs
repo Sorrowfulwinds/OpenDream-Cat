@@ -1,6 +1,6 @@
-using Robust.Shared.Maths;
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
+using Robust.Shared.Maths;
 
 namespace OpenDreamShared.Dream;
 
@@ -35,7 +35,7 @@ public static class ColorHelpers {
     public static bool TryParseColor(string color, out Color colorOut, string defaultAlpha = "ff") {
         if (color.StartsWith('#')) {
             if (color.Length == 4 || color.Length == 5) { //4-bit color; repeat each digit
-                string alphaComponent = (color.Length == 5) ? new string(color[4], 2) : defaultAlpha;
+                string alphaComponent = color.Length == 5 ? new string(color[4], 2) : defaultAlpha;
 
                 color = new string('#', 1) + new string(color[1], 2) + new string(color[2], 2) +
                         new string(color[3], 2) + alphaComponent;
@@ -52,7 +52,7 @@ public static class ColorHelpers {
 
     [Pure]
     public static bool IncludesTransparency(string color) {
-        if(color == Transparent)
+        if (color == Transparent)
             return true;
 
         return color.StartsWith('#') && color.Length is 5 or 9;

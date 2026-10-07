@@ -3,12 +3,14 @@ using Robust.Shared.Network;
 using Robust.Shared.Serialization;
 
 namespace OpenDreamShared.Network.Messages;
+
 public sealed class MsgBrowseResource : NetMessage {
-    // TODO: Browse should be on its own channel or something.
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
+    public byte[] DataHash = [];
 
     public string Filename = string.Empty;
-    public byte[] DataHash = [];
+
+    // TODO: Browse should be on its own channel or something.
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         Filename = buffer.ReadString();

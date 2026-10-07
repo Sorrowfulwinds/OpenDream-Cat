@@ -1,12 +1,11 @@
-﻿using Robust.Shared.Serialization;
-using System;
-using System.Numerics;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
+using System.Numerics;
 using System.Text;
 using Robust.Shared.Log;
 using Robust.Shared.Maths;
+using Robust.Shared.Serialization;
 
 namespace OpenDreamShared.Dream;
 
@@ -26,20 +25,9 @@ public enum VerticalAnchor {
     Top
 }
 
-[Serializable, NetSerializable]
+[Serializable]
+[NetSerializable]
 public sealed class ScreenLocation {
-    public string? MapControl;
-    public HorizontalAnchor HorizontalAnchor;
-    public VerticalAnchor VerticalAnchor;
-    public int X, Y;
-    public int PixelOffsetX, PixelOffsetY;
-    public ScreenLocation? Range;
-
-    public int RepeatX => Range?.X - X + 1 ?? 1;
-    public int RepeatY => Range?.Y - Y + 1 ?? 1;
-
-    private static ISawmill Sawmill => Logger.GetSawmill("opendream.screen_loc_parser");
-
     private static string[] _keywords = [
         "CENTER",
         "WEST", "EAST", "LEFT", "RIGHT",
@@ -47,6 +35,13 @@ public sealed class ScreenLocation {
         "TOPLEFT", "TOPRIGHT",
         "BOTTOMLEFT", "BOTTOMRIGHT"
     ];
+
+    public HorizontalAnchor HorizontalAnchor;
+    public string? MapControl;
+    public int PixelOffsetX, PixelOffsetY;
+    public ScreenLocation? Range;
+    public VerticalAnchor VerticalAnchor;
+    public int X, Y;
 
     public ScreenLocation(int x, int y, int pixelOffsetX, int pixelOffsetY, ScreenLocation? range = null) {
         X = x - 1;
@@ -71,24 +66,29 @@ public sealed class ScreenLocation {
         ParseScreenLoc(screenLocation);
     }
 
+    public int RepeatX => Range?.X - X + 1 ?? 1;
+    public int RepeatY => Range?.Y - Y + 1 ?? 1;
+
+    private static ISawmill Sawmill => Logger.GetSawmill("opendream.screen_loc_parser");
+
     public Vector2 GetViewPosition(Vector2 viewOffset, ViewRange view, float tileSize, Vector2i iconSize) {
         // TODO: LEFT/RIGHT/TOP/BOTTOM need to stick to the edge of the visible map if the map's container is smaller than the map itself
-        
-        float x = (X + PixelOffsetX / tileSize);
+
+        float x = X + PixelOffsetX / tileSize;
         x += HorizontalAnchor switch {
             HorizontalAnchor.West or HorizontalAnchor.Left => 0,
             HorizontalAnchor.Center => view.CenterX,
             HorizontalAnchor.East => view.Width - 1,
-            HorizontalAnchor.Right => view.Width - (iconSize.X / tileSize),
+            HorizontalAnchor.Right => view.Width - iconSize.X / tileSize,
             _ => throw new Exception($"Invalid horizontal anchor {HorizontalAnchor}")
         };
 
-        float y = (Y + PixelOffsetY / tileSize);
+        float y = Y + PixelOffsetY / tileSize;
         y += VerticalAnchor switch {
             VerticalAnchor.South or VerticalAnchor.Bottom => 0,
             VerticalAnchor.Center => view.CenterY,
             VerticalAnchor.North => view.Height - 1,
-            VerticalAnchor.Top => view.Height - (iconSize.Y / tileSize),
+            VerticalAnchor.Top => view.Height - iconSize.Y / tileSize,
             _ => throw new Exception($"Invalid vertical anchor {VerticalAnchor}")
         };
 
@@ -99,11 +99,11 @@ public sealed class ScreenLocation {
         string mapControl = MapControl != null ? $"{MapControl}:" : string.Empty;
         string range = Range != null ? $" to {Range}" : string.Empty;
 
-        return $"{mapControl}{HorizontalAnchor}+{X+1}:{PixelOffsetX},{VerticalAnchor}+{Y+1}:{PixelOffsetY}{range}";
+        return $"{mapControl}{HorizontalAnchor}+{X + 1}:{PixelOffsetX},{VerticalAnchor}+{Y + 1}:{PixelOffsetY}{range}";
     }
 
     public string ToCoordinates() {
-        return $"{X+1}:{PixelOffsetX},{Y+1}:{PixelOffsetY}";
+        return $"{X + 1}:{PixelOffsetX},{Y + 1}:{PixelOffsetY}";
     }
 
     private void ParseScreenLoc(string screenLoc) {
@@ -118,7 +118,8 @@ public sealed class ScreenLocation {
         if (mapControlSplitIndex > 0) {
             string mapControl = rangeSplit[0].Substring(0, mapControlSplitIndex);
 
-            if (char.IsAsciiLetter(mapControl[0]) && mapControl.IndexOfAny(['+', '-']) == -1 && !_keywords.Contains(mapControl)) {
+            if (char.IsAsciiLetter(mapControl[0]) && mapControl.IndexOfAny(['+', '-']) == -1 &&
+                !_keywords.Contains(mapControl)) {
                 MapControl = mapControl;
                 coordinateSplit[0] = coordinateSplit[0].Substring(mapControlSplitIndex + 1);
             }
@@ -149,18 +150,18 @@ public sealed class ScreenLocation {
     }
 
     /// <summary>
-    /// Parse a string value on either side of the comma in a screen_loc
+    ///     Parse a string value on either side of the comma in a screen_loc
     /// </summary>
     /// <returns>Whether this set a value on an axis that doesn't match the isHorizontal arg</returns>
     private bool ParseScreenLocCoordinate(string coordinate, bool isHorizontal) {
         List<string> pieces = new();
         StringBuilder currentPiece = new();
 
-        foreach (var c in coordinate) {
+        foreach (char c in coordinate) {
             switch (c) {
                 case ' ' or '\t':
                     continue;
-                case '-' or '+' when (currentPiece.Length == 0 || currentPiece[^1] != ':'):
+                case '-' or '+' when currentPiece.Length == 0 || currentPiece[^1] != ':':
                     // Start a new piece
                     pieces.Add(currentPiece.ToString());
                     currentPiece.Clear();
@@ -173,9 +174,9 @@ public sealed class ScreenLocation {
         pieces.Add(currentPiece.ToString());
 
         bool settingHorizontal = isHorizontal;
-        bool isFirstNumber = true;
-        float coordinateResult = 0.0f;
-        int pixelOffsetResult = 0;
+        var isFirstNumber = true;
+        var coordinateResult = 0.0f;
+        var pixelOffsetResult = 0;
         foreach (string piece in pieces) {
             if (string.IsNullOrEmpty(piece))
                 continue;
@@ -187,7 +188,7 @@ public sealed class ScreenLocation {
                 offsetStr = piece.Substring(0, pixelOffsetSeparator);
                 string pixelOffsetStr = piece.Substring(pixelOffsetSeparator + 1);
 
-                if (!int.TryParse(pixelOffsetStr, out var pixelOffset))
+                if (!int.TryParse(pixelOffsetStr, out int pixelOffset))
                     Sawmill.Error($"Invalid pixel offset {pixelOffsetStr} in {coordinate}");
 
                 pixelOffsetResult += pixelOffset;
@@ -240,7 +241,7 @@ public sealed class ScreenLocation {
 
                 // A normal number
                 default:
-                    if (!float.TryParse(offsetStr, out var offset))
+                    if (!float.TryParse(offsetStr, out float offset))
                         Sawmill.Error($"Invalid offset {offsetStr} in {coordinate}");
 
                     coordinateResult += offset;

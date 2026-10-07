@@ -1,9 +1,11 @@
-﻿using Robust.Shared.Serialization;
-using System;
+﻿using System;
+using Robust.Shared.Serialization;
 
 namespace OpenDreamShared.Dream;
 
-[Serializable, NetSerializable, Flags]
+[Serializable]
+[NetSerializable]
+[Flags]
 public enum AtomDirection : byte {
     None = 0,
 
@@ -22,11 +24,14 @@ public enum AtomDirection : byte {
 }
 
 public static class AtomDirectionExtensions {
-    public static bool IsValid(this AtomDirection dir) =>
-        dir != AtomDirection.None
-        && (dir & (AtomDirection.North | AtomDirection.South)) != (AtomDirection.North | AtomDirection.South)
-        && (dir & (AtomDirection.East | AtomDirection.West)) != (AtomDirection.East | AtomDirection.West)
-        && (dir & (AtomDirection.Up | AtomDirection.Down)) != (AtomDirection.Up | AtomDirection.Down);
+    public static bool IsValid(this AtomDirection dir) {
+        return dir != AtomDirection.None
+               && (dir & (AtomDirection.North | AtomDirection.South)) != (AtomDirection.North | AtomDirection.South)
+               && (dir & (AtomDirection.East | AtomDirection.West)) != (AtomDirection.East | AtomDirection.West)
+               && (dir & (AtomDirection.Up | AtomDirection.Down)) != (AtomDirection.Up | AtomDirection.Down);
+    }
 
-    public static AtomDirection Cardinals(this AtomDirection dir) => dir & (AtomDirection.Northeast | AtomDirection.Southwest);
+    public static AtomDirection Cardinals(this AtomDirection dir) {
+        return dir & (AtomDirection.Northeast | AtomDirection.Southwest);
+    }
 }

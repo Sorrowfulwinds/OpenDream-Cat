@@ -5,8 +5,8 @@ using Robust.Shared.Maths;
 namespace OpenDreamShared.Dream;
 
 /// <summary>
-/// This is supposed to be used to describe a string that represents a range of tiles, like "11x4" or whatever. <br/>
-/// Used as a possible argument for some functionality, like world.view or orange()
+///     This is supposed to be used to describe a string that represents a range of tiles, like "11x4" or whatever. <br />
+///     Used as a possible argument for some functionality, like world.view or orange()
 /// </summary>
 public readonly struct ViewRange {
     public readonly int Width, Height;
@@ -17,14 +17,14 @@ public readonly struct ViewRange {
     public Vector2i Center => (CenterX, CenterY);
 
     public bool IsSquare => Width == Height;
-    public bool IsCenterable => (Width % 2 == 1) && (Height % 2 == 1);
+    public bool IsCenterable => Width % 2 == 1 && Height % 2 == 1;
 
     [MemberNotNullWhen(true, nameof(SquareRange))]
     public bool CanSquareRange => IsSquare && IsCenterable;
 
     /// <summary>
-    /// The distance this ViewRange covers in every direction
-    /// if <see cref="CanSquareRange"/> is true
+    ///     The distance this ViewRange covers in every direction
+    ///     if <see cref="CanSquareRange" /> is true
     /// </summary>
     public int? SquareRange => CanSquareRange ? (Width - 1) / 2 : null;
 
@@ -35,7 +35,8 @@ public readonly struct ViewRange {
     }
 
     public ViewRange(int w, int h) {
-        Width = w; Height = h;
+        Width = w;
+        Height = h;
     }
 
     public ViewRange(string range) {

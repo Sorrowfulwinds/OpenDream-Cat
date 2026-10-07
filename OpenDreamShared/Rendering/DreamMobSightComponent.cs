@@ -1,28 +1,29 @@
-using Robust.Shared.GameObjects;
-using Robust.Shared.Serialization;
 using System;
+using Robust.Shared.GameObjects;
 using Robust.Shared.GameStates;
+using Robust.Shared.Serialization;
 
-namespace OpenDreamShared.Rendering {
-    [RegisterComponent]
-    [NetworkedComponent]
-    public sealed partial class DreamMobSightComponent : Component {
-        //this would be a good place for:
-        //see_in_dark
-        //see_infrared
+namespace OpenDreamShared.Rendering;
 
-        public sbyte SeeInvisibility;
-        public SightFlags Sight;
-    }
+[RegisterComponent]
+[NetworkedComponent]
+public sealed partial class DreamMobSightComponent : Component {
+    //this would be a good place for:
+    //see_in_dark
+    //see_infrared
 
-    [Serializable, NetSerializable]
-    internal sealed class DreamMobSightComponentState : ComponentState {
-        public readonly sbyte SeeInvisibility;
-        public readonly SightFlags Sight;
+    public sbyte SeeInvisibility;
+    public SightFlags Sight;
+}
 
-        public DreamMobSightComponentState(sbyte seeInvisibility, SightFlags sight) {
-            SeeInvisibility = seeInvisibility;
-            Sight = sight;
-        }
+[Serializable]
+[NetSerializable]
+internal sealed class DreamMobSightComponentState : ComponentState {
+    public readonly sbyte SeeInvisibility;
+    public readonly SightFlags Sight;
+
+    public DreamMobSightComponentState(sbyte seeInvisibility, SightFlags sight) {
+        SeeInvisibility = seeInvisibility;
+        Sight = sight;
     }
 }

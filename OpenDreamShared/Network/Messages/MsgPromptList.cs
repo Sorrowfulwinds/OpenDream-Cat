@@ -6,14 +6,14 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgPromptList : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
+    public bool CanCancel;
+    public string DefaultValue = string.Empty;
+    public string Message = string.Empty;
 
     public int PromptId;
-    public string Title = String.Empty;
-    public string Message = String.Empty;
-    public string DefaultValue = String.Empty;
-    public bool CanCancel;
+    public string Title = string.Empty;
     public string[] Values = Array.Empty<string>();
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         PromptId = buffer.ReadVariableInt32();
@@ -23,9 +23,7 @@ public sealed class MsgPromptList : NetMessage {
         CanCancel = buffer.ReadBoolean();
 
         Values = new string[buffer.ReadVariableInt32()];
-        for (int i = 0; i < Values.Length; i++) {
-            Values[i] = buffer.ReadString();
-        }
+        for (var i = 0; i < Values.Length; i++) Values[i] = buffer.ReadString();
     }
 
     public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
@@ -36,8 +34,6 @@ public sealed class MsgPromptList : NetMessage {
         buffer.Write(CanCancel);
 
         buffer.WriteVariableInt32(Values.Length);
-        foreach (string value in Values) {
-            buffer.Write(value);
-        }
+        foreach (string value in Values) buffer.Write(value);
     }
 }

@@ -4,7 +4,7 @@ namespace OpenDreamShared.Dream;
 
 public static class StringFormatDecoder {
     /// <summary>
-    /// Refer to DMCompiler.Bytecode.StringFormatEncoder for documentation (can't cref cross-project)
+    ///     Refer to DMCompiler.Bytecode.StringFormatEncoder for documentation (can't cref cross-project)
     /// </summary>
     private static readonly ushort FormatPrefix = 0xFF00;
 
@@ -14,9 +14,9 @@ public static class StringFormatDecoder {
     public static string RemoveFormatting(string input) {
         UnformattedStringBuilder.Clear();
         UnformattedStringBuilder.EnsureCapacity(input.Length); // Trying to keep it to one malloc here
-        foreach(char c in input) {
+        foreach (char c in input) {
             ushort bytes = c;
-            if((bytes & FormatPrefix) != FormatPrefix)
+            if ((bytes & FormatPrefix) != FormatPrefix)
                 UnformattedStringBuilder.Append(c);
         }
 

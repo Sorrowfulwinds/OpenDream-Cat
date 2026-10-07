@@ -1,12 +1,11 @@
-﻿using Robust.Shared.Maths;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
 using OpenDreamShared.Dream;
-using System.Globalization;
+using Robust.Shared.Maths;
 
 namespace OpenDreamShared.Resources;
 
@@ -22,29 +21,318 @@ public static class DMIParser {
         AtomDirection.Northwest
     };
 
-    private static readonly byte[] PngHeader = { 0x89, 0x50, 0x4E, 0x47, 0xD, 0xA, 0x1A, 0xA };
+    private static readonly byte[] PngHeader = {0x89, 0x50, 0x4E, 0x47, 0xD, 0xA, 0x1A, 0xA};
+
+    /// <summary>
+    ///     The total directions present in an exported DMI.<br />
+    ///     An icon state in a DMI must contain either 1, 4, or 8 directions.
+    /// </summary>
+    public static int GetExportedDirectionCount<T>(Dictionary<AtomDirection, T> directions) {
+        // If we have any of these directions then we export 8 directions
+        if (directions.ContainsKey(AtomDirection.Northeast) || directions.ContainsKey(AtomDirection.Southeast) ||
+            directions.ContainsKey(AtomDirection.Southwest) || directions.ContainsKey(AtomDirection.Northwest))
+            return 8;
+
+        // Any of these (without the above) means 4 directions
+        if (directions.ContainsKey(AtomDirection.North) || directions.ContainsKey(AtomDirection.East) ||
+            directions.ContainsKey(AtomDirection.West))
+            return 4;
+
+        // Otherwise, 1 direction (just south)
+        return 1;
+    }
+
+    public static ParsedDMIDescription ParseDMI(Stream stream) {
+        if (VerifyBmp(stream)) return ParseDMIBmp(stream);
+
+        if (VerifyPng(stream)) return ParseDMIPng(stream);
+
+        throw new Exception("Provided stream was not a valid image format (invalid magic bytes)");
+    }
+
+    private static ParsedDMIDescription ParseDMIBmp(Stream stream) {
+        stream.Seek(14, SeekOrigin.Begin);
+        var reader = new BinaryReader(stream);
+        uint headerSize = reader.ReadUInt32();
+        uint width, height;
+        if (headerSize == 12) { // Old DIB header
+            width = reader.ReadUInt16();
+            height = reader.ReadUInt16();
+        } else if (headerSize == 40) { // New DIB header
+            width = reader.ReadUInt32();
+            height = reader.ReadUInt32();
+        } else {
+            throw new Exception($"Unrecognized BMP header (size {headerSize})");
+        }
+
+        // TODO: Use CreateSplitStates if world.map_format == TILED_ICON_MAP
+        return ParsedDMIDescription.CreateSingleFrame((int)width, (int)height);
+    }
+
+    private static ParsedDMIDescription ParseDMIPng(Stream stream) {
+        var reader = new BinaryReader(stream);
+        Vector2u? imageSize = null;
+
+        while (stream.Position < stream.Length) {
+            uint chunkLength = ReadBigEndianUint32(reader);
+            string chunkType = Encoding.UTF8.GetString(reader.ReadBytes(4));
+            long chunkDataPosition = stream.Position;
+
+            switch (chunkType) {
+                case "IHDR": //Image header, contains the image size
+                    imageSize = new Vector2u(ReadBigEndianUint32(reader), ReadBigEndianUint32(reader));
+                    stream.Seek(chunkLength - 4, SeekOrigin.Current); //Skip the rest of the chunk
+                    break;
+                case "zTXt": //Compressed text, likely contains our DMI description
+                case "tEXt": //Uncompressed text. Not typical, but also works.
+                    if (imageSize == null) throw new Exception("The PNG did not contain an IHDR chunk");
+
+                    var keyword = new StringBuilder();
+                    while (reader.PeekChar() != 0 && keyword.Length < 79) keyword.Append(reader.ReadChar());
+
+                    stream.Seek(1, SeekOrigin.Current); //Skip over null-terminator
+                    if (chunkType == "zTXt")
+                        stream.Seek(1, SeekOrigin.Current); //Skip over compression type
+
+                    if (keyword.ToString() == "Description") {
+                        byte[] uncompressedData;
+
+                        if (chunkType == "zTXt") {
+                            stream.Seek(2, SeekOrigin.Current); //Skip the first 2 bytes in the zlib format
+
+                            var deflateStream = new DeflateStream(stream, CompressionMode.Decompress);
+                            var uncompressedDataStream = new MemoryStream();
+
+                            deflateStream.CopyTo(uncompressedDataStream, (int)chunkLength - keyword.Length - 2);
+
+                            uncompressedData = new byte[uncompressedDataStream.Length];
+                            uncompressedDataStream.Seek(0, SeekOrigin.Begin);
+                            uncompressedDataStream.ReadExactly(uncompressedData);
+                        } else {
+                            //The text is not compressed so nothing fancy is required
+                            uncompressedData = reader.ReadBytes((int)chunkLength - keyword.Length - 1);
+                        }
+
+                        string dmiDescription = Encoding.UTF8.GetString(uncompressedData, 0, uncompressedData.Length);
+                        return ParseDMIDescription(dmiDescription, imageSize.Value.X);
+                    }
+
+                    // Wasn't the description chunk we were looking for
+                    stream.Position = chunkDataPosition + chunkLength + 4;
+                    break;
+                default: //Nothing we care about, skip it
+                    stream.Seek(chunkLength + 4, SeekOrigin.Current);
+                    break;
+            }
+        }
+
+        if (imageSize != null)
+            // No DMI description found, but we do have an image header
+            // So treat this PNG as a single icon frame spanning the whole image
+            return ParsedDMIDescription.CreateSingleFrame((int)imageSize.Value.X, (int)imageSize.Value.Y);
+
+        throw new Exception("PNG is missing an image header");
+    }
+
+    private static ParsedDMIDescription ParseDMIDescription(string dmiDescription, uint imageWidth) {
+        var description = new ParsedDMIDescription();
+        ParsedDMIState? currentState = null;
+        var currentFrameX = 0;
+        var currentFrameY = 0;
+        var currentStateDirectionCount = 1;
+        var currentStateFrameCount = 1;
+        float[]? currentStateFrameDelays = null;
+
+        string[] lines = dmiDescription.Split("\n");
+        foreach (string line in lines) {
+            if (line.StartsWith('#') || string.IsNullOrWhiteSpace(line))
+                continue;
+
+            int equalsIndex = line.IndexOf('=');
+
+            if (equalsIndex != -1) {
+                string key = line.Substring(0, equalsIndex - 1).Trim();
+                string value = line.Substring(equalsIndex + 1).Trim();
+
+                switch (key) {
+                    case "version":
+                        // No need to care about this at the moment
+                        break;
+                    case "width":
+                        description.Width = int.Parse(value, CultureInfo.InvariantCulture);
+                        break;
+                    case "height":
+                        description.Height = int.Parse(value, CultureInfo.InvariantCulture);
+                        break;
+                    case "state":
+                        string stateName = ParseString(value);
+
+                        if (currentState != null) {
+                            for (var i = 0; i < currentStateDirectionCount; i++) {
+                                var frames = new ParsedDMIFrame[currentStateFrameCount];
+                                AtomDirection direction = DMIFrameDirections[i];
+
+                                currentState.Directions[direction] = frames;
+                            }
+
+                            for (var i = 0; i < currentStateFrameCount; i++)
+                            for (var j = 0; j < currentStateDirectionCount; j++) {
+                                AtomDirection direction = DMIFrameDirections[j];
+
+                                var frame = new ParsedDMIFrame();
+                                float delay = currentStateFrameDelays != null
+                                    ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
+                                    : 100;
+
+                                frame.X = currentFrameX;
+                                frame.Y = currentFrameY;
+                                frame.Delay = TimeSpan.FromMilliseconds(delay);
+                                currentState.Directions[direction][i] = frame;
+
+                                currentFrameX += description.Width;
+                                if (currentFrameX >= imageWidth) {
+                                    currentFrameY += description.Height;
+                                    currentFrameX = 0;
+                                }
+                            }
+                        }
+
+                        currentStateFrameCount = 1;
+                        currentStateFrameDelays = null;
+                        currentState = new ParsedDMIState(stateName);
+                        description.States.TryAdd(stateName, currentState);
+                        break;
+                    case "dirs":
+                        currentStateDirectionCount = int.Parse(value, CultureInfo.InvariantCulture);
+                        break;
+                    case "frames":
+                        currentStateFrameCount = int.Parse(value, CultureInfo.InvariantCulture);
+                        break;
+                    case "delay":
+                        string[] frameDelays = value.Split(",");
+
+                        currentStateFrameDelays = new float[frameDelays.Length];
+                        for (var i = 0; i < frameDelays.Length; i++)
+                            currentStateFrameDelays[i] = float.Parse(frameDelays[i], CultureInfo.InvariantCulture);
+
+                        break;
+                    case "loop":
+                        if (currentState is null) break;
+
+                        int loopValue = int.Parse(value, CultureInfo.InvariantCulture);
+                        currentState.Loop = loopValue == 0;
+                        break;
+                    case "rewind":
+                        if (currentState is null) break;
+
+                        int rewindValue = int.Parse(value, CultureInfo.InvariantCulture);
+                        currentState.Rewind = rewindValue == 1;
+                        break;
+                    case "movement":
+                        //TODO
+                        break;
+                    case "hotspot":
+                        if (currentState is null) break;
+                        string[] hotspotValues = value.Split(',');
+                        if (hotspotValues.Length != 3)
+                            throw new Exception($"Invalid hotspot value \"{value}\"");
+
+                        int hotspotX = int.Parse(hotspotValues[0], CultureInfo.InvariantCulture);
+                        int hotspotY = int.Parse(hotspotValues[1], CultureInfo.InvariantCulture);
+                        // TODO: 3rd value? Something to do with what frames the hotspot applies to apparently
+
+                        currentState.Hotspot = (hotspotX, hotspotY);
+                        break;
+                    default:
+                        throw new Exception($"Invalid key \"{key}\" in DMI description");
+                }
+            } else {
+                throw new Exception($"Invalid line in DMI description: \"{line}\"");
+            }
+        }
+
+        if (currentState is null) return description;
+
+        for (var i = 0; i < currentStateDirectionCount; i++) {
+            var frames = new ParsedDMIFrame[currentStateFrameCount];
+            AtomDirection direction = DMIFrameDirections[i];
+
+            currentState.Directions[direction] = frames;
+        }
+
+        for (var i = 0; i < currentStateFrameCount; i++)
+        for (var j = 0; j < currentStateDirectionCount; j++) {
+            AtomDirection direction = DMIFrameDirections[j];
+
+            var frame = new ParsedDMIFrame();
+            float delay = currentStateFrameDelays != null
+                ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
+                : 100;
+
+            frame.X = currentFrameX;
+            frame.Y = currentFrameY;
+            frame.Delay = TimeSpan.FromMilliseconds(delay);
+            currentState.Directions[direction][i] = frame;
+
+            currentFrameX += description.Width;
+            if (currentFrameX >= imageWidth) {
+                currentFrameY += description.Height;
+                currentFrameX = 0;
+            }
+        }
+
+        return description;
+    }
+
+    private static string ParseString(string value) {
+        if (value.StartsWith("\"") && value.EndsWith("\"")) return value.Substring(1, value.Length - 2);
+
+        throw new Exception($"Invalid string in DMI description: {value}");
+    }
+
+    private static bool VerifyPng(Stream stream) {
+        stream.Seek(0, SeekOrigin.Begin);
+        foreach (byte t in PngHeader)
+            if (stream.ReadByte() != t)
+                return false;
+
+        return true;
+    }
+
+    private static bool VerifyBmp(Stream stream) {
+        stream.Seek(0, SeekOrigin.Begin);
+        if (stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D)
+            return true;
+
+        return false;
+    }
+
+    private static uint ReadBigEndianUint32(BinaryReader reader) {
+        byte[] bytes = reader.ReadBytes(4);
+        Array.Reverse(bytes); //Little to Big-Endian
+        return BitConverter.ToUInt32(bytes);
+    }
 
     public sealed class ParsedDMIDescription {
-        public int Width, Height;
         public Dictionary<string, ParsedDMIState> States = new();
+        public int Width, Height;
 
         /// <summary>
-        /// Gets the requested state, or the default if it doesn't exist
+        ///     Gets the requested state, or the default if it doesn't exist
         /// </summary>
         /// <remarks>The default state could also not exist</remarks>
         /// <param name="stateName">The requested state's name</param>
         /// <returns>The requested state, default state, or null</returns>
         public ParsedDMIState? GetStateOrDefault(string? stateName) {
-            if (string.IsNullOrEmpty(stateName) || !States.TryGetValue(stateName, out var state)) {
+            if (string.IsNullOrEmpty(stateName) || !States.TryGetValue(stateName, out ParsedDMIState? state))
                 States.TryGetValue(string.Empty, out state);
-            }
 
             return state;
         }
 
         /// <summary>
-        /// Construct a string describing this DMI description<br/>
-        /// In the same format as the text found in .dmi files
+        ///     Construct a string describing this DMI description<br />
+        ///     In the same format as the text found in .dmi files
         /// </summary>
         /// <returns>This ParsedDMIDescription represented as text</returns>
         public string ExportAsText() {
@@ -62,9 +350,7 @@ public static class DMIParser {
             text.Append(Height);
             text.AppendLine();
 
-            foreach (var state in States.Values) {
-                state.ExportAsText(text);
-            }
+            foreach (ParsedDMIState state in States.Values) state.ExportAsText(text);
 
             text.Append("# END DMI");
 
@@ -84,14 +370,14 @@ public static class DMIParser {
                 Delay = TimeSpan.FromMilliseconds(100)
             };
 
-            state.Directions.Add(AtomDirection.South, new [] { frame });
+            state.Directions.Add(AtomDirection.South, new[] {frame});
             desc.States.Add(state.Name, state);
             return desc;
         }
 
         /// <summary>
-        /// Create DMI information that splits a larger image into icon states with the names "x,y"<br/>
-        /// https://www.byond.com/docs/ref/info.html#/{notes}/tiled-icons
+        ///     Create DMI information that splits a larger image into icon states with the names "x,y"<br />
+        ///     https://www.byond.com/docs/ref/info.html#/{notes}/tiled-icons
         /// </summary>
         /// <param name="width">Width of the whole image</param>
         /// <param name="height">Height of the whole image</param>
@@ -104,18 +390,17 @@ public static class DMIParser {
 
             var xCount = (int)Math.Max(Math.Ceiling((float)width / iconSize), 1);
             var yCount = (int)Math.Max(Math.Ceiling((float)height / iconSize), 1);
-            for (int x = 0; x < xCount; x++) {
-                for (int y = 0; y < yCount; y++) {
-                    var state = new ParsedDMIState($"{x},{y}");
-                    var frame = new ParsedDMIFrame {
-                        X = x * iconSize,
-                        Y = (yCount * iconSize) - (y + 1) * iconSize, // "0,0" starts from the bottom left
-                        Delay = TimeSpan.FromMilliseconds(100)
-                    };
+            for (var x = 0; x < xCount; x++)
+            for (var y = 0; y < yCount; y++) {
+                var state = new ParsedDMIState($"{x},{y}");
+                var frame = new ParsedDMIFrame {
+                    X = x * iconSize,
+                    Y = yCount * iconSize - (y + 1) * iconSize, // "0,0" starts from the bottom left
+                    Delay = TimeSpan.FromMilliseconds(100)
+                };
 
-                    state.Directions.Add(AtomDirection.South, new [] { frame });
-                    desc.States.Add(state.Name, state);
-                }
+                state.Directions.Add(AtomDirection.South, new[] {frame});
+                desc.States.Add(state.Name, state);
             }
 
             return desc;
@@ -123,20 +408,20 @@ public static class DMIParser {
     }
 
     public sealed class ParsedDMIState(string name) {
-        public string Name = name;
-        public bool Loop = true;
-        public bool Rewind;
-
-        /// <summary>
-        /// The part of the image considered the tip when this is used as a custom cursor
-        /// </summary>
-        public Vector2i? Hotspot;
-
         // TODO: This can only contain either 1, 4, or 8 directions. Enforcing this could simplify some things.
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
 
         /// <summary>
-        /// The amount of animation frames this state has
+        ///     The part of the image considered the tip when this is used as a custom cursor
+        /// </summary>
+        public Vector2i? Hotspot;
+
+        public bool Loop = true;
+        public string Name = name;
+        public bool Rewind;
+
+        /// <summary>
+        ///     The amount of animation frames this state has
         /// </summary>
         public int FrameCount {
             get {
@@ -179,9 +464,9 @@ public static class DMIParser {
 
             if (Directions.Count > 0) {
                 text.Append("\tdelay = ");
-                var frames = Directions.Values.First(); // Delays should be the same in each direction
-                for (int i = 0; i < frames.Length; i++) {
-                    var delay = frames[i].Delay.TotalMilliseconds / 100; // Convert back to deciseconds
+                ParsedDMIFrame[] frames = Directions.Values.First(); // Delays should be the same in each direction
+                for (var i = 0; i < frames.Length; i++) {
+                    double delay = frames[i].Delay.TotalMilliseconds / 100; // Convert back to deciseconds
 
                     text.Append(delay.ToString(CultureInfo.InvariantCulture));
                     if (i != frames.Length - 1)
@@ -191,355 +476,47 @@ public static class DMIParser {
                 text.AppendLine();
             }
 
-            if (!Loop) {
-                text.AppendLine("\tloop = 0");
-            }
+            if (!Loop) text.AppendLine("\tloop = 0");
 
-            if (Rewind) {
-                text.AppendLine("\trewind = 1");
-            }
+            if (Rewind) text.AppendLine("\trewind = 1");
         }
 
         /// <summary>
-        /// Get this state's frames
+        ///     Get this state's frames
         /// </summary>
         /// <param name="dir">Which direction to get. Every direction if null.</param>
         /// <param name="frame">Which frame to get. Every frame if null.</param>
         /// <param name="asSouth">If dir isn't null, return the frames as facing south</param>
         /// <remarks>Invalid dir/frame args will give empty arrays</remarks>
         /// <returns>A dictionary containing the specified frames for each specified direction</returns>
-        public Dictionary<AtomDirection, ParsedDMIFrame[]> GetFrames(AtomDirection? dir = null, int? frame = null, bool asSouth = false) {
+        public Dictionary<AtomDirection, ParsedDMIFrame[]> GetFrames(AtomDirection? dir = null, int? frame = null,
+            bool asSouth = false) {
             Dictionary<AtomDirection, ParsedDMIFrame[]> directions;
             if (dir == null) { // Get every direction
-                directions = new(Directions);
+                directions = new Dictionary<AtomDirection, ParsedDMIFrame[]>(Directions);
             } else {
-                directions = new(1);
+                directions = new Dictionary<AtomDirection, ParsedDMIFrame[]>(1);
 
-                if (!Directions.TryGetValue(dir.Value, out var frames))
+                if (!Directions.TryGetValue(dir.Value, out ParsedDMIFrame[]? frames))
                     frames = Array.Empty<ParsedDMIFrame>();
 
                 directions.Add(asSouth ? AtomDirection.South : dir.Value, frames);
             }
 
-            if (frame != null) { // Only get a specified frame
-                foreach (var direction in directions) {
-                    if (direction.Value.Length > frame.Value) {
-                        directions[direction.Key] = new[] { direction.Value[frame.Value] };
-                    } else {
+            if (frame != null) // Only get a specified frame
+                foreach (KeyValuePair<AtomDirection, ParsedDMIFrame[]> direction in directions)
+                    if (direction.Value.Length > frame.Value)
+                        directions[direction.Key] = new[] {direction.Value[frame.Value]};
+                    else
                         // Frame doesn't exist
                         directions[direction.Key] = Array.Empty<ParsedDMIFrame>();
-                    }
-                }
-            }
 
             return directions;
         }
     }
 
     public sealed class ParsedDMIFrame {
-        public int X, Y;
         public TimeSpan Delay;
-    }
-
-    /// <summary>
-    /// The total directions present in an exported DMI.<br/>
-    /// An icon state in a DMI must contain either 1, 4, or 8 directions.
-    /// </summary>
-    public static int GetExportedDirectionCount<T>(Dictionary<AtomDirection, T> directions) {
-        // If we have any of these directions then we export 8 directions
-        if (directions.ContainsKey(AtomDirection.Northeast) || directions.ContainsKey(AtomDirection.Southeast) ||
-            directions.ContainsKey(AtomDirection.Southwest) || directions.ContainsKey(AtomDirection.Northwest)) {
-            return 8;
-        }
-
-        // Any of these (without the above) means 4 directions
-        if (directions.ContainsKey(AtomDirection.North) || directions.ContainsKey(AtomDirection.East) ||
-            directions.ContainsKey(AtomDirection.West)) {
-            return 4;
-        }
-
-        // Otherwise, 1 direction (just south)
-        return 1;
-    }
-
-    public static ParsedDMIDescription ParseDMI(Stream stream) {
-        if (VerifyBmp(stream)) {
-            return ParseDMIBmp(stream);
-        } else if (VerifyPng(stream)) {
-            return ParseDMIPng(stream);
-        } else {
-            throw new Exception("Provided stream was not a valid image format (invalid magic bytes)");
-        }
-    }
-
-    private static ParsedDMIDescription ParseDMIBmp(Stream stream) {
-        stream.Seek(14, SeekOrigin.Begin);
-        var reader = new BinaryReader(stream);
-        var headerSize = reader.ReadUInt32();
-        uint width, height;
-        if (headerSize == 12) { // Old DIB header
-            width = reader.ReadUInt16();
-            height = reader.ReadUInt16();
-        } else if (headerSize == 40) { // New DIB header
-            width = reader.ReadUInt32();
-            height = reader.ReadUInt32();
-        } else {
-            throw new Exception($"Unrecognized BMP header (size {headerSize})");
-        }
-
-        // TODO: Use CreateSplitStates if world.map_format == TILED_ICON_MAP
-        return ParsedDMIDescription.CreateSingleFrame((int)width, (int)height);
-    }
-
-    private static ParsedDMIDescription ParseDMIPng(Stream stream) {
-        var reader = new BinaryReader(stream);
-        Vector2u? imageSize = null;
-
-        while (stream.Position < stream.Length) {
-            uint chunkLength = ReadBigEndianUint32(reader);
-            string chunkType = Encoding.UTF8.GetString(reader.ReadBytes(4));
-            long chunkDataPosition = stream.Position;
-
-            switch (chunkType) {
-                case "IHDR": //Image header, contains the image size
-                    imageSize = new Vector2u(ReadBigEndianUint32(reader), ReadBigEndianUint32(reader));
-                    stream.Seek(chunkLength - 4, SeekOrigin.Current); //Skip the rest of the chunk
-                    break;
-                case "zTXt": //Compressed text, likely contains our DMI description
-                case "tEXt": //Uncompressed text. Not typical, but also works.
-                    if (imageSize == null) throw new Exception("The PNG did not contain an IHDR chunk");
-
-                    StringBuilder keyword = new StringBuilder();
-                    while (reader.PeekChar() != 0 && keyword.Length < 79) {
-                        keyword.Append(reader.ReadChar());
-                    }
-
-                    stream.Seek(1, SeekOrigin.Current); //Skip over null-terminator
-                    if (chunkType == "zTXt")
-                        stream.Seek(1, SeekOrigin.Current); //Skip over compression type
-
-                    if (keyword.ToString() == "Description") {
-                        byte[] uncompressedData;
-
-                        if (chunkType == "zTXt") {
-                            stream.Seek(2, SeekOrigin.Current); //Skip the first 2 bytes in the zlib format
-
-                            DeflateStream deflateStream = new DeflateStream(stream, CompressionMode.Decompress);
-                            MemoryStream uncompressedDataStream = new MemoryStream();
-
-                            deflateStream.CopyTo(uncompressedDataStream, (int)chunkLength - keyword.Length - 2);
-
-                            uncompressedData = new byte[uncompressedDataStream.Length];
-                            uncompressedDataStream.Seek(0, SeekOrigin.Begin);
-                            uncompressedDataStream.ReadExactly(uncompressedData);
-                        } else {
-                            //The text is not compressed so nothing fancy is required
-                            uncompressedData = reader.ReadBytes((int) chunkLength - keyword.Length - 1);
-                        }
-
-                        string dmiDescription = Encoding.UTF8.GetString(uncompressedData, 0, uncompressedData.Length);
-                        return ParseDMIDescription(dmiDescription, imageSize.Value.X);
-                    }
-
-                    // Wasn't the description chunk we were looking for
-                    stream.Position = chunkDataPosition + chunkLength + 4;
-                    break;
-                default: //Nothing we care about, skip it
-                    stream.Seek(chunkLength + 4, SeekOrigin.Current);
-                    break;
-            }
-        }
-
-        if (imageSize != null) {
-            // No DMI description found, but we do have an image header
-            // So treat this PNG as a single icon frame spanning the whole image
-            return ParsedDMIDescription.CreateSingleFrame((int)imageSize.Value.X, (int)imageSize.Value.Y);
-        }
-
-        throw new Exception("PNG is missing an image header");
-    }
-
-    private static ParsedDMIDescription ParseDMIDescription(string dmiDescription, uint imageWidth) {
-        ParsedDMIDescription description = new ParsedDMIDescription();
-        ParsedDMIState? currentState = null;
-        int currentFrameX = 0;
-        int currentFrameY = 0;
-        int currentStateDirectionCount = 1;
-        int currentStateFrameCount = 1;
-        float[]? currentStateFrameDelays = null;
-
-        string[] lines = dmiDescription.Split("\n");
-        foreach (string line in lines) {
-            if (line.StartsWith('#') || string.IsNullOrWhiteSpace(line))
-                continue;
-
-            int equalsIndex = line.IndexOf('=');
-
-            if (equalsIndex != -1) {
-                string key = line.Substring(0, equalsIndex-1).Trim();
-                string value = line.Substring(equalsIndex + 1).Trim();
-
-                switch (key) {
-                    case "version":
-                        // No need to care about this at the moment
-                        break;
-                    case "width":
-                        description.Width = int.Parse(value, CultureInfo.InvariantCulture);
-                        break;
-                    case "height":
-                        description.Height = int.Parse(value, CultureInfo.InvariantCulture);
-                        break;
-                    case "state":
-                        string stateName = ParseString(value);
-
-                        if (currentState != null) {
-                            for (int i = 0; i < currentStateDirectionCount; i++) {
-                                ParsedDMIFrame[] frames = new ParsedDMIFrame[currentStateFrameCount];
-                                AtomDirection direction = DMIFrameDirections[i];
-
-                                currentState.Directions[direction] = frames;
-                            }
-
-                            for (int i = 0; i < currentStateFrameCount; i++) {
-                                for (int j = 0; j < currentStateDirectionCount; j++) {
-                                    AtomDirection direction = DMIFrameDirections[j];
-
-                                    ParsedDMIFrame frame = new ParsedDMIFrame();
-                                    float delay = (currentStateFrameDelays != null)
-                                        ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
-                                        : 100;
-
-                                    frame.X = currentFrameX;
-                                    frame.Y = currentFrameY;
-                                    frame.Delay = TimeSpan.FromMilliseconds(delay);
-                                    currentState.Directions[direction][i] = frame;
-
-                                    currentFrameX += description.Width;
-                                    if (currentFrameX >= imageWidth) {
-                                        currentFrameY += description.Height;
-                                        currentFrameX = 0;
-                                    }
-                                }
-                            }
-                        }
-
-                        currentStateFrameCount = 1;
-                        currentStateFrameDelays = null;
-                        currentState = new ParsedDMIState(stateName);
-                        description.States.TryAdd(stateName, currentState);
-                        break;
-                    case "dirs":
-                        currentStateDirectionCount = int.Parse(value, CultureInfo.InvariantCulture);
-                        break;
-                    case "frames":
-                        currentStateFrameCount = int.Parse(value, CultureInfo.InvariantCulture);
-                        break;
-                    case "delay":
-                        string[] frameDelays = value.Split(",");
-
-                        currentStateFrameDelays = new float[frameDelays.Length];
-                        for (int i = 0; i < frameDelays.Length; i++) {
-                            currentStateFrameDelays[i] = float.Parse(frameDelays[i], CultureInfo.InvariantCulture);
-                        }
-
-                        break;
-                    case "loop":
-                        if (currentState is null) break;
-
-                        var loopValue = int.Parse(value, CultureInfo.InvariantCulture);
-                        currentState.Loop = (loopValue == 0);
-                        break;
-                    case "rewind":
-                        if (currentState is null) break;
-
-                        var rewindValue = int.Parse(value, CultureInfo.InvariantCulture);
-                        currentState.Rewind = (rewindValue == 1);
-                        break;
-                    case "movement":
-                        //TODO
-                        break;
-                    case "hotspot":
-                        if (currentState is null) break;
-                        var hotspotValues = value.Split(',');
-                        if (hotspotValues.Length != 3)
-                            throw new Exception($"Invalid hotspot value \"{value}\"");
-
-                        var hotspotX = int.Parse(hotspotValues[0], CultureInfo.InvariantCulture);
-                        var hotspotY = int.Parse(hotspotValues[1], CultureInfo.InvariantCulture);
-                        // TODO: 3rd value? Something to do with what frames the hotspot applies to apparently
-
-                        currentState.Hotspot = (hotspotX, hotspotY);
-                        break;
-                    default:
-                        throw new Exception($"Invalid key \"{key}\" in DMI description");
-                }
-            } else {
-                throw new Exception($"Invalid line in DMI description: \"{line}\"");
-            }
-        }
-
-        if (currentState is null) return description;
-
-        for (int i = 0; i < currentStateDirectionCount; i++) {
-            ParsedDMIFrame[] frames = new ParsedDMIFrame[currentStateFrameCount];
-            AtomDirection direction = DMIFrameDirections[i];
-
-            currentState.Directions[direction] = frames;
-        }
-
-        for (int i = 0; i < currentStateFrameCount; i++) {
-            for (int j = 0; j < currentStateDirectionCount; j++) {
-                AtomDirection direction = DMIFrameDirections[j];
-
-                ParsedDMIFrame frame = new ParsedDMIFrame();
-                float delay = (currentStateFrameDelays != null)
-                    ? currentStateFrameDelays[i] * 100 // Convert from deciseconds to milliseconds
-                    : 100;
-
-                frame.X = currentFrameX;
-                frame.Y = currentFrameY;
-                frame.Delay = TimeSpan.FromMilliseconds(delay);
-                currentState.Directions[direction][i] = frame;
-
-                currentFrameX += description.Width;
-                if (currentFrameX >= imageWidth) {
-                    currentFrameY += description.Height;
-                    currentFrameX = 0;
-                }
-            }
-        }
-
-        return description;
-    }
-
-    private static string ParseString(string value) {
-        if (value.StartsWith("\"") && value.EndsWith("\"")) {
-            return value.Substring(1, value.Length - 2);
-        } else {
-            throw new Exception($"Invalid string in DMI description: {value}");
-        }
-    }
-
-    private static bool VerifyPng(Stream stream) {
-        stream.Seek(0, SeekOrigin.Begin);
-        foreach (var t in PngHeader) {
-            if (stream.ReadByte() != t) return false;
-        }
-
-        return true;
-    }
-
-    private static bool VerifyBmp(Stream stream) {
-        stream.Seek(0, SeekOrigin.Begin);
-        if (stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D)
-            return true;
-
-        return false;
-    }
-
-    private static uint ReadBigEndianUint32(BinaryReader reader) {
-        byte[] bytes = reader.ReadBytes(4);
-        Array.Reverse(bytes); //Little to Big-Endian
-        return BitConverter.ToUInt32(bytes);
+        public int X, Y;
     }
 }

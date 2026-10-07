@@ -1,14 +1,13 @@
-﻿using System.Diagnostics.Contracts;
-using System.IO;
-using Lidgren.Network;
-using Robust.Shared.Serialization;
-using System.Linq;
-using Robust.Shared.ViewVariables;
-using Robust.Shared.Maths;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.Contracts;
+using System.IO;
+using Lidgren.Network;
 using Robust.Shared.GameObjects;
+using Robust.Shared.Maths;
+using Robust.Shared.Serialization;
+using Robust.Shared.ViewVariables;
 using SharedAppearanceSystem = OpenDreamShared.Rendering.SharedAppearanceSystem;
 
 namespace OpenDreamShared.Dream;
@@ -23,57 +22,63 @@ namespace OpenDreamShared.Dream;
  */
 
 // TODO: Wow this is huge! Probably look into splitting this by most used/least used to reduce the size of these
-[Serializable, NetSerializable]
+[Serializable]
+[NetSerializable]
 public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
-    private uint? _registeredId;
-
-    [ViewVariables] public readonly string Name = MutableAppearance.Default.Name;
+    [ViewVariables] public readonly byte Alpha = MutableAppearance.Default.Alpha;
+    [ViewVariables] public readonly AppearanceFlags AppearanceFlags = MutableAppearance.Default.AppearanceFlags;
+    [ViewVariables] public readonly BlendMode BlendMode = MutableAppearance.Default.BlendMode;
+    [ViewVariables] public readonly Color Color = MutableAppearance.Default.Color;
+    [ViewVariables] public readonly ColorMatrix ColorMatrix = ColorMatrix.Identity;
     [ViewVariables] public readonly string? Desc = MutableAppearance.Default.Desc;
+    [ViewVariables] public readonly AtomDirection Direction = MutableAppearance.Default.Direction;
+    [ViewVariables] public readonly DreamFilter[] Filters;
+    [ViewVariables] public readonly float GlideSize = MutableAppearance.Default.GlideSize;
     [ViewVariables] public readonly int? Icon = MutableAppearance.Default.Icon;
     [ViewVariables] public readonly string? IconState = MutableAppearance.Default.IconState;
-    [ViewVariables] public readonly AtomDirection Direction = MutableAppearance.Default.Direction;
-    [ViewVariables] public readonly bool InheritsDirection = MutableAppearance.Default.InheritsDirection; // Inherits direction when used as an overlay
-    [ViewVariables] public readonly Vector2i PixelOffset = MutableAppearance.Default.PixelOffset;  // pixel_x and pixel_y
-    [ViewVariables] public readonly Vector2i PixelOffset2 = MutableAppearance.Default.PixelOffset2; // pixel_w and pixel_z
-    [ViewVariables] public readonly Color Color = MutableAppearance.Default.Color;
-    [ViewVariables] public readonly byte Alpha = MutableAppearance.Default.Alpha;
-    [ViewVariables] public readonly float GlideSize = MutableAppearance.Default.GlideSize;
-    [ViewVariables] public readonly float Layer = MutableAppearance.Default.Layer;
-    [ViewVariables] public readonly int Plane = MutableAppearance.Default.Plane;
-    [ViewVariables] public readonly BlendMode BlendMode = MutableAppearance.Default.BlendMode;
-    [ViewVariables] public readonly AppearanceFlags AppearanceFlags = MutableAppearance.Default.AppearanceFlags;
-    [ViewVariables] public readonly VisFlags VisFlags = MutableAppearance.Default.VisFlags;
+
+    [ViewVariables]
+    public readonly bool
+        InheritsDirection = MutableAppearance.Default.InheritsDirection; // Inherits direction when used as an overlay
+
     [ViewVariables] public readonly sbyte Invisibility = MutableAppearance.Default.Invisibility;
+    [ViewVariables] public readonly float Layer = MutableAppearance.Default.Layer;
+    [ViewVariables] public readonly MouseOpacity MouseOpacity = MutableAppearance.Default.MouseOpacity;
+
+    [ViewVariables] public readonly string Name = MutableAppearance.Default.Name;
     [ViewVariables] public readonly bool Opacity = MutableAppearance.Default.Opacity;
+    [ViewVariables] public readonly ImmutableAppearance[] Overlays;
     [ViewVariables] public readonly bool Override = MutableAppearance.Default.Override;
+    [ViewVariables] public readonly Vector2i PixelOffset = MutableAppearance.Default.PixelOffset; // pixel_x and pixel_y
+
+    [ViewVariables]
+    public readonly Vector2i PixelOffset2 = MutableAppearance.Default.PixelOffset2; // pixel_w and pixel_z
+
+    [ViewVariables] public readonly int Plane = MutableAppearance.Default.Plane;
     [ViewVariables] public readonly string? RenderSource = MutableAppearance.Default.RenderSource;
     [ViewVariables] public readonly string? RenderTarget = MutableAppearance.Default.RenderTarget;
-    [ViewVariables] public readonly MouseOpacity MouseOpacity = MutableAppearance.Default.MouseOpacity;
-    [ViewVariables] public readonly ImmutableAppearance[] Overlays;
-    [ViewVariables] public readonly ImmutableAppearance[] Underlays;
-    [ViewVariables] public readonly NetEntity[] VisContents;
-    [ViewVariables] public readonly DreamFilter[] Filters;
-    [ViewVariables] public readonly int[] Verbs;
-    [ViewVariables] public readonly ColorMatrix ColorMatrix = ColorMatrix.Identity;
-    [ViewVariables] public Vector2i MaptextSize = MutableAppearance.Default.MaptextSize;
-    [ViewVariables] public Vector2i MaptextOffset = MutableAppearance.Default.MaptextOffset;
-    [ViewVariables] public string? Maptext = MutableAppearance.Default.Maptext;
-    [ViewVariables] public AtomMouseEvents EnabledMouseEvents;
-    [ViewVariables] public int MouseDragPointer = MutableAppearance.Default.MouseDragPointer;
-    [ViewVariables] public bool MouseDropZone = MutableAppearance.Default.MouseDropZone;
-    [ViewVariables] public int MouseOverPointer = MutableAppearance.Default.MouseOverPointer;
-    [ViewVariables] public int MouseDropPointer = MutableAppearance.Default.MouseDropPointer;
 
     /// <summary> The Transform property of this appearance, in [a,d,b,e,c,f] order</summary>
     [ViewVariables] public readonly float[] Transform = MutableAppearance.Default.Transform;
 
-    // PixelOffset2 behaves the same as PixelOffset in top-down mode, so this is used
-    public Vector2i TotalPixelOffset => PixelOffset + PixelOffset2;
+    [ViewVariables] public readonly ImmutableAppearance[] Underlays;
+    [ViewVariables] public readonly int[] Verbs;
+    [ViewVariables] public readonly NetEntity[] VisContents;
+    [ViewVariables] public readonly VisFlags VisFlags = MutableAppearance.Default.VisFlags;
 
     [NonSerialized] private readonly SharedAppearanceSystem? _appearanceSystem;
+    [ViewVariables] public AtomMouseEvents EnabledMouseEvents;
+    [ViewVariables] public string? Maptext = MutableAppearance.Default.Maptext;
+    [ViewVariables] public Vector2i MaptextOffset = MutableAppearance.Default.MaptextOffset;
+    [ViewVariables] public Vector2i MaptextSize = MutableAppearance.Default.MaptextSize;
+    [ViewVariables] public int MouseDragPointer = MutableAppearance.Default.MouseDragPointer;
+    [ViewVariables] public int MouseDropPointer = MutableAppearance.Default.MouseDropPointer;
+    [ViewVariables] public bool MouseDropZone = MutableAppearance.Default.MouseDropZone;
+    [ViewVariables] public int MouseOverPointer = MutableAppearance.Default.MouseOverPointer;
     [NonSerialized] private bool _needsFinalizer;
-    [NonSerialized] private int? _storedHashCode;
     [NonSerialized] private List<uint>? _overlayIDs;
+    private uint? _registeredId;
+    [NonSerialized] private int? _storedHashCode;
     [NonSerialized] private List<uint>? _underlayIDs;
 
     public ImmutableAppearance(MutableAppearance appearance, SharedAppearanceSystem? serverAppearanceSystem) {
@@ -124,181 +129,12 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
         }
     }
 
-    ~ImmutableAppearance() {
-        if(_needsFinalizer && _registeredId is not null)
-            _appearanceSystem!.RemoveAppearance(this);
-    }
-
-    public void MarkRegistered(uint registeredId){
-        _registeredId = registeredId;
-        _needsFinalizer = true;
-    }
-
-    //this should only be called client-side, after network transfer
-    public void ResolveOverlays(SharedAppearanceSystem appearanceSystem) {
-        if(_overlayIDs is not null)
-            for (int i = 0; i < _overlayIDs.Count; i++)
-                Overlays[i] = appearanceSystem.MustGetAppearanceById(_overlayIDs[i]);
-
-        if(_underlayIDs is not null)
-            for (int i = 0; i < _underlayIDs.Count; i++)
-                Underlays[i] = appearanceSystem.MustGetAppearanceById(_underlayIDs[i]);
-
-        _overlayIDs = null;
-        _underlayIDs = null;
-    }
-
-    public override bool Equals(object? obj) => obj is ImmutableAppearance immutable && Equals(immutable);
-
-    public bool Equals(ImmutableAppearance? immutableAppearance) {
-        if (immutableAppearance == null) return false;
-
-        if (immutableAppearance.Name != Name) return false;
-        if (immutableAppearance.Desc != Desc) return false;
-        if (immutableAppearance.Icon != Icon) return false;
-        if (immutableAppearance.IconState != IconState) return false;
-        if (immutableAppearance.Direction != Direction) return false;
-        if (immutableAppearance.InheritsDirection != InheritsDirection) return false;
-        if (immutableAppearance.PixelOffset != PixelOffset) return false;
-        if (immutableAppearance.PixelOffset2 != PixelOffset2) return false;
-        if (immutableAppearance.Color != Color) return false;
-        if (immutableAppearance.Alpha != Alpha) return false;
-        if (!immutableAppearance.GlideSize.Equals(GlideSize)) return false;
-        if (!immutableAppearance.ColorMatrix.Equals(ColorMatrix)) return false;
-        if (!immutableAppearance.Layer.Equals(Layer)) return false;
-        if (immutableAppearance.Plane != Plane) return false;
-        if (immutableAppearance.RenderSource != RenderSource) return false;
-        if (immutableAppearance.RenderTarget != RenderTarget) return false;
-        if (immutableAppearance.BlendMode != BlendMode) return false;
-        if (immutableAppearance.AppearanceFlags != AppearanceFlags) return false;
-        if (immutableAppearance.VisFlags != VisFlags) return false;
-        if (immutableAppearance.Invisibility != Invisibility) return false;
-        if (immutableAppearance.Opacity != Opacity) return false;
-        if (immutableAppearance.MouseOpacity != MouseOpacity) return false;
-        if (immutableAppearance.Overlays.Length != Overlays.Length) return false;
-        if (immutableAppearance.Underlays.Length != Underlays.Length) return false;
-        if (immutableAppearance.VisContents.Length != VisContents.Length) return false;
-        if (immutableAppearance.Filters.Length != Filters.Length) return false;
-        if (immutableAppearance.Verbs.Length != Verbs.Length) return false;
-        if (immutableAppearance.Override != Override) return false;
-        if (immutableAppearance.Maptext != Maptext) return false;
-        if (immutableAppearance.MaptextSize != MaptextSize) return false;
-        if (immutableAppearance.MaptextOffset != MaptextOffset) return false;
-        if (immutableAppearance.MouseDragPointer != MouseDragPointer) return false;
-        if (immutableAppearance.MouseDropZone != MouseDropZone) return false;
-        if (immutableAppearance.MouseOverPointer != MouseOverPointer) return false;
-        if (immutableAppearance.MouseDropPointer != MouseDropPointer) return false;
-
-        for (int i = 0; i < Filters.Length; i++) {
-            if (immutableAppearance.Filters[i] != Filters[i]) return false;
-        }
-
-        for (int i = 0; i < Overlays.Length; i++) {
-            if (!immutableAppearance.Overlays[i].Equals(Overlays[i])) return false;
-        }
-
-        for (int i = 0; i < Underlays.Length; i++) {
-            if (!immutableAppearance.Underlays[i].Equals(Underlays[i])) return false;
-        }
-
-        for (int i = 0; i < VisContents.Length; i++) {
-            if (immutableAppearance.VisContents[i] != VisContents[i]) return false;
-        }
-
-        for (int i = 0; i < Verbs.Length; i++) {
-            if (immutableAppearance.Verbs[i] != Verbs[i]) return false;
-        }
-
-        for (int i = 0; i < 6; i++) {
-            if (!immutableAppearance.Transform[i].Equals(Transform[i])) return false;
-        }
-
-        return true;
-    }
-
-    public uint MustGetId() {
-        if(_registeredId is null)
-            throw new InvalidDataException("GetID() was called on an appearance without an ID");
-        return (uint)_registeredId;
-    }
-
-    public bool TryGetId([NotNullWhen(true)] out uint? id) {
-        id = _registeredId;
-        return _registeredId is not null;
-    }
-
-    [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
-    public override int GetHashCode() {
-        if(_storedHashCode is not null) //because everything is readonly, this only needs to be done once
-            return (int)_storedHashCode;
-
-        HashCode hashCode = new HashCode();
-
-        hashCode.Add(Name);
-        hashCode.Add(Desc);
-        hashCode.Add(Icon);
-        hashCode.Add(IconState);
-        hashCode.Add(Direction);
-        hashCode.Add(InheritsDirection);
-        hashCode.Add(PixelOffset);
-        hashCode.Add(PixelOffset2);
-        hashCode.Add(Color);
-        hashCode.Add(ColorMatrix);
-        hashCode.Add(Layer);
-        hashCode.Add(Invisibility);
-        hashCode.Add(Opacity);
-        hashCode.Add(Override);
-        hashCode.Add(MouseOpacity);
-        hashCode.Add(Alpha);
-        hashCode.Add(GlideSize);
-        hashCode.Add(Plane);
-        hashCode.Add(RenderSource);
-        hashCode.Add(RenderTarget);
-        hashCode.Add(BlendMode);
-        hashCode.Add(AppearanceFlags);
-        hashCode.Add(VisFlags);
-        hashCode.Add(Maptext);
-        hashCode.Add(MaptextOffset);
-        hashCode.Add(MaptextSize);
-        hashCode.Add(MouseDragPointer);
-        hashCode.Add(MouseDropZone);
-        hashCode.Add(MouseOverPointer);
-        hashCode.Add(MouseDropPointer);
-
-        foreach (ImmutableAppearance overlay in Overlays) {
-            hashCode.Add(overlay.GetHashCode());
-        }
-
-        foreach (ImmutableAppearance underlay in Underlays) {
-            hashCode.Add(underlay.GetHashCode());
-        }
-
-        foreach (int visContent in VisContents) {
-            hashCode.Add(visContent);
-        }
-
-        foreach (DreamFilter filter in Filters) {
-            hashCode.Add(filter);
-        }
-
-        foreach (int verb in Verbs) {
-            hashCode.Add(verb);
-        }
-
-        for (int i = 0; i < 6; i++) {
-            hashCode.Add(Transform[i]);
-        }
-
-        _storedHashCode = hashCode.ToHashCode();
-        return (int)_storedHashCode;
-    }
-
     public ImmutableAppearance(NetBuffer buffer, IRobustSerializer serializer) {
         Overlays = [];
         Underlays = [];
         VisContents = [];
         Filters = [];
-        Verbs =[];
+        Verbs = [];
 
         var property = (IconAppearanceProperty)buffer.ReadByte();
         while (property != IconAppearanceProperty.End) {
@@ -373,7 +209,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
                     MouseOpacity = (MouseOpacity)buffer.ReadByte();
                     break;
                 case IconAppearanceProperty.ColorMatrix:
-                    ColorMatrix = new(
+                    ColorMatrix = new ColorMatrix(
                         buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(),
                         buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(),
                         buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(), buffer.ReadSingle(),
@@ -383,44 +219,41 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
 
                     break;
                 case IconAppearanceProperty.Overlays: {
-                    var overlaysCount = buffer.ReadVariableInt32();
+                    int overlaysCount = buffer.ReadVariableInt32();
 
                     Overlays = new ImmutableAppearance[overlaysCount];
-                    _overlayIDs = new(overlaysCount);
-                    for (int overlaysI = 0; overlaysI < overlaysCount; overlaysI++) {
+                    _overlayIDs = new List<uint>(overlaysCount);
+                    for (var overlaysI = 0; overlaysI < overlaysCount; overlaysI++)
                         _overlayIDs.Add(buffer.ReadVariableUInt32());
-                    }
 
                     break;
                 }
                 case IconAppearanceProperty.Underlays: {
-                    var underlaysCount = buffer.ReadVariableInt32();
+                    int underlaysCount = buffer.ReadVariableInt32();
 
                     Underlays = new ImmutableAppearance[underlaysCount];
-                    _underlayIDs = new(underlaysCount);
-                    for (int underlaysI = 0; underlaysI < underlaysCount; underlaysI++) {
+                    _underlayIDs = new List<uint>(underlaysCount);
+                    for (var underlaysI = 0; underlaysI < underlaysCount; underlaysI++)
                         _underlayIDs.Add(buffer.ReadVariableUInt32());
-                    }
 
                     break;
                 }
                 case IconAppearanceProperty.VisContents: {
-                    var visContentsCount = buffer.ReadVariableInt32();
+                    int visContentsCount = buffer.ReadVariableInt32();
 
                     VisContents = new NetEntity[visContentsCount];
-                    for (int visContentsI = 0; visContentsI < visContentsCount; visContentsI++) {
+                    for (var visContentsI = 0; visContentsI < visContentsCount; visContentsI++)
                         VisContents[visContentsI] = new NetEntity(buffer.ReadInt32());
-                    }
 
                     break;
                 }
                 case IconAppearanceProperty.Filters: {
-                    var filtersCount = buffer.ReadInt32();
+                    int filtersCount = buffer.ReadInt32();
 
                     Filters = new DreamFilter[filtersCount];
-                    for (int filtersI = 0; filtersI < filtersCount; filtersI++) {
-                        var filterLength = buffer.ReadVariableInt32();
-                        var filterData = buffer.ReadBytes(filterLength);
+                    for (var filtersI = 0; filtersI < filtersCount; filtersI++) {
+                        int filterLength = buffer.ReadVariableInt32();
+                        byte[] filterData = buffer.ReadBytes(filterLength);
                         using var filterStream = new MemoryStream(filterData);
                         var filter = serializer.Deserialize<DreamFilter>(filterStream);
 
@@ -430,12 +263,10 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
                     break;
                 }
                 case IconAppearanceProperty.Verbs: {
-                    var verbsCount = buffer.ReadVariableInt32();
+                    int verbsCount = buffer.ReadVariableInt32();
 
                     Verbs = new int[verbsCount];
-                    for (int verbsI = 0; verbsI < verbsCount; verbsI++) {
-                        Verbs[verbsI] = buffer.ReadVariableInt32();
-                    }
+                    for (var verbsI = 0; verbsI < verbsCount; verbsI++) Verbs[verbsI] = buffer.ReadVariableInt32();
 
                     break;
                 }
@@ -487,8 +318,170 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
             property = (IconAppearanceProperty)buffer.ReadByte();
         }
 
-        if(_registeredId is null)
+        if (_registeredId is null)
             throw new Exception("No appearance ID found in buffer");
+    }
+
+    // PixelOffset2 behaves the same as PixelOffset in top-down mode, so this is used
+    public Vector2i TotalPixelOffset => PixelOffset + PixelOffset2;
+
+    public bool Equals(ImmutableAppearance? immutableAppearance) {
+        if (immutableAppearance == null) return false;
+
+        if (immutableAppearance.Name != Name) return false;
+        if (immutableAppearance.Desc != Desc) return false;
+        if (immutableAppearance.Icon != Icon) return false;
+        if (immutableAppearance.IconState != IconState) return false;
+        if (immutableAppearance.Direction != Direction) return false;
+        if (immutableAppearance.InheritsDirection != InheritsDirection) return false;
+        if (immutableAppearance.PixelOffset != PixelOffset) return false;
+        if (immutableAppearance.PixelOffset2 != PixelOffset2) return false;
+        if (immutableAppearance.Color != Color) return false;
+        if (immutableAppearance.Alpha != Alpha) return false;
+        if (!immutableAppearance.GlideSize.Equals(GlideSize)) return false;
+        if (!immutableAppearance.ColorMatrix.Equals(ColorMatrix)) return false;
+        if (!immutableAppearance.Layer.Equals(Layer)) return false;
+        if (immutableAppearance.Plane != Plane) return false;
+        if (immutableAppearance.RenderSource != RenderSource) return false;
+        if (immutableAppearance.RenderTarget != RenderTarget) return false;
+        if (immutableAppearance.BlendMode != BlendMode) return false;
+        if (immutableAppearance.AppearanceFlags != AppearanceFlags) return false;
+        if (immutableAppearance.VisFlags != VisFlags) return false;
+        if (immutableAppearance.Invisibility != Invisibility) return false;
+        if (immutableAppearance.Opacity != Opacity) return false;
+        if (immutableAppearance.MouseOpacity != MouseOpacity) return false;
+        if (immutableAppearance.Overlays.Length != Overlays.Length) return false;
+        if (immutableAppearance.Underlays.Length != Underlays.Length) return false;
+        if (immutableAppearance.VisContents.Length != VisContents.Length) return false;
+        if (immutableAppearance.Filters.Length != Filters.Length) return false;
+        if (immutableAppearance.Verbs.Length != Verbs.Length) return false;
+        if (immutableAppearance.Override != Override) return false;
+        if (immutableAppearance.Maptext != Maptext) return false;
+        if (immutableAppearance.MaptextSize != MaptextSize) return false;
+        if (immutableAppearance.MaptextOffset != MaptextOffset) return false;
+        if (immutableAppearance.MouseDragPointer != MouseDragPointer) return false;
+        if (immutableAppearance.MouseDropZone != MouseDropZone) return false;
+        if (immutableAppearance.MouseOverPointer != MouseOverPointer) return false;
+        if (immutableAppearance.MouseDropPointer != MouseDropPointer) return false;
+
+        for (var i = 0; i < Filters.Length; i++)
+            if (immutableAppearance.Filters[i] != Filters[i])
+                return false;
+
+        for (var i = 0; i < Overlays.Length; i++)
+            if (!immutableAppearance.Overlays[i].Equals(Overlays[i]))
+                return false;
+
+        for (var i = 0; i < Underlays.Length; i++)
+            if (!immutableAppearance.Underlays[i].Equals(Underlays[i]))
+                return false;
+
+        for (var i = 0; i < VisContents.Length; i++)
+            if (immutableAppearance.VisContents[i] != VisContents[i])
+                return false;
+
+        for (var i = 0; i < Verbs.Length; i++)
+            if (immutableAppearance.Verbs[i] != Verbs[i])
+                return false;
+
+        for (var i = 0; i < 6; i++)
+            if (!immutableAppearance.Transform[i].Equals(Transform[i]))
+                return false;
+
+        return true;
+    }
+
+    ~ImmutableAppearance() {
+        if (_needsFinalizer && _registeredId is not null)
+            _appearanceSystem!.RemoveAppearance(this);
+    }
+
+    public void MarkRegistered(uint registeredId) {
+        _registeredId = registeredId;
+        _needsFinalizer = true;
+    }
+
+    //this should only be called client-side, after network transfer
+    public void ResolveOverlays(SharedAppearanceSystem appearanceSystem) {
+        if (_overlayIDs is not null)
+            for (var i = 0; i < _overlayIDs.Count; i++)
+                Overlays[i] = appearanceSystem.MustGetAppearanceById(_overlayIDs[i]);
+
+        if (_underlayIDs is not null)
+            for (var i = 0; i < _underlayIDs.Count; i++)
+                Underlays[i] = appearanceSystem.MustGetAppearanceById(_underlayIDs[i]);
+
+        _overlayIDs = null;
+        _underlayIDs = null;
+    }
+
+    public override bool Equals(object? obj) {
+        return obj is ImmutableAppearance immutable && Equals(immutable);
+    }
+
+    public uint MustGetId() {
+        if (_registeredId is null)
+            throw new InvalidDataException("GetID() was called on an appearance without an ID");
+        return (uint)_registeredId;
+    }
+
+    public bool TryGetId([NotNullWhen(true)] out uint? id) {
+        id = _registeredId;
+        return _registeredId is not null;
+    }
+
+    [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
+    public override int GetHashCode() {
+        if (_storedHashCode is not null) //because everything is readonly, this only needs to be done once
+            return (int)_storedHashCode;
+
+        var hashCode = new HashCode();
+
+        hashCode.Add(Name);
+        hashCode.Add(Desc);
+        hashCode.Add(Icon);
+        hashCode.Add(IconState);
+        hashCode.Add(Direction);
+        hashCode.Add(InheritsDirection);
+        hashCode.Add(PixelOffset);
+        hashCode.Add(PixelOffset2);
+        hashCode.Add(Color);
+        hashCode.Add(ColorMatrix);
+        hashCode.Add(Layer);
+        hashCode.Add(Invisibility);
+        hashCode.Add(Opacity);
+        hashCode.Add(Override);
+        hashCode.Add(MouseOpacity);
+        hashCode.Add(Alpha);
+        hashCode.Add(GlideSize);
+        hashCode.Add(Plane);
+        hashCode.Add(RenderSource);
+        hashCode.Add(RenderTarget);
+        hashCode.Add(BlendMode);
+        hashCode.Add(AppearanceFlags);
+        hashCode.Add(VisFlags);
+        hashCode.Add(Maptext);
+        hashCode.Add(MaptextOffset);
+        hashCode.Add(MaptextSize);
+        hashCode.Add(MouseDragPointer);
+        hashCode.Add(MouseDropZone);
+        hashCode.Add(MouseOverPointer);
+        hashCode.Add(MouseDropPointer);
+
+        foreach (ImmutableAppearance overlay in Overlays) hashCode.Add(overlay.GetHashCode());
+
+        foreach (ImmutableAppearance underlay in Underlays) hashCode.Add(underlay.GetHashCode());
+
+        foreach (int visContent in VisContents) hashCode.Add(visContent);
+
+        foreach (DreamFilter filter in Filters) hashCode.Add(filter);
+
+        foreach (int verb in Verbs) hashCode.Add(verb);
+
+        for (var i = 0; i < 6; i++) hashCode.Add(Transform[i]);
+
+        _storedHashCode = hashCode.ToHashCode();
+        return (int)_storedHashCode;
     }
 
     //Creates an editable *copy* of this appearance, which must be added to the ServerAppearanceSystem to be used.
@@ -576,9 +569,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
             buffer.Write((byte)Direction);
         }
 
-        if (InheritsDirection != true) {
-            buffer.Write((byte)IconAppearanceProperty.DoesntInheritDirection);
-        }
+        if (!InheritsDirection) buffer.Write((byte)IconAppearanceProperty.DoesntInheritDirection);
 
         if (PixelOffset != MutableAppearance.Default.PixelOffset) {
             buffer.Write((byte)IconAppearanceProperty.PixelOffset);
@@ -613,7 +604,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
         if (!ColorMatrix.Equals(MutableAppearance.Default.ColorMatrix)) {
             buffer.Write((byte)IconAppearanceProperty.ColorMatrix);
 
-            foreach (var value in ColorMatrix.GetValues())
+            foreach (float value in ColorMatrix.GetValues())
                 buffer.Write(value);
         }
 
@@ -676,39 +667,33 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
             buffer.Write((byte)IconAppearanceProperty.Overlays);
 
             buffer.WriteVariableInt32(Overlays.Length);
-            foreach (var overlay in Overlays) {
-                buffer.WriteVariableUInt32(overlay.MustGetId());
-            }
+            foreach (ImmutableAppearance overlay in Overlays) buffer.WriteVariableUInt32(overlay.MustGetId());
         }
 
         if (Underlays.Length != 0) {
             buffer.Write((byte)IconAppearanceProperty.Underlays);
 
             buffer.WriteVariableInt32(Underlays.Length);
-            foreach (var underlay in Underlays) {
-                buffer.WriteVariableUInt32(underlay.MustGetId());
-            }
+            foreach (ImmutableAppearance underlay in Underlays) buffer.WriteVariableUInt32(underlay.MustGetId());
         }
 
         if (VisContents.Length != 0) {
             buffer.Write((byte)IconAppearanceProperty.VisContents);
 
             buffer.WriteVariableInt32(VisContents.Length);
-            foreach (var item in VisContents) {
-                buffer.Write((int)item);
-            }
+            foreach (NetEntity item in VisContents) buffer.Write((int)item);
         }
 
         if (Filters.Length != 0) {
             buffer.Write((byte)IconAppearanceProperty.Filters);
 
             buffer.Write(Filters.Length);
-            foreach (var filter in Filters) {
+            foreach (DreamFilter filter in Filters) {
                 using var filterStream = new MemoryStream();
 
                 serializer.Serialize(filterStream, filter);
                 buffer.WriteVariableInt32((int)filterStream.Length);
-                filterStream.TryGetBuffer(out var filterBuffer);
+                filterStream.TryGetBuffer(out ArraySegment<byte> filterBuffer);
                 buffer.Write(filterBuffer);
             }
         }
@@ -717,21 +702,17 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
             buffer.Write((byte)IconAppearanceProperty.Verbs);
 
             buffer.WriteVariableInt32(Verbs.Length);
-            foreach (var verb in Verbs) {
-                buffer.WriteVariableInt32(verb);
-            }
+            foreach (int verb in Verbs) buffer.WriteVariableInt32(verb);
         }
 
         if (!Transform.SequenceEqual(MutableAppearance.Default.Transform)) {
             buffer.Write((byte)IconAppearanceProperty.Transform);
 
-            for (int i = 0; i < 6; i++) {
-                buffer.Write(Transform[i]);
-            }
+            for (var i = 0; i < 6; i++) buffer.Write(Transform[i]);
         }
 
-        if(!string.IsNullOrEmpty(Maptext)){
-            buffer.Write((byte) IconAppearanceProperty.Maptext);
+        if (!string.IsNullOrEmpty(Maptext)) {
+            buffer.Write((byte)IconAppearanceProperty.Maptext);
             buffer.Write(Maptext);
         }
 
@@ -757,9 +738,7 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
             buffer.WriteVariableInt32(MouseDragPointer);
         }
 
-        if (MouseDropZone) {
-            buffer.Write((byte)IconAppearanceProperty.MouseDropZone);
-        }
+        if (MouseDropZone) buffer.Write((byte)IconAppearanceProperty.MouseDropZone);
 
         if (MouseOverPointer != MutableAppearance.Default.MouseOverPointer) {
             buffer.Write((byte)IconAppearanceProperty.MouseOverPointer);
@@ -778,4 +757,3 @@ public sealed class ImmutableAppearance : IEquatable<ImmutableAppearance> {
         throw new NotImplementedException();
     }
 }
-

@@ -6,20 +6,20 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 /// <summary>
-/// A NetMessage intended for information the client needs, is small, and infrequently changes
+///     A NetMessage intended for information the client needs, is small, and infrequently changes
 /// </summary>
 public sealed class MsgUpdateClientInfo : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
-
-    public int IconSize;
-    public ViewRange View;
     public int CursorResource;
 
+    public int IconSize;
+
     public bool ShowPopupMenus;
+    public ViewRange View;
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         IconSize = buffer.ReadInt32();
-        View = new(buffer.ReadInt32(), buffer.ReadInt32());
+        View = new ViewRange(buffer.ReadInt32(), buffer.ReadInt32());
         ShowPopupMenus = buffer.ReadBoolean();
         CursorResource = buffer.ReadInt32();
     }

@@ -5,11 +5,10 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgLookupResourceResponse : NetMessage {
-    public override NetDeliveryMethod DeliveryMethod => NetDeliveryMethod.ReliableUnordered;
-
     public int ResourceId;
     public string ResourcePathOrRef = "";
     public bool Success;
+    public override NetDeliveryMethod DeliveryMethod => NetDeliveryMethod.ReliableUnordered;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         ResourceId = buffer.ReadInt32();
@@ -23,4 +22,3 @@ public sealed class MsgLookupResourceResponse : NetMessage {
         buffer.Write(Success);
     }
 }
-

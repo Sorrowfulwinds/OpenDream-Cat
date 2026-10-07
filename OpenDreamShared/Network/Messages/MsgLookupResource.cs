@@ -5,9 +5,8 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgLookupResource : NetMessage {
-    public override NetDeliveryMethod DeliveryMethod => NetDeliveryMethod.ReliableUnordered;
-
     public string ResourcePathOrRef = "";
+    public override NetDeliveryMethod DeliveryMethod => NetDeliveryMethod.ReliableUnordered;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         ResourcePathOrRef = buffer.ReadString();

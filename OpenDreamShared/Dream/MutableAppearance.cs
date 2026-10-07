@@ -1,8 +1,9 @@
-﻿using Robust.Shared.Maths;
-using Robust.Shared.ViewVariables;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Robust.Shared.GameObjects;
+using Robust.Shared.Maths;
+using Robust.Shared.ViewVariables;
 
 namespace OpenDreamShared.Dream;
 
@@ -24,70 +25,70 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
     public static readonly MutableAppearance Default = new();
 
     private static Stack<MutableAppearance> _mutableAppearancePool = new();
-
-    [ViewVariables] public string Name = string.Empty;
-    [ViewVariables] public string? Desc = string.Empty;
-    [ViewVariables] public int? Icon;
-    [ViewVariables] public string? IconState;
-    [ViewVariables] public AtomDirection Direction = AtomDirection.South;
-    [ViewVariables] public bool InheritsDirection = true; // Inherits direction when used as an overlay
-    [ViewVariables] public Vector2i PixelOffset;  // pixel_x and pixel_y
-    [ViewVariables] public Vector2i PixelOffset2; // pixel_w and pixel_z
-    [ViewVariables] public Color Color = Color.White;
     [ViewVariables] public byte Alpha = 255;
-    [ViewVariables] public float GlideSize;
-    [ViewVariables] public float Layer = -1f;
-    [ViewVariables] public int Plane = -32767;
-    [ViewVariables] public BlendMode BlendMode = BlendMode.Default;
     [ViewVariables] public AppearanceFlags AppearanceFlags = AppearanceFlags.None;
-    [ViewVariables] public VisFlags VisFlags = VisFlags.None;
-    [ViewVariables] public sbyte Invisibility;
-    [ViewVariables] public bool Opacity;
-    [ViewVariables] public bool Override;
-    [ViewVariables] public string? RenderSource;
-    [ViewVariables] public string? RenderTarget;
-    [ViewVariables] public MouseOpacity MouseOpacity = MouseOpacity.PixelOpaque;
-    [ViewVariables] public List<ImmutableAppearance> Overlays;
-    [ViewVariables] public List<ImmutableAppearance> Underlays;
-    [ViewVariables] public List<Robust.Shared.GameObjects.NetEntity> VisContents;
-    [ViewVariables] public List<DreamFilter> Filters;
-    [ViewVariables] public List<int> Verbs;
-    [ViewVariables] public Vector2i MaptextSize = new(32,32);
-    [ViewVariables] public Vector2i MaptextOffset = new(0,0);
-    [ViewVariables] public string? Maptext;
-    [ViewVariables] public int MouseDragPointer;
-    [ViewVariables] public bool MouseDropZone;
-    [ViewVariables] public int MouseOverPointer;
-    [ViewVariables] public int MouseDropPointer;
+    [ViewVariables] public BlendMode BlendMode = BlendMode.Default;
+    [ViewVariables] public Color Color = Color.White;
 
     /// <summary>
-    /// Used by atoms to mark what mouse events are enabled. Doesn't mean anything outside the context of atoms.
-    /// Intentionally left out of hash & equality!
-    /// </summary>
-    [ViewVariables] public AtomMouseEvents EnabledMouseEvents;
-
-    /// <summary>
-    /// An appearance can gain a color matrix filter by two possible forces: <br/>
-    /// 1. the /atom.color var is modified. <br/>
-    /// 2. the /atom.filters var gets a new filter of type "color". <br/>
-    /// DM crashes in some circumstances of this but we, as an extension :^), should try not to. <br/>
-    /// So, this exists as a way for the appearance to remember whether it's coloured by .color, specifically.
+    ///     An appearance can gain a color matrix filter by two possible forces: <br />
+    ///     1. the /atom.color var is modified. <br />
+    ///     2. the /atom.filters var gets a new filter of type "color". <br />
+    ///     DM crashes in some circumstances of this but we, as an extension :^), should try not to. <br />
+    ///     So, this exists as a way for the appearance to remember whether it's coloured by .color, specifically.
     /// </summary>
     /// <remarks>
-    /// The reason we don't just take the slow path and always use this filter is not just for optimization,<br/>
-    /// it's also for parity! See <see cref="TryRepresentMatrixAsRgbaColor"/> for more.
+    ///     The reason we don't just take the slow path and always use this filter is not just for optimization,<br />
+    ///     it's also for parity! See <see cref="TryRepresentMatrixAsRgbaColor" /> for more.
     /// </remarks>
     [ViewVariables] public ColorMatrix ColorMatrix = ColorMatrix.Identity;
 
+    [ViewVariables] public string? Desc = string.Empty;
+    [ViewVariables] public AtomDirection Direction = AtomDirection.South;
+
+    /// <summary>
+    ///     Used by atoms to mark what mouse events are enabled. Doesn't mean anything outside the context of atoms.
+    ///     Intentionally left out of hash & equality!
+    /// </summary>
+    [ViewVariables] public AtomMouseEvents EnabledMouseEvents;
+
+    [ViewVariables] public List<DreamFilter> Filters;
+    [ViewVariables] public float GlideSize;
+    [ViewVariables] public int? Icon;
+    [ViewVariables] public string? IconState;
+    [ViewVariables] public bool InheritsDirection = true; // Inherits direction when used as an overlay
+    [ViewVariables] public sbyte Invisibility;
+    [ViewVariables] public float Layer = -1f;
+    [ViewVariables] public string? Maptext;
+    [ViewVariables] public Vector2i MaptextOffset = new(0, 0);
+    [ViewVariables] public Vector2i MaptextSize = new(32, 32);
+    [ViewVariables] public int MouseDragPointer;
+    [ViewVariables] public int MouseDropPointer;
+    [ViewVariables] public bool MouseDropZone;
+    [ViewVariables] public MouseOpacity MouseOpacity = MouseOpacity.PixelOpaque;
+    [ViewVariables] public int MouseOverPointer;
+
+    [ViewVariables] public string Name = string.Empty;
+    [ViewVariables] public bool Opacity;
+    [ViewVariables] public List<ImmutableAppearance> Overlays;
+    [ViewVariables] public bool Override;
+    [ViewVariables] public Vector2i PixelOffset; // pixel_x and pixel_y
+    [ViewVariables] public Vector2i PixelOffset2; // pixel_w and pixel_z
+    [ViewVariables] public int Plane = -32767;
+    [ViewVariables] public string? RenderSource;
+    [ViewVariables] public string? RenderTarget;
+
     /// <summary> The Transform property of this appearance, in [a,d,b,e,c,f] order</summary>
     [ViewVariables] public float[] Transform = [
-        1, 0,   // a d
-        0, 1,   // b e
-        0, 0    // c f
+        1, 0, // a d
+        0, 1, // b e
+        0, 0 // c f
     ];
 
-    // PixelOffset2 behaves the same as PixelOffset in top-down mode, so this is used
-    public Vector2i TotalPixelOffset => PixelOffset + PixelOffset2;
+    [ViewVariables] public List<ImmutableAppearance> Underlays;
+    [ViewVariables] public List<int> Verbs;
+    [ViewVariables] public List<NetEntity> VisContents;
+    [ViewVariables] public VisFlags VisFlags = VisFlags.None;
 
     private MutableAppearance() {
         Overlays = [];
@@ -97,13 +98,82 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         Verbs = [];
     }
 
+    // PixelOffset2 behaves the same as PixelOffset in top-down mode, so this is used
+    public Vector2i TotalPixelOffset => PixelOffset + PixelOffset2;
+
     public void Dispose() {
         CopyFrom(Default);
         _mutableAppearancePool.Push(this);
     }
 
+    public bool Equals(MutableAppearance? appearance) {
+        if (appearance == null) return false;
+
+        if (appearance.Name != Name) return false;
+        if (appearance.Desc != Desc) return false;
+        if (appearance.Icon != Icon) return false;
+        if (appearance.IconState != IconState) return false;
+        if (appearance.Direction != Direction) return false;
+        if (appearance.InheritsDirection != InheritsDirection) return false;
+        if (appearance.PixelOffset != PixelOffset) return false;
+        if (appearance.PixelOffset2 != PixelOffset2) return false;
+        if (appearance.Color != Color) return false;
+        if (appearance.Alpha != Alpha) return false;
+        if (!appearance.GlideSize.Equals(GlideSize)) return false;
+        if (!appearance.ColorMatrix.Equals(ColorMatrix)) return false;
+        if (!appearance.Layer.Equals(Layer)) return false;
+        if (appearance.Plane != Plane) return false;
+        if (appearance.RenderSource != RenderSource) return false;
+        if (appearance.RenderTarget != RenderTarget) return false;
+        if (appearance.BlendMode != BlendMode) return false;
+        if (appearance.AppearanceFlags != AppearanceFlags) return false;
+        if (appearance.VisFlags != VisFlags) return false;
+        if (appearance.Invisibility != Invisibility) return false;
+        if (appearance.Opacity != Opacity) return false;
+        if (appearance.MouseOpacity != MouseOpacity) return false;
+        if (appearance.Overlays.Count != Overlays.Count) return false;
+        if (appearance.Underlays.Count != Underlays.Count) return false;
+        if (appearance.VisContents.Count != VisContents.Count) return false;
+        if (appearance.Filters.Count != Filters.Count) return false;
+        if (appearance.Verbs.Count != Verbs.Count) return false;
+        if (appearance.Override != Override) return false;
+        if (appearance.Maptext != Maptext) return false;
+        if (appearance.MaptextSize != MaptextSize) return false;
+        if (appearance.MaptextOffset != MaptextOffset) return false;
+        if (MouseDragPointer != appearance.MouseDragPointer) return false;
+        if (MouseDropZone != appearance.MouseDropZone) return false;
+        if (MouseOverPointer != appearance.MouseOverPointer) return false;
+        if (MouseDropPointer != appearance.MouseDropPointer) return false;
+
+        for (var i = 0; i < Filters.Count; i++)
+            if (appearance.Filters[i] != Filters[i])
+                return false;
+
+        for (var i = 0; i < Overlays.Count; i++)
+            if (appearance.Overlays[i] != Overlays[i])
+                return false;
+
+        for (var i = 0; i < Underlays.Count; i++)
+            if (appearance.Underlays[i] != Underlays[i])
+                return false;
+
+        for (var i = 0; i < VisContents.Count; i++)
+            if (appearance.VisContents[i] != VisContents[i])
+                return false;
+
+        for (var i = 0; i < Verbs.Count; i++)
+            if (appearance.Verbs[i] != Verbs[i])
+                return false;
+
+        for (var i = 0; i < 6; i++)
+            if (!appearance.Transform[i].Equals(Transform[i]))
+                return false;
+
+        return true;
+    }
+
     public static MutableAppearance Get() {
-        if (_mutableAppearancePool.TryPop(out var popped))
+        if (_mutableAppearancePool.TryPop(out MutableAppearance? popped))
             return popped;
 
         return new MutableAppearance();
@@ -168,86 +238,23 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         }
     }
 
-    public override bool Equals(object? obj) => obj is MutableAppearance appearance && Equals(appearance);
-
-    public bool Equals(MutableAppearance? appearance) {
-        if (appearance == null) return false;
-
-        if (appearance.Name != Name) return false;
-        if (appearance.Desc != Desc) return false;
-        if (appearance.Icon != Icon) return false;
-        if (appearance.IconState != IconState) return false;
-        if (appearance.Direction != Direction) return false;
-        if (appearance.InheritsDirection != InheritsDirection) return false;
-        if (appearance.PixelOffset != PixelOffset) return false;
-        if (appearance.PixelOffset2 != PixelOffset2) return false;
-        if (appearance.Color != Color) return false;
-        if (appearance.Alpha != Alpha) return false;
-        if (!appearance.GlideSize.Equals(GlideSize)) return false;
-        if (!appearance.ColorMatrix.Equals(ColorMatrix)) return false;
-        if (!appearance.Layer.Equals(Layer)) return false;
-        if (appearance.Plane != Plane) return false;
-        if (appearance.RenderSource != RenderSource) return false;
-        if (appearance.RenderTarget != RenderTarget) return false;
-        if (appearance.BlendMode != BlendMode) return false;
-        if (appearance.AppearanceFlags != AppearanceFlags) return false;
-        if (appearance.VisFlags != VisFlags) return false;
-        if (appearance.Invisibility != Invisibility) return false;
-        if (appearance.Opacity != Opacity) return false;
-        if (appearance.MouseOpacity != MouseOpacity) return false;
-        if (appearance.Overlays.Count != Overlays.Count) return false;
-        if (appearance.Underlays.Count != Underlays.Count) return false;
-        if (appearance.VisContents.Count != VisContents.Count) return false;
-        if (appearance.Filters.Count != Filters.Count) return false;
-        if (appearance.Verbs.Count != Verbs.Count) return false;
-        if (appearance.Override != Override) return false;
-        if (appearance.Maptext != Maptext) return false;
-        if (appearance.MaptextSize != MaptextSize) return false;
-        if (appearance.MaptextOffset != MaptextOffset) return false;
-        if (MouseDragPointer != appearance.MouseDragPointer) return false;
-        if (MouseDropZone != appearance.MouseDropZone) return false;
-        if (MouseOverPointer != appearance.MouseOverPointer) return false;
-        if (MouseDropPointer != appearance.MouseDropPointer) return false;
-
-        for (int i = 0; i < Filters.Count; i++) {
-            if (appearance.Filters[i] != Filters[i]) return false;
-        }
-
-        for (int i = 0; i < Overlays.Count; i++) {
-            if (appearance.Overlays[i] != Overlays[i]) return false;
-        }
-
-        for (int i = 0; i < Underlays.Count; i++) {
-            if (appearance.Underlays[i] != Underlays[i]) return false;
-        }
-
-        for (int i = 0; i < VisContents.Count; i++) {
-            if (appearance.VisContents[i] != VisContents[i]) return false;
-        }
-
-        for (int i = 0; i < Verbs.Count; i++) {
-            if (appearance.Verbs[i] != Verbs[i]) return false;
-        }
-
-        for (int i = 0; i < 6; i++) {
-            if (!appearance.Transform[i].Equals(Transform[i])) return false;
-        }
-
-        return true;
+    public override bool Equals(object? obj) {
+        return obj is MutableAppearance appearance && Equals(appearance);
     }
 
     /// <summary>
-    /// This is a helper used for both optimization and parity. <br/>
-    /// In BYOND, if a color matrix is representable as an RGBA color string, <br/>
-    /// then it is coerced into one internally before being saved onto some appearance. <br/>
-    /// This does the linear algebra madness necessary to determine whether this is the case or not.
+    ///     This is a helper used for both optimization and parity. <br />
+    ///     In BYOND, if a color matrix is representable as an RGBA color string, <br />
+    ///     then it is coerced into one internally before being saved onto some appearance. <br />
+    ///     This does the linear algebra madness necessary to determine whether this is the case or not.
     /// </summary>
-    private static bool TryRepresentMatrixAsRgbaColor(in ColorMatrix matrix, [NotNullWhen(true)] out Color? maybeColor) {
+    private static bool
+        TryRepresentMatrixAsRgbaColor(in ColorMatrix matrix, [NotNullWhen(true)] out Color? maybeColor) {
         maybeColor = null;
 
         // The R G B A values need to be bounded [0,1] for a color conversion to work;
         // anything higher implies trying to render "superblue" or something.
-        float diagonalSum = 0f;
+        var diagonalSum = 0f;
         foreach (float diagonalValue in matrix.GetDiagonal()) {
             if (diagonalValue < 0 || diagonalValue > 1)
                 return false;
@@ -255,7 +262,7 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         }
 
         // and then all of the other values need to be zero, including the offset vector.
-        float sum = 0f;
+        var sum = 0f;
         foreach (float value in matrix.GetValues()) {
             if (value < 0f) // To avoid situations like negatives and positives cancelling out this checksum.
                 return false;
@@ -270,7 +277,7 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
     //it is *ESSENTIAL* that this matches the hashcode of the equivelant ImmutableAppearance. There's a debug assert and everything.
     [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
     public override int GetHashCode() {
-        HashCode hashCode = new HashCode();
+        var hashCode = new HashCode();
 
         hashCode.Add(Name);
         hashCode.Add(Desc);
@@ -303,53 +310,39 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         hashCode.Add(MouseOverPointer);
         hashCode.Add(MouseDropPointer);
 
-        foreach (var overlay in Overlays) {
-            hashCode.Add(overlay.GetHashCode());
-        }
+        foreach (ImmutableAppearance overlay in Overlays) hashCode.Add(overlay.GetHashCode());
 
-        foreach (var underlay in Underlays) {
-            hashCode.Add(underlay.GetHashCode());
-        }
+        foreach (ImmutableAppearance underlay in Underlays) hashCode.Add(underlay.GetHashCode());
 
-        foreach (int visContent in VisContents) {
-            hashCode.Add(visContent);
-        }
+        foreach (int visContent in VisContents) hashCode.Add(visContent);
 
-        foreach (DreamFilter filter in Filters) {
-            hashCode.Add(filter);
-        }
+        foreach (DreamFilter filter in Filters) hashCode.Add(filter);
 
-        foreach (int verb in Verbs) {
-            hashCode.Add(verb);
-        }
+        foreach (int verb in Verbs) hashCode.Add(verb);
 
-        for (int i = 0; i < 6; i++) {
-            hashCode.Add(Transform[i]);
-        }
+        for (var i = 0; i < 6; i++) hashCode.Add(Transform[i]);
 
         return hashCode.ToHashCode();
     }
 
     /// <summary>
-    /// Parses the given colour string and sets this appearance to use it.
+    ///     Parses the given colour string and sets this appearance to use it.
     /// </summary>
     /// <exception cref="ArgumentException">Thrown if color is not valid.</exception>
     public void SetColor(string color) {
         // TODO: the BYOND compiler enforces valid colors *unless* it's a map edit, in which case an empty string is allowed
         ColorMatrix = ColorMatrix.Identity; // reset our color matrix if we had one
 
-        if (!ColorHelpers.TryParseColor(color, out Color)) {
-            Color = Color.White;
-        }
+        if (!ColorHelpers.TryParseColor(color, out Color)) Color = Color.White;
 
         Alpha = (byte)(Color.A * 255);
     }
 
     /// <summary>
-    /// Sets the 'color' attribute to a color matrix, which will be used on the icon later on by a shader.
+    ///     Sets the 'color' attribute to a color matrix, which will be used on the icon later on by a shader.
     /// </summary>
     public void SetColor(in ColorMatrix matrix) {
-        if (TryRepresentMatrixAsRgbaColor(matrix, out var matrixColor)) {
+        if (TryRepresentMatrixAsRgbaColor(matrix, out Color? matrixColor)) {
             Color = matrixColor.Value;
             ColorMatrix = ColorMatrix.Identity;
             return;
@@ -411,7 +404,7 @@ public enum AnimationEasing {
     Quad = 7,
     Jump = 8,
     EaseIn = 64,
-    EaseOut = 128,
+    EaseOut = 128
 }
 
 [Flags]
@@ -438,43 +431,43 @@ public enum AtomMouseEvents {
 
 //used for encoding for netmessages
 public enum IconAppearanceProperty : byte {
-        Name,
-        Desc,
-        Icon,
-        IconState,
-        Direction,
-        DoesntInheritDirection,
-        PixelOffset,
-        PixelOffset2,
-        Color,
-        Alpha,
-        GlideSize,
-        ColorMatrix,
-        Layer,
-        Plane,
-        BlendMode,
-        AppearanceFlags,
-        VisFlags,
-        Invisibility,
-        Opacity,
-        Override,
-        RenderSource,
-        RenderTarget,
-        MouseOpacity,
-        Overlays,
-        Underlays,
-        VisContents,
-        Filters,
-        Verbs,
-        Transform,
-        Maptext,
-        MaptextSize,
-        MaptextOffset,
-        EnabledMouseEvents,
-        MouseDragPointer,
-        MouseDropZone,
-        MouseOverPointer,
-        MouseDropPointer,
-        Id,
-        End
-    }
+    Name,
+    Desc,
+    Icon,
+    IconState,
+    Direction,
+    DoesntInheritDirection,
+    PixelOffset,
+    PixelOffset2,
+    Color,
+    Alpha,
+    GlideSize,
+    ColorMatrix,
+    Layer,
+    Plane,
+    BlendMode,
+    AppearanceFlags,
+    VisFlags,
+    Invisibility,
+    Opacity,
+    Override,
+    RenderSource,
+    RenderTarget,
+    MouseOpacity,
+    Overlays,
+    Underlays,
+    VisContents,
+    Filters,
+    Verbs,
+    Transform,
+    Maptext,
+    MaptextSize,
+    MaptextOffset,
+    EnabledMouseEvents,
+    MouseDragPointer,
+    MouseDropZone,
+    MouseOverPointer,
+    MouseDropPointer,
+    Id,
+    End
+}

@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using OpenDreamShared.Interface.Descriptors;
 using Robust.Shared.Serialization.Manager;
 using Robust.Shared.Serialization.Markdown.Mapping;
@@ -10,27 +9,25 @@ using TokenType = OpenDreamShared.Interface.DMF.DMFLexer.TokenType;
 namespace OpenDreamShared.Interface.DMF;
 
 public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializationManager) {
-    public List<string> Errors = new();
-
     private readonly TokenType[] _attributeTokenTypes = {
         TokenType.Attribute,
         TokenType.Macro,
         TokenType.Menu
     };
 
+    private readonly Queue<Token> _tokenQueue = new();
+    public List<string> Errors = new();
+
     private Token _currentToken = lexer.NextToken();
     private bool _errorMode;
-    private readonly Queue<Token> _tokenQueue = new();
 
     /// <summary>
-    /// Parse the command used in a global winset()
+    ///     Parse the command used in a global winset()
     /// </summary>
     public List<DMFWinSet> GlobalWinSet() {
         List<DMFWinSet> winSets = new();
 
-        while (TryGetAttribute(out var winset)) {
-            winSets.Add(winset);
-        }
+        while (TryGetAttribute(out DMFWinSet? winset)) winSets.Add(winset);
 
         return winSets;
     }
@@ -40,7 +37,7 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
         List<MacroSetDescriptor> macroSetDescriptors = new();
         List<MenuDescriptor> menuDescriptors = new();
 
-        bool parsing = true;
+        var parsing = true;
         while (parsing) {
             WindowDescriptor? windowDescriptor = Window();
             if (windowDescriptor != null) {
@@ -60,9 +57,7 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
                 Newline();
             }
 
-            if (windowDescriptor == null && macroSet == null && menu == null) {
-                parsing = false;
-            }
+            if (windowDescriptor == null && macroSet == null && menu == null) parsing = false;
 
             if (_errorMode) {
                 //Error recovery
@@ -90,7 +85,8 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             Newline();
 
             WindowDescriptor window = new(windowId);
-            while (Element(window)) {}
+            while (Element(window)) {
+            }
 
             return window;
         }
@@ -105,10 +101,10 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             string elementId = elementIdToken.Text;
             Newline();
 
-            var attributes = Attributes();
+            MappingDataNode attributes = Attributes();
             attributes.Add("id", elementId);
 
-            var control = window.CreateChildDescriptor(serializationManager, attributes);
+            ControlDescriptor? control = window.CreateChildDescriptor(serializationManager, attributes);
             if (control == null) {
                 Error($"Element '{elementId}' does not have a valid 'type' attribute");
                 return false;
@@ -127,12 +123,13 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             Newline();
 
             MacroSetDescriptor macroSet = new(macroSetIdToken.Text);
-            while (Macro(macroSet)) { }
+            while (Macro(macroSet)) {
+            }
 
             return macroSet;
-        } else {
-            return null;
         }
+
+        return null;
     }
 
     private bool Macro(MacroSetDescriptor macroSet) {
@@ -141,7 +138,7 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             bool hasId = Check(TokenType.Value);
             Newline();
 
-            var attributes = Attributes();
+            MappingDataNode attributes = Attributes();
 
             if (hasId) attributes.Add("id", macroIdToken.Text);
             else attributes.Add("id", attributes.Get("name"));
@@ -160,7 +157,8 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             Newline();
 
             var menu = new MenuDescriptor(menuIdToken.Text);
-            while (MenuElement(menu)) { }
+            while (MenuElement(menu)) {
+            }
 
             return menu;
         }
@@ -174,7 +172,7 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
             bool hasId = Check(TokenType.Value);
             Newline();
 
-            var attributes = Attributes();
+            MappingDataNode attributes = Attributes();
 
             if (hasId) attributes.Add("id", elementIdToken.Text);
             else attributes.Add("id", attributes.Get("name"));
@@ -193,9 +191,9 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
         Token attributeToken = Current();
 
         if (Check(_attributeTokenTypes)) {
-            while(Check(TokenType.Period)) { // element.attribute=value
+            while (Check(TokenType.Period)) { // element.attribute=value
                 element ??= "";
-                if(element.Length > 0) element += ".";
+                if (element.Length > 0) element += ".";
                 element += attributeToken.Text;
                 attributeToken = Current();
 
@@ -221,23 +219,20 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
                 valueText += attributeValue.Text;
                 if (!Check(TokenType.Value) && !Check(TokenType.Attribute))
                     Error($"Invalid attribute value ({valueText})");
-            } else if (!Check(TokenType.Value))
-                if(Check(TokenType.Semicolon) || Check(TokenType.EndOfFile)) //thing.attribute=; means thing.attribute=empty string
+            } else if (!Check(TokenType.Value)) {
+                if (Check(TokenType.Semicolon) ||
+                    Check(TokenType.EndOfFile)) //thing.attribute=; means thing.attribute=empty string
                     valueText = "";
                 else
                     Error($"Invalid attribute value ({valueText})");
-            else if (Check(TokenType.Ternary)) {
+            } else if (Check(TokenType.Ternary)) {
                 List<DMFWinSet> trueStatements = new();
                 List<DMFWinSet> falseStatements = new();
-                while(TryGetAttribute(out var statement)){
-                    trueStatements.Add(statement);
-                }
+                while (TryGetAttribute(out DMFWinSet? statement)) trueStatements.Add(statement);
 
-                if(Check(TokenType.Colon)){ //not all ternarys have an else
-                    while(TryGetAttribute(out var statement)){
+                if (Check(TokenType.Colon)) //not all ternarys have an else
+                    while (TryGetAttribute(out DMFWinSet? statement))
                         falseStatements.Add(statement);
-                    }
-                }
 
                 winSet = new DMFWinSet(element, attributeToken.Text, valueText, trueStatements, falseStatements);
                 return true;
@@ -254,7 +249,7 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
     public MappingDataNode Attributes() {
         var node = new MappingDataNode();
 
-        while (TryGetAttribute(out var winset)) {
+        while (TryGetAttribute(out DMFWinSet? winset)) {
             if (winset.Element != null) {
                 Error($"Element id \"{winset.Element}\" is not valid here");
                 continue;
@@ -274,7 +269,7 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
     public Dictionary<string, string> AttributesValues() {
         var attributes = new Dictionary<string, string>();
 
-        while (TryGetAttribute(out var winset)) {
+        while (TryGetAttribute(out DMFWinSet? winset)) {
             if (winset.Element != null) {
                 Error($"Element id \"{winset.Element}\" is not valid here");
                 continue;
@@ -308,10 +303,10 @@ public sealed class DMFParser(DMFLexer lexer, ISerializationManager serializatio
     }
 
     private Token Advance() {
-        _currentToken = (_tokenQueue.Count > 0) ? _tokenQueue.Dequeue() : lexer.NextToken();
+        _currentToken = _tokenQueue.Count > 0 ? _tokenQueue.Dequeue() : lexer.NextToken();
         while (_currentToken.Type is TokenType.Error) {
             Error(_currentToken.Text);
-            _currentToken = (_tokenQueue.Count > 0) ? _tokenQueue.Dequeue() : lexer.NextToken();
+            _currentToken = _tokenQueue.Count > 0 ? _tokenQueue.Dequeue() : lexer.NextToken();
         }
 
         return Current();

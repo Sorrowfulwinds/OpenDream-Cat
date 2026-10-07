@@ -8,11 +8,10 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgPromptResponse : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
-
     public int PromptId;
     public DreamValueType Type;
     public object? Value;
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         PromptId = buffer.ReadVariableInt32();
@@ -22,7 +21,8 @@ public sealed class MsgPromptResponse : NetMessage {
             DreamValueType.Null => null,
             DreamValueType.Text or DreamValueType.Message => buffer.ReadString(),
             DreamValueType.Num => buffer.ReadSingle(),
-            DreamValueType.Color => new Color(buffer.ReadByte(), buffer.ReadByte(), buffer.ReadByte(), buffer.ReadByte()),
+            DreamValueType.Color => new Color(buffer.ReadByte(), buffer.ReadByte(), buffer.ReadByte(),
+                buffer.ReadByte()),
             _ => throw new ArgumentOutOfRangeException()
         };
     }

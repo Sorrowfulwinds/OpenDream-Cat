@@ -14,8 +14,9 @@ public sealed class DreamMobSightSystem : EntitySystem {
             component.SeeInvisibility, component.Sight);
     }
 
-    private static void HandleComponentState(EntityUid uid, DreamMobSightComponent component, ref ComponentHandleState args) {
-        DreamMobSightComponentState? state = (DreamMobSightComponentState?)args.Current;
+    private static void HandleComponentState(EntityUid uid, DreamMobSightComponent component,
+        ref ComponentHandleState args) {
+        var state = (DreamMobSightComponentState?)args.Current;
         if (state == null)
             return;
 

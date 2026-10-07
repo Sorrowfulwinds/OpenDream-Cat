@@ -6,14 +6,14 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgResource : NetMessage {
-    public override NetDeliveryMethod DeliveryMethod => NetDeliveryMethod.ReliableUnordered;
+    public byte[] ResourceData = Array.Empty<byte>();
 
     public int ResourceId;
-    public byte[] ResourceData = Array.Empty<byte>();
+    public override NetDeliveryMethod DeliveryMethod => NetDeliveryMethod.ReliableUnordered;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         ResourceId = buffer.ReadInt32();
-        var dataLen = buffer.ReadVariableInt32();
+        int dataLen = buffer.ReadVariableInt32();
         ResourceData = buffer.ReadBytes(dataLen);
     }
 

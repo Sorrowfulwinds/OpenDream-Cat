@@ -5,15 +5,15 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 /// <summary>
-/// Sent server -> client to tell the client to load the interface after connecting, before going in-game.
+///     Sent server -> client to tell the client to load the interface after connecting, before going in-game.
 /// </summary>
 public sealed class MsgLoadInterface : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.Core;
-
     /// <summary>
-    /// The DMF source for the interface. Null if none exists.
+    ///     The DMF source for the interface. Null if none exists.
     /// </summary>
     public string? InterfaceText;
+
+    public override MsgGroups MsgGroup => MsgGroups.Core;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         bool hasInterface = buffer.ReadBoolean();

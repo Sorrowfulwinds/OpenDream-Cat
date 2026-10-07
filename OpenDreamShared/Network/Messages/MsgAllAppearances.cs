@@ -10,32 +10,35 @@ using Robust.Shared.Utility;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgAllAppearances(Dictionary<uint, ImmutableAppearance> allAppearances) : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
     public Dictionary<uint, ImmutableAppearance> AllAppearances = allAppearances;
 
-    public MsgAllAppearances() : this(new()) { }
+    public MsgAllAppearances() : this(new Dictionary<uint, ImmutableAppearance>()) {
+    }
+
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
-        using var compressed = new MemoryStream(buffer.Data, buffer.PositionInBytes, buffer.LengthBytes - buffer.PositionInBytes);
-        var decompressed = DecompressAppearances(compressed);
-        var count = decompressed.ReadInt32();
-        AllAppearances = new(count);
+        using var compressed = new MemoryStream(buffer.Data, buffer.PositionInBytes,
+            buffer.LengthBytes - buffer.PositionInBytes);
+        NetBuffer decompressed = DecompressAppearances(compressed);
+        int count = decompressed.ReadInt32();
+        AllAppearances = new Dictionary<uint, ImmutableAppearance>(count);
 
-        for (int i = 0; i < count; i++) {
+        for (var i = 0; i < count; i++) {
             var appearance = new ImmutableAppearance(decompressed, serializer);
             AllAppearances.Add(appearance.MustGetId(), appearance);
         }
     }
 
     public override void WriteToBuffer(NetOutgoingMessage buffer, IRobustSerializer serializer) {
-        using var compressed = CompressAppearances(AllAppearances.Values, AllAppearances.Count, serializer);
+        using MemoryStream compressed = CompressAppearances(AllAppearances.Values, AllAppearances.Count, serializer);
 
         buffer.Write(compressed.GetBuffer(), 0, (int)compressed.Position);
     }
 
     public static NetBuffer DecompressAppearances(MemoryStream data) {
         using var decompressStream = new DeflateStream(data, CompressionMode.Decompress);
-        var decompressedData = decompressStream.CopyToArray();
+        byte[] decompressedData = decompressStream.CopyToArray();
 
         return new NetBuffer {
             Data = decompressedData,
@@ -44,14 +47,13 @@ public sealed class MsgAllAppearances(Dictionary<uint, ImmutableAppearance> allA
         };
     }
 
-    public static MemoryStream CompressAppearances(IEnumerable<ImmutableAppearance> appearances, int count, IRobustSerializer serializer) {
+    public static MemoryStream CompressAppearances(IEnumerable<ImmutableAppearance> appearances, int count,
+        IRobustSerializer serializer) {
         var beforeCompress = new NetBuffer();
         beforeCompress.Write(count);
-        foreach (var appearance in appearances) {
-            appearance.WriteToBuffer(beforeCompress, serializer);
-        }
+        foreach (ImmutableAppearance appearance in appearances) appearance.WriteToBuffer(beforeCompress, serializer);
 
-        var compressBound = ZStd.CompressBound(beforeCompress.LengthBytes);
+        int compressBound = ZStd.CompressBound(beforeCompress.LengthBytes);
         var compressedData = new MemoryStream(compressBound);
         using var compressStream = new DeflateStream(compressedData, CompressionMode.Compress);
 

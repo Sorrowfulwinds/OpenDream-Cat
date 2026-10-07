@@ -5,11 +5,11 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgWinGet : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
+    public string ControlId = string.Empty;
 
     public int PromptId;
-    public string ControlId = string.Empty;
     public string QueryValue = string.Empty;
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         PromptId = buffer.ReadVariableInt32();

@@ -20,20 +20,13 @@ public sealed class DMFLexer(string source) {
         Attribute,
         Ternary,
         Colon,
-        Lookup,
-    }
-
-    public struct Token(TokenType type, string text) {
-        public TokenType Type = type;
-        public string Text = text;
-
-        public Token(TokenType type, char textChar) : this(type, textChar.ToString()) { }
+        Lookup
     }
 
     private int _currentSourceIndex;
 
     /// <summary>
-    /// Whether we're parsing an attribute name or attribute value
+    ///     Whether we're parsing an attribute name or attribute value
     /// </summary>
     private bool _parsingAttributeName = true;
 
@@ -47,29 +40,30 @@ public sealed class DMFLexer(string source) {
 
         switch (c) {
             case '\0':
-                return new(TokenType.EndOfFile, c);
+                return new Token(TokenType.EndOfFile, c);
             case '\n':
                 Advance();
                 _parsingAttributeName = true;
-                return new(TokenType.Newline, c);
+                return new Token(TokenType.Newline, c);
             case '.':
                 Advance();
-                _parsingAttributeName = true; // Still parsing an attribute name, the last one was actually an element name!
-                return new(TokenType.Period, c);
+                _parsingAttributeName =
+                    true; // Still parsing an attribute name, the last one was actually an element name!
+                return new Token(TokenType.Period, c);
             case '&': // & is a valid splitter as well
             case ';':
                 Advance();
                 _parsingAttributeName = true;
-                return new(TokenType.Semicolon, c);
+                return new Token(TokenType.Semicolon, c);
             case '=':
                 Advance();
                 _parsingAttributeName = false;
-                return new(TokenType.Equals, c);
+                return new Token(TokenType.Equals, c);
             case '\'': // TODO: Single-quoted values probably refer to resources and shouldn't be treated as strings
             case '"': {
-                StringBuilder textBuilder = new StringBuilder(c.ToString());
+                var textBuilder = new StringBuilder(c.ToString());
 
-                while (Advance() != c && !AtEndOfSource) {
+                while (Advance() != c && !AtEndOfSource)
                     if (GetCurrent() == '\\') {
                         Advance();
 
@@ -83,52 +77,51 @@ public sealed class DMFLexer(string source) {
                     } else {
                         textBuilder.Append(GetCurrent());
                     }
-                }
 
                 if (GetCurrent() != c) throw new Exception($"Expected '{c}' got '{GetCurrent()}'");
                 textBuilder.Append(c);
                 Advance();
 
-                string text = textBuilder.ToString();
+                var text = textBuilder.ToString();
 
                 // Strings are treated the same un-quoted values except they can use escape codes
-                return new(TokenType.Value, text.Substring(1, text.Length - 2));
+                return new Token(TokenType.Value, text.Substring(1, text.Length - 2));
             }
-            case '?':{
+            case '?': {
                 Advance();
-                return new(TokenType.Ternary, c);
+                return new Token(TokenType.Ternary, c);
             }
             // If _parsingAttributeName is true, we're parsing ":[type].whatever"
-            case ':' when _parsingAttributeName == false: {
+            case ':' when !_parsingAttributeName: {
                 Advance();
-                return new(TokenType.Colon, c);
+                return new Token(TokenType.Colon, c);
             }
             case '[': {
                 Advance();
-                if(GetCurrent() != '[') //must be [[
+                if (GetCurrent() != '[') //must be [[
                     throw new Exception("Expected '['");
 
-                StringBuilder textBuilder = new StringBuilder("[[");
+                var textBuilder = new StringBuilder("[[");
 
-                while (Advance() != ']' && !AtEndOfSource) {
-                    textBuilder.Append(GetCurrent());
-                }
+                while (Advance() != ']' && !AtEndOfSource) textBuilder.Append(GetCurrent());
 
                 if (GetCurrent() != ']') throw new Exception("Expected ']'");
                 Advance();
                 textBuilder.Append("]]");
-                return new(TokenType.Lookup, textBuilder.ToString());
+                return new Token(TokenType.Lookup, textBuilder.ToString());
             }
             default: {
                 if (!char.IsAscii(c)) {
                     Advance();
-                    return new(TokenType.Error, $"Invalid character: {char.ToString(c)}");
+                    return new Token(TokenType.Error, $"Invalid character: {char.ToString(c)}");
                 }
 
                 var textBuilder = new StringBuilder();
                 textBuilder.Append(c);
 
-                while (!char.IsWhiteSpace(Advance()) && GetCurrent() is not ';' and not '&'  and not '=' and not '?' and not ':' && !(_parsingAttributeName && GetCurrent() == '.') && !AtEndOfSource)
+                while (!char.IsWhiteSpace(Advance()) &&
+                       GetCurrent() is not ';' and not '&' and not '=' and not '?' and not ':' &&
+                       !(_parsingAttributeName && GetCurrent() == '.') && !AtEndOfSource)
                     textBuilder.Append(GetCurrent());
 
                 var text = textBuilder.ToString();
@@ -149,7 +142,7 @@ public sealed class DMFLexer(string source) {
                     _parsingAttributeName = true;
                 }
 
-                return new(tokenType, text);
+                return new Token(tokenType, text);
             }
         }
     }
@@ -161,5 +154,13 @@ public sealed class DMFLexer(string source) {
     private char Advance() {
         _currentSourceIndex++;
         return GetCurrent();
+    }
+
+    public struct Token(TokenType type, string text) {
+        public TokenType Type = type;
+        public string Text = text;
+
+        public Token(TokenType type, char textChar) : this(type, textChar.ToString()) {
+        }
     }
 }

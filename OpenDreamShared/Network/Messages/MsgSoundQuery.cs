@@ -5,9 +5,8 @@ using Robust.Shared.Serialization;
 namespace OpenDreamShared.Network.Messages;
 
 public sealed class MsgSoundQuery : NetMessage {
-    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
-
     public int PromptId;
+    public override MsgGroups MsgGroup => MsgGroups.EntityEvent;
 
     public override void ReadFromBuffer(NetIncomingMessage buffer, IRobustSerializer serializer) {
         PromptId = buffer.ReadVariableInt32();
