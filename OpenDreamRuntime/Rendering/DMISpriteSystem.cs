@@ -12,7 +12,7 @@ public sealed partial class DMISpriteSystem : EntitySystem {
     }
 
     private void GetComponentState(EntityUid uid, DMISpriteComponent component, ref ComponentGetState args) {
-        uint? appearanceId = (component.Appearance != null)
+        uint? appearanceId = component.Appearance != null
             ? _appearance.AddAppearance(component.Appearance).MustGetId()
             : null;
 
@@ -22,7 +22,7 @@ public sealed partial class DMISpriteSystem : EntitySystem {
     public void SetSpriteAppearance(Entity<DMISpriteComponent> ent, MutableAppearance appearance, bool dirty = true) {
         DMISpriteComponent component = ent.Comp;
         component.Appearance = new ImmutableAppearance(appearance, _appearance);
-        if(dirty)
+        if (dirty)
             Dirty(ent, component);
     }
 

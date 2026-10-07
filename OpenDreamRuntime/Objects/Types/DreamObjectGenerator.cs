@@ -1,28 +1,27 @@
 using OpenDreamRuntime.Procs;
 using OpenDreamShared.Dream;
 
-
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectGenerator(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
     public IGenerator Generator { get; private set; } = default!;
 
     public override void Initialize(DreamProcArguments args) {
-        var type = args.GetArgument(0);
-        if (!type.TryGetValueAsString(out var typeStr))
+        DreamValue type = args.GetArgument(0);
+        if (!type.TryGetValueAsString(out string? typeStr))
             throw new DMException($"Invalid generator type {type}");
 
-        var a = args.GetArgument(1);
-        var b = args.GetArgument(2);
-        var distribution = DistributionNumberToEnum((int)args.GetArgument(3).UnsafeGetValueAsFloat());
+        DreamValue a = args.GetArgument(1);
+        DreamValue b = args.GetArgument(2);
+        GeneratorDistribution distribution = DistributionNumberToEnum((int)args.GetArgument(3).UnsafeGetValueAsFloat());
 
         switch (typeStr) {
             case "num":
             case "circle":
             case "sphere": {
-                var left = a.UnsafeGetValueAsFloat();
-                var right = (b.Type == DreamValue.DreamValueType.Float) ? b.UnsafeGetValueAsFloat() : 1f;
-                var (low, high) = left <= right ? (left, right) : (right, left);
+                float left = a.UnsafeGetValueAsFloat();
+                float right = b.Type == DreamValue.DreamValueType.Float ? b.UnsafeGetValueAsFloat() : 1f;
+                (float low, float high) = left <= right ? (left, right) : (right, left);
 
                 Generator = typeStr switch {
                     "num" => new GeneratorNum(low, high, distribution),
@@ -64,7 +63,8 @@ public sealed class DreamObjectGenerator(DreamObjectDefinition objectDefinition)
                     };
 
                     break;
-                } finally {
+                }
+                finally {
                     low.DecRef();
                     high.DecRef();
                 }

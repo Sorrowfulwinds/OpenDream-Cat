@@ -6,7 +6,7 @@ using Robust.Shared.Configuration;
 namespace OpenDreamRuntime;
 
 /// <summary>
-/// Adds additional data like info links to the server info endpoint
+///     Adds additional data like info links to the server info endpoint
 /// </summary>
 public sealed partial class ServerInfoManager {
     private static readonly (CVarDef<string> cVar, string icon, string name)[] Vars = {
@@ -19,16 +19,17 @@ public sealed partial class ServerInfoManager {
         // @formatter:on
     };
 
-    [Dependency] private IStatusHost _statusHost = default!;
     [Dependency] private IConfigurationManager _cfg = default!;
+
+    [Dependency] private IStatusHost _statusHost = default!;
 
     public void Initialize() {
         _statusHost.OnInfoRequest += OnInfoRequest;
     }
 
     private void OnInfoRequest(JsonNode json) {
-        foreach (var (cVar, icon, name) in Vars) {
-            var url = _cfg.GetCVar(cVar);
+        foreach ((CVarDef<string> cVar, string icon, string name) in Vars) {
+            string url = _cfg.GetCVar(cVar);
             if (string.IsNullOrEmpty(url))
                 continue;
 

@@ -1,40 +1,44 @@
-﻿using OpenDreamShared.Dream;
-using Robust.Server.Player;
-using Robust.Shared.Enums;
+﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using OpenDreamShared.Network.Messages;
-using Robust.Shared.Player;
-using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using OpenDreamRuntime.Objects.Types;
+using OpenDreamShared.Dream;
+using OpenDreamShared.Network.Messages;
+using Robust.Server.Player;
+using Robust.Shared.Enums;
 using Robust.Shared.Map;
+using Robust.Shared.Player;
 using Robust.Shared.Serialization;
 using SharedAppearanceSystem = OpenDreamShared.Rendering.SharedAppearanceSystem;
 
 namespace OpenDreamRuntime.Rendering;
 
 public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
-    public ImmutableAppearance DefaultAppearance = default!;
-
     /// <summary>
-    /// Each appearance gets a unique ID when marked as registered. Here we store these as a key -> weakref in a weaktable, which does not count
-    /// as a hard ref but allows quick lookup. Each object which holds an appearance MUST hold that ImmutableAppearance until it is no longer
-    /// needed or it will be GC'd. Overlays & underlays are stored as hard refs on the ImmutableAppearance so you only need to hold the main appearance.
+    ///     Each appearance gets a unique ID when marked as registered. Here we store these as a key -> weakref in a weaktable,
+    ///     which does not count
+    ///     as a hard ref but allows quick lookup. Each object which holds an appearance MUST hold that ImmutableAppearance
+    ///     until it is no longer
+    ///     needed or it will be GC'd. Overlays & underlays are stored as hard refs on the ImmutableAppearance so you only need
+    ///     to hold the main appearance.
     /// </summary>
     private readonly HashSet<ProxyWeakRef> _appearanceLookup = new();
-
-    /// <summary>
-    /// This system is used by the PVS thread, we need to be thread-safe
-    /// </summary>
-    private readonly Lock _lock = new();
 
     private readonly Queue<uint> _appearanceRemovalQueue = new();
     private readonly List<ImmutableAppearance> _appearanceSendQueue = new();
     private readonly Dictionary<uint, ProxyWeakRef> _idToAppearance = new();
+
+    /// <summary>
+    ///     This system is used by the PVS thread, we need to be thread-safe
+    /// </summary>
+    private readonly Lock _lock = new();
+
+    public ImmutableAppearance DefaultAppearance = default!;
+    [Dependency] private AtomManager _atomManager = default!;
     private uint _counter;
 
     [Dependency] private DreamManager _dreamManager = default!;
-    [Dependency] private AtomManager _atomManager = default!;
     [Dependency] private IPlayerManager _playerManager = default!;
     [Dependency] private IRobustSerializer _serializer = default!;
 
@@ -42,7 +46,8 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
         UpdatesOutsidePrediction = true;
 
         DefaultAppearance = new ImmutableAppearance(MutableAppearance.Default, this);
-        DefaultAppearance.MarkRegistered(_counter++); //first appearance registered gets id 0, this is the blank default appearance
+        DefaultAppearance
+            .MarkRegistered(_counter++); //first appearance registered gets id 0, this is the blank default appearance
         ProxyWeakRef proxyWeakRef = new(DefaultAppearance);
         _appearanceLookup.Add(proxyWeakRef);
         _idToAppearance.Add(DefaultAppearance.MustGetId(), proxyWeakRef);
@@ -63,7 +68,8 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
     public override void Update(float frameTime) {
         lock (_lock) {
             if (_appearanceSendQueue.Count > 0) {
-                using var compressed = MsgAllAppearances.CompressAppearances(_appearanceSendQueue, _appearanceSendQueue.Count, _serializer);
+                using MemoryStream compressed = MsgAllAppearances.CompressAppearances(_appearanceSendQueue,
+                    _appearanceSendQueue.Count, _serializer);
 
                 RaiseNetworkEvent(new NewAppearancesEvent(compressed.ToArray()));
                 _appearanceSendQueue.Clear();
@@ -73,13 +79,14 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
                 var removalEvent = new RemoveAppearancesEvent(_appearanceRemovalQueue.ToArray());
                 RaiseNetworkEvent(removalEvent);
 
-                while (_appearanceRemovalQueue.TryDequeue(out var appearanceId)) {
-                    var proxyWeakRef = _idToAppearance[appearanceId];
+                while (_appearanceRemovalQueue.TryDequeue(out uint appearanceId)) {
+                    ProxyWeakRef proxyWeakRef = _idToAppearance[appearanceId];
 
-                    proxyWeakRef.TryGetTarget(out var appearance);
-                    if (_appearanceLookup.TryGetValue(proxyWeakRef, out var weakRef)) {
+                    proxyWeakRef.TryGetTarget(out ImmutableAppearance? appearance);
+                    if (_appearanceLookup.TryGetValue(proxyWeakRef, out ProxyWeakRef? weakRef)) {
                         //it is possible that a new appearance was created with the same hash before the GC got around to cleaning up the old one
-                        if (weakRef.TryGetTarget(out var target) && !ReferenceEquals(target, appearance))
+                        if (weakRef.TryGetTarget(out ImmutableAppearance? target) &&
+                            !ReferenceEquals(target, appearance))
                             continue;
 
                         _appearanceLookup.Remove(proxyWeakRef);
@@ -93,24 +100,24 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
     }
 
     private void OnPlayerStatusChanged(object? sender, SessionStatusEventArgs e) {
-        if (e.NewStatus == SessionStatus.InGame) {
+        if (e.NewStatus == SessionStatus.InGame)
             //todo this is probably stupid slow
             lock (_lock) {
                 Dictionary<uint, ImmutableAppearance> sendData = new(_appearanceLookup.Count);
 
-                foreach(ProxyWeakRef proxyWeakRef in _appearanceLookup){
-                    if(proxyWeakRef.TryGetTarget(out var immutable))
+                foreach (ProxyWeakRef proxyWeakRef in _appearanceLookup)
+                    if (proxyWeakRef.TryGetTarget(out ImmutableAppearance? immutable))
                         sendData.Add(immutable.MustGetId(), immutable);
-                }
 
-                Logger.GetSawmill("appearance").Debug($"Sending {sendData.Count} appearances to new player {e.Session.Name}");
+                Logger.GetSawmill("appearance")
+                    .Debug($"Sending {sendData.Count} appearances to new player {e.Session.Name}");
                 e.Session.Channel.SendMessage(new MsgAllAppearances(sendData));
             }
-        }
     }
 
     private void RegisterAppearance(ImmutableAppearance immutableAppearance) {
-        immutableAppearance.MarkRegistered(_counter++); //lets this appearance know it needs to do GC finaliser & get an ID
+        immutableAppearance
+            .MarkRegistered(_counter++); //lets this appearance know it needs to do GC finaliser & get an ID
 
         ProxyWeakRef proxyWeakRef = new(immutableAppearance);
         _appearanceLookup.Add(proxyWeakRef);
@@ -126,14 +133,15 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
 
     public ImmutableAppearance AddAppearance(ImmutableAppearance appearance, bool registerAppearance = true) {
         lock (_lock) {
-            if(_appearanceLookup.TryGetValue(new(appearance), out var weakReference) && weakReference.TryGetTarget(out var originalImmutable)) {
-                return originalImmutable;
-            } else if (registerAppearance) {
+            if (_appearanceLookup.TryGetValue(new ProxyWeakRef(appearance), out ProxyWeakRef? weakReference) &&
+                weakReference.TryGetTarget(out ImmutableAppearance? originalImmutable)) return originalImmutable;
+
+            if (registerAppearance) {
                 RegisterAppearance(appearance);
                 return appearance;
-            } else {
-                return appearance;
             }
+
+            return appearance;
         }
     }
 
@@ -147,8 +155,9 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
 
     public override ImmutableAppearance MustGetAppearanceById(uint appearanceId) {
         lock (_lock) {
-            if(!_idToAppearance[appearanceId].TryGetTarget(out var result))
-                throw new Exception($"Attempted to access deleted appearance ID ${appearanceId} in MustGetAppearanceByID()");
+            if (!_idToAppearance[appearanceId].TryGetTarget(out ImmutableAppearance? result))
+                throw new Exception(
+                    $"Attempted to access deleted appearance ID ${appearanceId} in MustGetAppearanceByID()");
             return result;
         }
     }
@@ -156,14 +165,17 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
     public bool TryGetAppearanceById(uint appearanceId, [NotNullWhen(true)] out ImmutableAppearance? appearance) {
         lock (_lock) {
             appearance = null;
-            return _idToAppearance.TryGetValue(appearanceId, out var appearanceRef) && appearanceRef.TryGetTarget(out appearance);
+            return _idToAppearance.TryGetValue(appearanceId, out ProxyWeakRef? appearanceRef) &&
+                   appearanceRef.TryGetTarget(out appearance);
         }
     }
 
-    public void Animate(EntityUid entity, MutableAppearance targetAppearance, TimeSpan duration, AnimationEasing easing, int loop, AnimationFlags flags, int delay, bool chainAnim, uint? turfId) {
-        var appearanceId = AddAppearance(targetAppearance).MustGetId();
-        var netEntity = GetNetEntity(entity);
-        var animateEvent = new AnimationEvent(netEntity, appearanceId, duration, easing, loop, flags, delay, chainAnim, turfId);
+    public void Animate(EntityUid entity, MutableAppearance targetAppearance, TimeSpan duration, AnimationEasing easing,
+        int loop, AnimationFlags flags, int delay, bool chainAnim, uint? turfId) {
+        uint appearanceId = AddAppearance(targetAppearance).MustGetId();
+        NetEntity netEntity = GetNetEntity(entity);
+        var animateEvent = new AnimationEvent(netEntity, appearanceId, duration, easing, loop, flags, delay, chainAnim,
+            turfId);
 
         if (entity.IsValid())
             RaiseNetworkEvent(animateEvent, Filter.Pvs(entity));
@@ -172,9 +184,9 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
     }
 
     public void Flick(DreamObjectAtom atom, int iconId, string? iconState) {
-        var position = _atomManager.GetAtomPosition(atom);
-        var mapCoords = new MapCoordinates(position.X, position.Y, new(position.Z));
-        var clientRef = _dreamManager.GetClientReference(atom);
+        (int X, int Y, int Z) position = _atomManager.GetAtomPosition(atom);
+        var mapCoords = new MapCoordinates(position.X, position.Y, new MapId(position.Z));
+        ClientObjectReference clientRef = _dreamManager.GetClientReference(atom);
         var flickEvent = new FlickEvent(clientRef, iconId, iconState);
 
         RaiseNetworkEvent(flickEvent, Filter.Pvs(mapCoords));
@@ -182,32 +194,38 @@ public sealed partial class ServerAppearanceSystem : SharedAppearanceSystem {
 }
 
 //this class lets us hold a weakref and also do quick lookups in hash tables
-internal sealed class ProxyWeakRef: IEquatable<ProxyWeakRef> {
-    private readonly uint? _registeredId;
+internal sealed class ProxyWeakRef : IEquatable<ProxyWeakRef> {
     private readonly int _hashCode;
-    public bool TryGetTarget([NotNullWhen(true)] out ImmutableAppearance? target) => _weakRef.TryGetTarget(out target);
+    private readonly uint? _registeredId;
 
     private readonly WeakReference<ImmutableAppearance> _weakRef;
 
     public ProxyWeakRef(ImmutableAppearance appearance) {
         appearance.TryGetId(out _registeredId);
-        _weakRef = new(appearance);
+        _weakRef = new WeakReference<ImmutableAppearance>(appearance);
         _hashCode = appearance.GetHashCode();
+    }
+
+    public bool Equals(ProxyWeakRef? proxy) {
+        if (proxy is null)
+            return false;
+        if (_registeredId is not null && _registeredId == proxy._registeredId)
+            return true;
+        if (_weakRef.TryGetTarget(out ImmutableAppearance? thisRef) &&
+            proxy._weakRef.TryGetTarget(out ImmutableAppearance? thatRef))
+            return thisRef.Equals(thatRef);
+        return false;
+    }
+
+    public bool TryGetTarget([NotNullWhen(true)] out ImmutableAppearance? target) {
+        return _weakRef.TryGetTarget(out target);
     }
 
     public override int GetHashCode() {
         return _hashCode;
     }
 
-    public override bool Equals(object? obj) => obj is ProxyWeakRef proxy && Equals(proxy);
-
-    public bool Equals(ProxyWeakRef? proxy) {
-        if(proxy is null)
-            return false;
-        if(_registeredId is not null && _registeredId == proxy._registeredId)
-            return true;
-        if(_weakRef.TryGetTarget(out ImmutableAppearance? thisRef) && proxy._weakRef.TryGetTarget(out ImmutableAppearance? thatRef))
-            return thisRef.Equals(thatRef);
-        return false;
+    public override bool Equals(object? obj) {
+        return obj is ProxyWeakRef proxy && Equals(proxy);
     }
 }

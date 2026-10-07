@@ -16,32 +16,30 @@ public readonly ref struct DreamProcArguments : IDisposable {
 
     public DreamProcArguments(ReadOnlySpan<DreamValue> values) {
         Values = values;
-        foreach (var value in Values)
+        foreach (DreamValue value in Values)
             value.IncRef();
     }
 
     public DreamProcArguments(params DreamValue[] values) {
         Values = values;
-        foreach (var value in Values)
+        foreach (DreamValue value in Values)
             value.IncRef();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue GetArgument(int argumentPosition) {
-        if (Count > argumentPosition) {
-            return Values[argumentPosition];
-        }
+        if (Count > argumentPosition) return Values[argumentPosition];
 
         return DreamValue.Null;
     }
 
     public override string ToString() {
-        var strBuilder = new StringBuilder((Count * 2 - 1) + 4);
+        var strBuilder = new StringBuilder(Count * 2 - 1 + 4);
 
         strBuilder.Append("<Arguments ");
         strBuilder.Append(Count);
         strBuilder.Append(">(");
-        for (int i = 0; i < Count; i++) {
+        for (var i = 0; i < Count; i++) {
             strBuilder.Append(Values[i]);
             if (i != Count - 1)
                 strBuilder.Append(", ");
@@ -52,7 +50,7 @@ public readonly ref struct DreamProcArguments : IDisposable {
     }
 
     public void Dispose() {
-        foreach (var value in Values)
+        foreach (DreamValue value in Values)
             value.Dispose();
     }
 }

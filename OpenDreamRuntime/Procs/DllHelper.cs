@@ -16,9 +16,9 @@ public static class DllHelper {
         if (funcName.Contains('@'))
             throw new NotSupportedException("Stdcall calling convention is not supported in OpenDream");
 
-        var dll = GetDll(resource, dllName);
+        IntPtr dll = GetDll(resource, dllName);
 
-        if (!LoadedExports.TryGetValue((dll, funcName), out var export)) {
+        if (!LoadedExports.TryGetValue((dll, funcName), out IntPtr export)) {
             if (!NativeLibrary.TryGetExport(dll, funcName, out export))
                 throw new MissingMethodException($"FFI: Unable to find symbol {funcName} in library {dllName}");
 
@@ -29,7 +29,7 @@ public static class DllHelper {
     }
 
     private static nint GetDll(DreamResourceManager resource, string dllName) {
-        if (LoadedDlls.TryGetValue(dllName, out var dll))
+        if (LoadedDlls.TryGetValue(dllName, out IntPtr dll))
             return dll;
 
         if (!TryResolveDll(resource, dllName, out dll))
@@ -45,8 +45,8 @@ public static class DllHelper {
             return true;
 
         // Simple load didn't pass, try next to dmb.
-        var root = resource.RootPath;
-        var fullPath = Path.Combine(root, dllName);
+        string root = resource.RootPath;
+        string fullPath = Path.Combine(root, dllName);
         if (!File.Exists(fullPath))
             throw new DllNotFoundException($"FFI: Unable to load {dllName}. File not found at {fullPath}");
         return NativeLibrary.TryLoad(fullPath, out dll);

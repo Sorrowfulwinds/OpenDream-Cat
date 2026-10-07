@@ -2,39 +2,51 @@
 
 public sealed class DreamObjectSound : DreamObject {
     public ushort Channel, Volume;
-    public float Offset;
-    public byte Repeat { get; set => field = Math.Clamp(value, (byte)0, (byte)2); }
     public DreamValue File;
+    public float Offset;
 
     public DreamObjectSound(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
-        if (objectDefinition.TryGetVariable("channel", out var channel)) {
-            channel.TryGetValueAsInteger(out var channelValue);
+        if (objectDefinition.TryGetVariable("channel", out DreamValue channel)) {
+            channel.TryGetValueAsInteger(out int channelValue);
             Channel = (ushort)channelValue;
         }
 
-        if (objectDefinition.TryGetVariable("volume", out var volume)) {
-            volume.TryGetValueAsInteger(out var volumeValue);
+        if (objectDefinition.TryGetVariable("volume", out DreamValue volume)) {
+            volume.TryGetValueAsInteger(out int volumeValue);
             Volume = (ushort)volumeValue;
         }
 
-        if (objectDefinition.TryGetVariable("offset", out var offset)) {
-            offset.TryGetValueAsFloat(out Offset);
-        }
+        if (objectDefinition.TryGetVariable("offset", out DreamValue offset)) offset.TryGetValueAsFloat(out Offset);
 
-        if (objectDefinition.TryGetVariable("repeat", out var repeat)) {
+        if (objectDefinition.TryGetVariable("repeat", out DreamValue repeat))
             Repeat = (byte)repeat.UnsafeGetValueAsFloat();
-        }
 
         objectDefinition.TryGetVariable("file", out File);
     }
 
+    public byte Repeat {
+        get;
+        set => field = Math.Clamp(value, (byte)0, (byte)2);
+    }
+
     protected override bool TryGetVar(string varName, out DreamValue value) {
         switch (varName) {
-            case "channel": value = new(Channel); return true;
-            case "volume": value = new(Volume); return true;
-            case "offset": value = new(Offset); return true;
-            case "repeat": value = new(Repeat); return true;
-            case "file": File.IncRef(); value = File; return true;
+            case "channel":
+                value = new DreamValue(Channel);
+                return true;
+            case "volume":
+                value = new DreamValue(Volume);
+                return true;
+            case "offset":
+                value = new DreamValue(Offset);
+                return true;
+            case "repeat":
+                value = new DreamValue(Repeat);
+                return true;
+            case "file":
+                File.IncRef();
+                value = File;
+                return true;
             default: return base.TryGetVar(varName, out value);
         }
     }

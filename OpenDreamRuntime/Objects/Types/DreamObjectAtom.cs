@@ -1,21 +1,30 @@
-﻿namespace OpenDreamRuntime.Objects.Types;
+﻿using OpenDreamShared.Dream;
+
+namespace OpenDreamRuntime.Objects.Types;
 
 [Virtual]
 public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
-    private DreamOverlaysList Overlays => _overlays ??= new(ObjectTree.List.ObjectDefinition, this, AppearanceSystem, false);
-    private DreamOverlaysList Underlays => _underlays ??= new(ObjectTree.List.ObjectDefinition, this, AppearanceSystem, true);
-    private DreamVisContentsList VisContents => _visContents ??= new(ObjectTree.List.ObjectDefinition, PvsOverrideSystem, this);
-    private DreamFilterList Filters => _filters ??= new(ObjectTree.List.ObjectDefinition, this);
-    private DreamList VisLocs => _visLocs ??= ObjectTree.CreateList();
+    private DreamFilterList? _filters;
 
     private DreamOverlaysList? _overlays;
     private DreamOverlaysList? _underlays;
     private DreamVisContentsList? _visContents;
-    private DreamFilterList? _filters;
     private DreamList? _visLocs; // TODO: Implement
 
+    private DreamOverlaysList Overlays => _overlays ??=
+        new DreamOverlaysList(ObjectTree.List.ObjectDefinition, this, AppearanceSystem, false);
+
+    private DreamOverlaysList Underlays => _underlays ??=
+        new DreamOverlaysList(ObjectTree.List.ObjectDefinition, this, AppearanceSystem, true);
+
+    private DreamVisContentsList VisContents => _visContents ??=
+        new DreamVisContentsList(ObjectTree.List.ObjectDefinition, PvsOverrideSystem, this);
+
+    private DreamFilterList Filters => _filters ??= new DreamFilterList(ObjectTree.List.ObjectDefinition, this);
+    private DreamList VisLocs => _visLocs ??= ObjectTree.CreateList();
+
     protected string GetRTEntityDesc() {
-        if (AtomManager.TryGetAppearance(this, out var appearance) && appearance.Desc != null)
+        if (AtomManager.TryGetAppearance(this, out ImmutableAppearance? appearance) && appearance.Desc != null)
             return appearance.Desc;
 
         return ObjectDefinition.Type;
@@ -37,43 +46,43 @@ public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObje
             case "x":
             case "y":
             case "z":
-                value = new(0);
+                value = new DreamValue(0);
                 return true;
             case "loc":
                 value = DreamValue.Null;
                 return true;
             case "appearance":
-                var appearanceCopy = AtomManager.MustGetAppearance(this).ToMutable();
+                MutableAppearance appearanceCopy = AtomManager.MustGetAppearance(this).ToMutable();
 
-                value = new(appearanceCopy);
+                value = new DreamValue(appearanceCopy);
                 return true;
             case "overlays":
                 Overlays.IncRef();
-                value = new(Overlays);
+                value = new DreamValue(Overlays);
                 return true;
             case "underlays":
                 Underlays.IncRef();
-                value = new(Underlays);
+                value = new DreamValue(Underlays);
                 return true;
             case "verbs":
-                value = new(new VerbsList(ObjectTree, AtomManager, this));
+                value = new DreamValue(new VerbsList(ObjectTree, AtomManager, this));
                 return true;
             case "filters":
                 Filters.IncRef();
-                value = new(Filters);
+                value = new DreamValue(Filters);
                 return true;
             case "vis_locs":
                 VisLocs.IncRef();
-                value = new(VisLocs);
+                value = new DreamValue(VisLocs);
                 return true;
             case "vis_contents":
                 VisContents.IncRef();
-                value = new(VisContents);
+                value = new DreamValue(VisContents);
                 return true;
 
             default:
                 if (AtomManager.IsValidAppearanceVar(varName)) {
-                    var appearance = AtomManager.MustGetAppearance(this);
+                    ImmutableAppearance appearance = AtomManager.MustGetAppearance(this);
 
                     value = AtomManager.GetAppearanceVar(appearance, varName);
                     return true;
@@ -92,7 +101,7 @@ public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObje
             case "loc":
                 break;
             case "appearance":
-                if (!AtomManager.TryCreateAppearanceFrom(value, out var newAppearance))
+                if (!AtomManager.TryCreateAppearanceFrom(value, out MutableAppearance? newAppearance))
                     return; // Ignore attempts to set an invalid appearance
 
                 // The dir does not get changed
@@ -104,42 +113,33 @@ public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObje
             case "overlays": {
                 Overlays.Cut();
 
-                if (value.TryGetValueAsDreamList(out var valueList)) {
+                if (value.TryGetValueAsDreamList(out DreamList? valueList))
                     // TODO: This should postpone UpdateAppearance until after everything is added
-                    foreach (DreamValue overlayValue in valueList.EnumerateValues()) {
+                    foreach (DreamValue overlayValue in valueList.EnumerateValues())
                         Overlays.AddValue(overlayValue);
-                    }
-                } else if (!value.IsNull) {
-                    Overlays.AddValue(value);
-                }
+                else if (!value.IsNull) Overlays.AddValue(value);
 
                 break;
             }
             case "underlays": {
                 Underlays.Cut();
 
-                if (value.TryGetValueAsDreamList(out var valueList)) {
+                if (value.TryGetValueAsDreamList(out DreamList? valueList))
                     // TODO: This should postpone UpdateAppearance until after everything is added
-                    foreach (DreamValue underlayValue in valueList.EnumerateValues()) {
+                    foreach (DreamValue underlayValue in valueList.EnumerateValues())
                         Underlays.AddValue(underlayValue);
-                    }
-                } else if (!value.IsNull) {
-                    Underlays.AddValue(value);
-                }
+                else if (!value.IsNull) Underlays.AddValue(value);
 
                 break;
             }
             case "vis_contents": {
                 VisContents.Cut();
 
-                if (value.TryGetValueAsDreamList(out var valueList)) {
+                if (value.TryGetValueAsDreamList(out DreamList? valueList))
                     // TODO: This should postpone UpdateAppearance until after everything is added
-                    foreach (DreamValue visContentsValue in valueList.EnumerateValues()) {
+                    foreach (DreamValue visContentsValue in valueList.EnumerateValues())
                         VisContents.AddValue(visContentsValue);
-                    }
-                } else if (!value.IsNull) {
-                    VisContents.AddValue(value);
-                }
+                else if (!value.IsNull) VisContents.AddValue(value);
 
                 break;
             }
@@ -147,20 +147,21 @@ public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObje
                 Filters.Cut();
 
                 // filters = list("type"=...) or list(filter(...), filter(...))
-                if (value.TryGetValueAsDreamList(out var valueList)) {
-                    using var typeArg = valueList.GetValue(new("type"));
+                if (value.TryGetValueAsDreamList(out DreamList? valueList)) {
+                    using DreamValue typeArg = valueList.GetValue(new DreamValue("type"));
 
                     if (typeArg != DreamValue.Null) { // It's a single filter
                         var filterObject = DreamObjectFilter.TryCreateFilter(ObjectTree, valueList);
                         if (filterObject == null) // list() with invalid "type" is ignored
                             break;
 
-                        Filters.AddValue(new(filterObject));
+                        Filters.AddValue(new DreamValue(filterObject));
                         filterObject.DecRef();
                     } else { // It's a list of filters
-                        foreach (var filter in valueList.EnumerateValues()) {
-                            if (!filter.TryGetValueAsDreamObject<DreamObjectFilter>(out var filterObject)) {
-                                if (!filter.TryGetValueAsDreamList(out var filterValues))
+                        foreach (DreamValue filter in valueList.EnumerateValues()) {
+                            if (!filter.TryGetValueAsDreamObject<DreamObjectFilter>(
+                                    out DreamObjectFilter? filterObject)) {
+                                if (!filter.TryGetValueAsDreamList(out DreamList? filterValues))
                                     continue;
 
                                 filterObject = DreamObjectFilter.TryCreateFilter(ObjectTree, filterValues);
@@ -168,7 +169,7 @@ public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObje
                                     continue;
                             }
 
-                            Filters.AddValue(new(filterObject));
+                            Filters.AddValue(new DreamValue(filterObject));
                             filterObject.DecRef();
                         }
                     }
@@ -181,7 +182,7 @@ public class DreamObjectAtom(DreamObjectDefinition objectDefinition) : DreamObje
             default:
                 if (AtomManager.IsValidAppearanceVar(varName)) {
                     // Basically AtomManager.UpdateAppearance() but without the performance impact of using actions
-                    using var appearance = AtomManager.MustGetAppearance(this).ToMutable();
+                    using MutableAppearance appearance = AtomManager.MustGetAppearance(this).ToMutable();
                     AtomManager.SetAppearanceVar(appearance, varName, value);
                     AtomManager.SetAtomAppearance(this, appearance);
                     break;

@@ -9,7 +9,8 @@ public sealed class DMFResource : DreamResource {
         ParseAndLoadResources(serializationManager);
     }
 
-    public DMFResource(int id, string? filePath, string? resourcePath, ISerializationManager serializationManager) : base(id, filePath, resourcePath) {
+    public DMFResource(int id, string? filePath, string? resourcePath, ISerializationManager serializationManager) :
+        base(id, filePath, resourcePath) {
         ParseAndLoadResources(serializationManager);
     }
 
@@ -20,22 +21,17 @@ public sealed class DMFResource : DreamResource {
         InterfaceDescriptor interfaceDescriptor = parser.Interface();
 
         if (parser.Errors.Count > 0) {
-            var sawmill = Logger.GetSawmill("opendream.interface");
-            foreach (string error in parser.Errors) {
-                sawmill.Error(error);
-            }
+            ISawmill sawmill = Logger.GetSawmill("opendream.interface");
+            foreach (string error in parser.Errors) sawmill.Error(error);
         }
 
-        foreach (WindowDescriptor windowDescriptor in interfaceDescriptor.WindowDescriptors) {
-            foreach (ControlDescriptor controlDescriptor in windowDescriptor.ControlDescriptors) {
-                if (controlDescriptor is ControlDescriptorButton button) {
-                    if (!string.IsNullOrEmpty(button.Image.AsRaw())) {
-                        //we must queue these rather than load them directly, because otherwise IDs are wrong
-                        //can't load a resource in the middle of loading a resource
-                        IoCManager.Resolve<DreamResourceManager>().QueueResourceLoad(button.Image.AsRaw().Replace("\\","/"));
-                    }
-                }
-            }
-        }
+        foreach (WindowDescriptor windowDescriptor in interfaceDescriptor.WindowDescriptors)
+        foreach (ControlDescriptor controlDescriptor in windowDescriptor.ControlDescriptors)
+            if (controlDescriptor is ControlDescriptorButton button)
+                if (!string.IsNullOrEmpty(button.Image.AsRaw()))
+                    //we must queue these rather than load them directly, because otherwise IDs are wrong
+                    //can't load a resource in the middle of loading a resource
+                    IoCManager.Resolve<DreamResourceManager>()
+                        .QueueResourceLoad(button.Image.AsRaw().Replace("\\", "/"));
     }
 }

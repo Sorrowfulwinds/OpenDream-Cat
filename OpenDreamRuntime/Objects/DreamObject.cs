@@ -1,17 +1,16 @@
 using System.Diagnostics.CodeAnalysis;
-using OpenDreamRuntime.Procs;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using DMCompiler.Bytecode;
 using JetBrains.Annotations;
 using OpenDreamRuntime.Map;
 using OpenDreamRuntime.Objects.Types;
+using OpenDreamRuntime.Procs;
 using OpenDreamRuntime.Rendering;
 using OpenDreamRuntime.Resources;
 using OpenDreamShared.Dream;
 using Robust.Server.GameObjects;
 using Robust.Server.GameStates;
-using Robust.Shared.Map;
 using Robust.Shared.Serialization.Manager;
 using Robust.Shared.Utility;
 
@@ -19,15 +18,36 @@ namespace OpenDreamRuntime.Objects;
 
 [Virtual]
 public class DreamObject {
+    public readonly uint RefId;
+
+    [Access(typeof(DreamObject))] public bool Deleting, Deleted;
+
     public DreamObjectDefinition ObjectDefinition;
 
     [Access(typeof(DreamObject))]
-    public bool Deleting, Deleted;
-
-    public readonly uint RefId;
-
-    [Access(typeof(DreamObject))]
     public int RefCount = 1; // Starts at 1 because the code creating us is considered to hold a ref to us now
+
+#if TOOLS
+    protected ProfilerMemory? TracyMemoryId;
+#endif
+
+    protected Dictionary<string, DreamValue>? Variables;
+
+    //handle to the list of vars on this object so that it's only created once and refs to object.vars are consistent
+    private DreamListVars? _varsList;
+
+    public DreamObject(DreamObjectDefinition objectDefinition) {
+        ObjectDefinition = objectDefinition;
+        RefId = DreamRefManager.GetRef(this);
+
+#if TOOLS
+        //if it's not null, subclasses have done their own allocation
+        TracyMemoryId ??=
+            Profiler.BeginMemoryZone(
+                (ulong)(Unsafe.SizeOf<DreamObject>() + ObjectDefinition.Variables.Count * Unsafe.SizeOf<DreamValue>()),
+                "/datum");
+#endif
+    }
 
     public virtual bool ShouldCallNew => true;
 
@@ -56,34 +76,24 @@ public class DreamObject {
     protected ServerVerbSystem? VerbSystem => ObjectDefinition.VerbSystem;
     protected ServerDreamParticlesSystem? ParticlesSystem => ObjectDefinition.ParticlesSystem;
 
-    protected Dictionary<string, DreamValue>? Variables;
-
-#if TOOLS
-    protected ProfilerMemory? TracyMemoryId;
-#endif
-
-    //handle to the list of vars on this object so that it's only created once and refs to object.vars are consistent
-    private DreamListVars? _varsList;
-
     private string? Tag {
         get;
         set {
             // Even if we're setting it to the same string we still need to remove it
             if (!string.IsNullOrEmpty(field)) {
-                var list = DreamRefManager.Tags[field];
+                List<DreamObject> list = DreamRefManager.Tags[field];
 
-                if (list.Count > 1) {
+                if (list.Count > 1)
                     list.Remove(this);
-                } else {
+                else
                     DreamRefManager.Tags.Remove(field);
-                }
             }
 
             field = value;
 
             // Now we add it (if it's a string)
             if (!string.IsNullOrEmpty(field)) {
-                if (DreamRefManager.Tags.TryGetValue(field, out var list)) {
+                if (DreamRefManager.Tags.TryGetValue(field, out List<DreamObject>? list)) {
                     list.Add(this);
                 } else {
                     var newList = new List<DreamObject> {
@@ -96,16 +106,6 @@ public class DreamObject {
         }
     }
 
-    public DreamObject(DreamObjectDefinition objectDefinition) {
-        ObjectDefinition = objectDefinition;
-        RefId = DreamRefManager.GetRef(this);
-
-#if TOOLS
-         //if it's not null, subclasses have done their own allocation
-        TracyMemoryId ??= Profiler.BeginMemoryZone((ulong)(Unsafe.SizeOf<DreamObject>() + ObjectDefinition.Variables.Count * Unsafe.SizeOf<DreamValue>() ), "/datum");
-#endif
-    }
-
     public virtual void Initialize(DreamProcArguments args) {
         // For subtypes to implement
     }
@@ -115,11 +115,9 @@ public class DreamObject {
         // Freeing up the slot for later reuse, as well as the .NET hard ref
         DreamRefManager.DeleteRef(RefId);
 
-        if (Variables != null) {
-            foreach (var varValue in Variables.Values) {
+        if (Variables != null)
+            foreach (DreamValue varValue in Variables.Values)
                 varValue.DecRef();
-            }
-        }
 
         //we release all relevant information, making this a very tiny object
         Tag = null;
@@ -160,21 +158,62 @@ public class DreamObject {
             return;
 
         Deleting = true;
-        if (TryGetProc("Del", out var delProc)) {
+        if (TryGetProc("Del", out DreamProc? delProc)) {
             // Don't bother running Del() if there's no code in it
-            var datumBaseProc = delProc is DMProc {Bytecode.Length: 0};
-            if (!datumBaseProc) {
-                DreamThread.Run(delProc, this, null).Dispose();
-            }
+            bool datumBaseProc = delProc is DMProc {Bytecode.Length: 0};
+            if (!datumBaseProc) DreamThread.Run(delProc, this, null).Dispose();
         }
 
         HandleDeletion();
     }
 
     public bool IsSubtypeOf(TreeEntry ancestor) {
-        if(Deleted) //null deref protection, deleted objects don't have ObjectDefinition anymore
+        if (Deleted) //null deref protection, deleted objects don't have ObjectDefinition anymore
             return false;
         return ObjectDefinition.IsSubtypeOf(ancestor);
+    }
+
+    private bool TryExecuteOperatorOverload(
+        DMProcState parentState,
+        string operatorName,
+        [HandlesResourceDisposal] DreamProcArguments arguments,
+        [MustDisposeResource] out DreamValue procResult) {
+        if (!TryGetProc(operatorName, out DreamProc? proc)) {
+            procResult = default;
+            return false;
+        }
+
+        DreamThread thread = parentState.Thread;
+        ProcState operatorProcState = proc.CreateState(thread, this, parentState.Usr, arguments);
+        operatorProcState.WaitFor = false;
+        thread.PushProcState(operatorProcState);
+        procResult = thread.ReentrantResume(parentState, out ProcStatus resultStatus);
+
+        switch (resultStatus) {
+            case ProcStatus.Cancelled:
+                // Throw DMError so parent .Resume() call also cancels cleanly.
+                throw new DMError("Re-entrant proc cancelled");
+            case ProcStatus.Returned:
+                // Normal behavior, proc finished executing.
+                return true;
+            default:
+                // This means Deferred, most likely. Which shouldn't be possible,
+                // as the proc state is WaitFor = false.
+                throw new Exception($"Unexpected proc result from re-entrant operator: {resultStatus}");
+        }
+    }
+
+    public override string ToString() {
+        if (Deleted) return "<deleted>";
+
+        string name = GetNameUnformatted();
+        if (!string.IsNullOrEmpty(name)) return $"{ObjectDefinition.Type}{{name=\"{name}\"}}";
+
+        return ObjectDefinition.Type;
+    }
+
+    public override int GetHashCode() {
+        return (int)RefId;
     }
 
     #region Variables
@@ -196,11 +235,9 @@ public class DreamObject {
     public DreamValue GetVariable(string name) {
         DebugTools.Assert(!Deleted, "Cannot call GetVariable() on a deleted object");
 
-        if (TryGetVariable(name, out var variableValue)) {
-            return variableValue;
-        } else {
-            throw new KeyNotFoundException($"Variable {name} doesn't exist");
-        }
+        if (TryGetVariable(name, out DreamValue variableValue)) return variableValue;
+
+        throw new KeyNotFoundException($"Variable {name} doesn't exist");
     }
 
     public IEnumerable<string> GetVariableNames() {
@@ -212,11 +249,11 @@ public class DreamObject {
     protected virtual bool TryGetVar(string varName, [MustDisposeResource] out DreamValue value) {
         switch (varName) {
             case "type":
-                value = new(ObjectDefinition.TreeEntry);
+                value = new DreamValue(ObjectDefinition.TreeEntry);
                 return true;
             case "parent_type":
                 if (ObjectDefinition.Parent != null)
-                    value = new(ObjectDefinition.Parent.TreeEntry);
+                    value = new DreamValue(ObjectDefinition.Parent.TreeEntry);
                 else
                     value = DreamValue.Null;
 
@@ -224,15 +261,16 @@ public class DreamObject {
             case "vars":
                 _varsList ??= new DreamListVars(ObjectTree.List.ObjectDefinition, this);
                 _varsList.IncRef();
-                value = new(_varsList);
+                value = new DreamValue(_varsList);
                 return true;
             case "tag":
-                value = (Tag != null) ? new(Tag) : DreamValue.Null;
+                value = Tag != null ? new DreamValue(Tag) : DreamValue.Null;
                 return true;
             default:
-                var success = (Variables?.TryGetValue(varName, out value) is true) ||
-                               (ObjectDefinition.Variables.TryGetValue(varName, out value)) ||
-                               (ObjectDefinition.GlobalVariables.TryGetValue(varName, out var globalIndex)) && ObjectDefinition.DreamManager.Globals.TryGetValue(globalIndex, out value);
+                bool success = Variables?.TryGetValue(varName, out value) is true ||
+                               ObjectDefinition.Variables.TryGetValue(varName, out value) ||
+                               (ObjectDefinition.GlobalVariables.TryGetValue(varName, out int globalIndex) &&
+                                ObjectDefinition.DreamManager.Globals.TryGetValue(globalIndex, out value));
 
                 value.IncRef();
                 return success;
@@ -246,7 +284,7 @@ public class DreamObject {
             case "vars":
                 throw new DMException($"Cannot set var \"{varName}\"");
             case "tag":
-                value.TryGetValueAsString(out var newTag);
+                value.TryGetValueAsString(out string? newTag);
 
                 Tag = newTag;
                 break;
@@ -268,7 +306,7 @@ public class DreamObject {
     }
 
     /// <summary>
-    /// Handles setting a variable, and special behavior by calling OnVariableSet()
+    ///     Handles setting a variable, and special behavior by calling OnVariableSet()
     /// </summary>
     public void SetVariable(string name, DreamValue value) {
         DebugTools.Assert(!Deleted, "Cannot call SetVariable() on a deleted object");
@@ -277,15 +315,15 @@ public class DreamObject {
     }
 
     /// <summary>
-    /// Directly sets a variable's value, bypassing any special behavior
+    ///     Directly sets a variable's value, bypassing any special behavior
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetVariableValue(string name, DreamValue value) {
         DebugTools.Assert(!Deleted, "Cannot call SetVariableValue() on a deleted object");
 
-        Variables ??= new(4);
+        Variables ??= new Dictionary<string, DreamValue>(4);
         value.IncRef();
-        if (Variables.TryGetValue(name, out var oldValue))
+        if (Variables.TryGetValue(name, out DreamValue oldValue))
             oldValue.DecRef();
         Variables[name] = value;
     }
@@ -315,18 +353,18 @@ public class DreamObject {
         }
 
         var thread = new DreamThread("new " + ObjectDefinition.Type);
-        var procState = InitProc(thread, null, creationArguments);
+        ProcState procState = InitProc(thread, null, creationArguments);
 
         thread.PushProcState(procState);
         thread.Resume().Dispose();
     }
 
-    public ProcState InitProc(DreamThread thread, DreamObject? usr, [HandlesResourceDisposal] DreamProcArguments arguments) {
+    public ProcState InitProc(DreamThread thread, DreamObject? usr,
+        [HandlesResourceDisposal] DreamProcArguments arguments) {
         DebugTools.Assert(!Deleted, "Cannot call InitProc() on a deleted object");
 
-        if (!InitDreamObjectState.Pool.TryPop(out var state)) {
+        if (!InitDreamObjectState.Pool.TryPop(out InitDreamObjectState? state))
             state = new InitDreamObjectState(ObjectDefinition.DreamManager, ObjectDefinition.ObjectTree);
-        }
 
         state.Initialize(thread, this, usr, arguments);
         return state;
@@ -336,7 +374,7 @@ public class DreamObject {
     public DreamValue SpawnProc(string procName, DreamObject? usr = null, params DreamValue[] arguments) {
         DebugTools.Assert(!Deleted, "Cannot call SpawnProc() on a deleted object");
 
-        var proc = GetProc(procName);
+        DreamProc proc = GetProc(procName);
         return DreamThread.Run(proc, this, usr, arguments);
     }
 
@@ -349,14 +387,13 @@ public class DreamObject {
     public static bool StringIsProper(string str) {
         if (str.Length == 0)
             return true;
-        if (StringFormatEncoder.Decode(str[0], out var properMaybe)) {
+        if (StringFormatEncoder.Decode(str[0], out StringFormatEncoder.FormatSuffix? properMaybe))
             switch (properMaybe) {
                 case StringFormatEncoder.FormatSuffix.Proper:
                     return true;
                 case StringFormatEncoder.FormatSuffix.Improper:
                     return false;
             }
-        }
 
         if (char.IsWhiteSpace(
                 str[0])) // NOTE: This might result in slightly different behaviour (since C# may be more unicode-friendly about what "whitespace" means)
@@ -381,7 +418,7 @@ public class DreamObject {
     }
 
     /// <summary>
-    /// Get the display name of this object, WITH ALL FORMATTING EVALUATED OR REMOVED!
+    ///     Get the display name of this object, WITH ALL FORMATTING EVALUATED OR REMOVED!
     /// </summary>
     public virtual string GetDisplayName(StringFormatEncoder.FormatSuffix? suffix = null) {
         // /client is a little special and will return its key var
@@ -389,14 +426,14 @@ public class DreamObject {
         if (this is DreamObjectClient client)
             return client.Connection.Key;
 
-        var name = GetRawName();
+        string name = GetRawName();
         bool isProper = StringIsProper(name);
-        name = StringFormatDecoder.RemoveFormatting(name); // TODO: Care about other formatting macros for obj names beyond \proper & \improper
-        if(!isProper) {
-            return name;
-        }
+        name = StringFormatDecoder
+            .RemoveFormatting(
+                name); // TODO: Care about other formatting macros for obj names beyond \proper & \improper
+        if (!isProper) return name;
 
-        switch(suffix) {
+        switch (suffix) {
             case StringFormatEncoder.FormatSuffix.UpperDefiniteArticle:
                 return isProper ? name : $"The {name}";
             case StringFormatEncoder.FormatSuffix.LowerDefiniteArticle:
@@ -407,23 +444,24 @@ public class DreamObject {
     }
 
     /// <summary>
-    /// Similar to <see cref="GetDisplayName"/> except it just returns the name as plaintext, with formatting removed. No article or anything.
+    ///     Similar to <see cref="GetDisplayName" /> except it just returns the name as plaintext, with formatting removed. No
+    ///     article or anything.
     /// </summary>
     public string GetNameUnformatted() {
         return StringFormatDecoder.RemoveFormatting(GetRawName());
     }
 
     /// <summary>
-    /// Returns the name of this object with no formatting evaluated
+    ///     Returns the name of this object with no formatting evaluated
     /// </summary>
     public string GetRawName() {
         string name = ObjectDefinition.Type;
 
         if (this is DreamObjectAtom) {
-            if (AtomManager.TryGetAppearance(this, out var appearance))
+            if (AtomManager.TryGetAppearance(this, out ImmutableAppearance? appearance))
                 name = appearance.Name;
         } else if (TryGetVariable("name", out DreamValue nameVar)) {
-            if (nameVar.TryGetValueAsString(out var nameVarStr))
+            if (nameVar.TryGetValueAsString(out string? nameVarStr))
                 name = nameVarStr;
 
             nameVar.Dispose();
@@ -439,7 +477,7 @@ public class DreamObject {
     // +
     [MustDisposeResource]
     public virtual DreamValue OperatorAdd(DreamValue b, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator+", new DreamProcArguments(b), out var result))
+        if (TryExecuteOperatorOverload(state, "operator+", new DreamProcArguments(b), out DreamValue result))
             return result;
 
         throw new InvalidOperationException($"Addition cannot be done between {this} and {b}");
@@ -448,7 +486,7 @@ public class DreamObject {
     // -
     [MustDisposeResource]
     public virtual DreamValue OperatorSubtract(DreamValue b, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator-", new DreamProcArguments(b), out var result))
+        if (TryExecuteOperatorOverload(state, "operator-", new DreamProcArguments(b), out DreamValue result))
             return result;
 
         throw new InvalidOperationException($"Subtraction cannot be done between {this} and {b}");
@@ -457,7 +495,7 @@ public class DreamObject {
     // *
     [MustDisposeResource]
     public virtual DreamValue OperatorMultiply(DreamValue b, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator*", new DreamProcArguments(b), out var result))
+        if (TryExecuteOperatorOverload(state, "operator*", new DreamProcArguments(b), out DreamValue result))
             return result;
 
         throw new InvalidOperationException($"Multiplication cannot be done between {this} and {b}");
@@ -466,9 +504,9 @@ public class DreamObject {
     // *=
     [MustDisposeResource]
     public virtual DreamValue OperatorMultiplyRef(DreamValue b, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator*=", new(b), out var result))
+        if (TryExecuteOperatorOverload(state, "operator*=", new DreamProcArguments(b), out DreamValue result))
             return result;
-        if (TryExecuteOperatorOverload(state, "operator*", new(b), out result))
+        if (TryExecuteOperatorOverload(state, "operator*", new DreamProcArguments(b), out result))
             return result;
 
         throw new InvalidOperationException($"Multiplication cannot be done between {this} and {b}");
@@ -477,7 +515,7 @@ public class DreamObject {
     // /
     [MustDisposeResource]
     public virtual DreamValue OperatorDivide(DreamValue b, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator/", new DreamProcArguments(b), out var result))
+        if (TryExecuteOperatorOverload(state, "operator/", new DreamProcArguments(b), out DreamValue result))
             return result;
 
         throw new InvalidOperationException($"Division cannot be done between {this} and {b}");
@@ -487,7 +525,7 @@ public class DreamObject {
     [MustDisposeResource]
     public virtual DreamValue OperatorDivideRef(DreamValue b, DMProcState state) {
         var args = new DreamProcArguments(b);
-        if (TryExecuteOperatorOverload(state, "operator/=", args, out var result))
+        if (TryExecuteOperatorOverload(state, "operator/=", args, out DreamValue result))
             return result;
 
         if (TryExecuteOperatorOverload(state, "operator/", args, out result))
@@ -499,7 +537,7 @@ public class DreamObject {
     // |
     [MustDisposeResource]
     public virtual DreamValue OperatorOr(DreamValue b, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator|", new DreamProcArguments(b), out var result))
+        if (TryExecuteOperatorOverload(state, "operator|", new DreamProcArguments(b), out DreamValue result))
             return result;
 
         throw new InvalidOperationException($"Cannot or {this} and {b}");
@@ -532,7 +570,7 @@ public class DreamObject {
     // ~=
     [MustDisposeResource]
     public virtual DreamValue OperatorEquivalent(DreamValue b) {
-        if (!b.TryGetValueAsDreamObject(out var bObject))
+        if (!b.TryGetValueAsDreamObject(out DreamObject? bObject))
             return DreamValue.False;
 
         return Equals(bObject) ? DreamValue.True : DreamValue.False;
@@ -546,7 +584,7 @@ public class DreamObject {
     // []
     [MustDisposeResource]
     public virtual DreamValue OperatorIndex(DreamValue index, DMProcState state) {
-        if (TryExecuteOperatorOverload(state, "operator[]", new DreamProcArguments(index), out var result))
+        if (TryExecuteOperatorOverload(state, "operator[]", new DreamProcArguments(index), out DreamValue result))
             return result;
 
         throw new InvalidOperationException($"Cannot index {this} with {index}");
@@ -554,7 +592,8 @@ public class DreamObject {
 
     // []=
     public virtual void OperatorIndexAssign(DreamValue index, DMProcState state, DreamValue value) {
-        if (TryExecuteOperatorOverload(state, "operator[]=", new DreamProcArguments(index, value), out var result)) {
+        if (TryExecuteOperatorOverload(state, "operator[]=", new DreamProcArguments(index, value),
+                out DreamValue result)) {
             result.Dispose();
             return;
         }
@@ -563,51 +602,4 @@ public class DreamObject {
     }
 
     #endregion Operators
-
-    private bool TryExecuteOperatorOverload(
-        DMProcState parentState,
-        string operatorName,
-        [HandlesResourceDisposal] DreamProcArguments arguments,
-        [MustDisposeResource] out DreamValue procResult) {
-        if (!TryGetProc(operatorName, out var proc)) {
-            procResult = default;
-            return false;
-        }
-
-        var thread = parentState.Thread;
-        var operatorProcState = proc.CreateState(thread, this, parentState.Usr, arguments);
-        operatorProcState.WaitFor = false;
-        thread.PushProcState(operatorProcState);
-        procResult = thread.ReentrantResume(parentState, out var resultStatus);
-
-        switch (resultStatus) {
-            case ProcStatus.Cancelled:
-                // Throw DMError so parent .Resume() call also cancels cleanly.
-                throw new DMError("Re-entrant proc cancelled");
-            case ProcStatus.Returned:
-                // Normal behavior, proc finished executing.
-                return true;
-            default:
-                // This means Deferred, most likely. Which shouldn't be possible,
-                // as the proc state is WaitFor = false.
-                throw new Exception($"Unexpected proc result from re-entrant operator: {resultStatus}");
-        }
-    }
-
-    public override string ToString() {
-        if (Deleted) {
-            return "<deleted>";
-        }
-
-        string name = GetNameUnformatted();
-        if (!string.IsNullOrEmpty(name)) {
-            return $"{ObjectDefinition.Type}{{name=\"{name}\"}}";
-        }
-
-        return ObjectDefinition.Type;
-    }
-
-    public override int GetHashCode() {
-        return (int)RefId;
-    }
 }

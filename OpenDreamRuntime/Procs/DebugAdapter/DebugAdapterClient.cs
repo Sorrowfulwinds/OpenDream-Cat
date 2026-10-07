@@ -9,13 +9,9 @@ namespace OpenDreamRuntime.Procs.DebugAdapter;
 public sealed class DebugAdapterClient {
     public delegate void OnRequestHandler(DebugAdapterClient client, Request req);
 
-    public event OnRequestHandler? OnRequest;
-
-    public bool Connected => _client.Connected;
-
     private readonly TcpClient _client;
-    private readonly NetworkStream _netStream;
     private readonly StreamReader _netReader;
+    private readonly NetworkStream _netStream;
     private readonly StreamWriter _netWriter;
     private readonly ISawmill _sawmill;
 
@@ -31,13 +27,19 @@ public sealed class DebugAdapterClient {
         _sawmill.Info($"Accepted debug adapter client {_client.Client.RemoteEndPoint?.Serialize()}");
     }
 
+    public bool Connected => _client.Connected;
+
+    public event OnRequestHandler? OnRequest;
+
     public void HandleMessages() {
         // `_netStream.DataAvailable` goes to false as soon as there is one Read call.
         // `_client` and `_netReader` each keep buffers and we have to loop until they are all drained.
         try {
             _netReader.BaseStream.ReadTimeout = 1; //1ms is lowest possible value
-            if(_client.Connected && (_netStream.DataAvailable || _client.Available > 0)) //check for buffered messages only once per tick
-                while (ReadRequest() is { } message) { //then process each message sequentially until there are none left
+            if (_client.Connected &&
+                (_netStream.DataAvailable || _client.Available > 0)) //check for buffered messages only once per tick
+                while (ReadRequest() is { } message) {
+                    //then process each message sequentially until there are none left
                     _sawmill.Log(LogLevel.Verbose, $"Parsed {message}");
                     _seqCounter = message.Seq + 1;
                     switch (message) {
@@ -46,7 +48,8 @@ public sealed class DebugAdapterClient {
                             break;
                     }
                 }
-        } catch (IOException) {} //ignore timeouts
+        } catch (IOException) {
+        } //ignore timeouts
     }
 
     public void Close() {
@@ -57,14 +60,16 @@ public sealed class DebugAdapterClient {
         message.Seq = _seqCounter++;
 
         string body = JsonSerializer.Serialize(message);
-        string header = $"Content-Length: {body.Length}\r\n\r\n";
+        var header = $"Content-Length: {body.Length}\r\n\r\n";
 
         _sawmill.Log(LogLevel.Verbose, $"Sending {body.Length} {body}");
         _netWriter.BaseStream.Write(Encoding.ASCII.GetBytes(header));
         _netWriter.BaseStream.Write(Encoding.UTF8.GetBytes(body));
     }
 
-    public void SendMessage(IEvent evt) => SendMessage(evt.ToEvent());
+    public void SendMessage(IEvent evt) {
+        SendMessage(evt.ToEvent());
+    }
 
     private ProtocolMessage? ReadRequest() {
         ProtocolHeader? header = ReadProtocolMessageHeader();
@@ -77,14 +82,14 @@ public sealed class DebugAdapterClient {
 
         using var messageJson = JsonSerializer.Deserialize<JsonDocument>(body);
         if (messageJson == null) {
-            _sawmill.Error($"Failed to deserialize message");
+            _sawmill.Error("Failed to deserialize message");
             return null;
         }
 
         try {
             var message = messageJson.Deserialize<ProtocolMessage>();
             if (message == null) {
-                _sawmill.Error($"Failed to deserialize message");
+                _sawmill.Error("Failed to deserialize message");
                 return null;
             }
 
@@ -100,10 +105,6 @@ public sealed class DebugAdapterClient {
         }
     }
 
-    private sealed class ProtocolHeader {
-        public int ContentLength;
-    }
-
     private ProtocolHeader? ReadProtocolMessageHeader() {
         int contentLength = -1;
 
@@ -113,12 +114,11 @@ public sealed class DebugAdapterClient {
             string field = split[0];
             string value = split[1];
 
-            if (field == "Content-Length") {
+            if (field == "Content-Length")
                 if (!int.TryParse(value, out contentLength)) {
                     _sawmill.Error($"Invalid Content-Length field: {value}");
                     return null;
                 }
-            }
         }
 
         if (headerLine == null) {
@@ -137,16 +137,20 @@ public sealed class DebugAdapterClient {
     }
 
     private string? ReadProtocolMessageBody(int contentLength) {
-        char[] buffer = new char[contentLength];
+        var buffer = new char[contentLength];
         int read = _netReader.Read(buffer, 0, contentLength);
         if (read != contentLength) {
             _sawmill.Error($"Expected to read {contentLength} bytes but got {read} instead");
             return null;
         }
 
-        string content = new string(buffer);
+        var content = new string(buffer);
         _sawmill.Log(LogLevel.Verbose, $"Received {contentLength} {content}");
 
         return content;
+    }
+
+    private sealed class ProtocolHeader {
+        public int ContentLength;
     }
 }

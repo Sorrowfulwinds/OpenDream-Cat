@@ -5,42 +5,8 @@ using OpenDreamShared.Dream;
 namespace OpenDreamRuntime.Map;
 
 public partial class DreamMapManager {
-    private sealed class PathFindNode : IDisposable, IEquatable<PathFindNode> {
-        private static readonly Stack<PathFindNode> Pool = new();
-
-        public int X, Y;
-        public PathFindNode? Parent;
-        public int NeededSteps;
-
-        public static PathFindNode GetNode(int x, int y) {
-            if (!Pool.TryPop(out var node)) {
-                node = new();
-            }
-
-            node.Parent = null;
-            node.X = x;
-            node.Y = y;
-            node.NeededSteps = 0;
-            return node;
-        }
-
-        public void Dispose() {
-            Pool.Push(this);
-        }
-
-        public bool Equals(PathFindNode? other) {
-            if (other is null)
-                return false;
-            return X == other.X && Y == other.Y;
-        }
-
-        [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
-        public override int GetHashCode() {
-            return HashCode.Combine(X, Y);
-        }
-    }
-
-    public IEnumerable<AtomDirection> CalculateSteps((int X, int Y, int Z) loc, (int X, int Y, int Z) dest, int targetDistance, int maxSteps) {
+    public IEnumerable<AtomDirection> CalculateSteps((int X, int Y, int Z) loc, (int X, int Y, int Z) dest,
+        int targetDistance, int maxSteps) {
         int z = loc.Z;
         if (z != dest.Z) // Different Z-levels are unreachable
             yield break;
@@ -51,17 +17,17 @@ public partial class DreamMapManager {
         toExplore.Enqueue(PathFindNode.GetNode(loc.X, loc.Y));
 
         void Explore(PathFindNode current, int offsetX, int offsetY) {
-            var nextX = current.X + offsetX;
-            var nextY = current.Y + offsetY;
+            int nextX = current.X + offsetX;
+            int nextY = current.Y + offsetY;
             if (nextX < 1 || nextX > Size.X || nextY < 1 || nextY > Size.Y)
                 return; // This is outside of map bounds
             if (current.NeededSteps >= maxSteps)
                 return; // We won't search any further than maxSteps
 
-            var next = PathFindNode.GetNode(nextX, nextY);
+            PathFindNode next = PathFindNode.GetNode(nextX, nextY);
             if (explored.Contains(next))
                 return;
-            if (!TryGetCellAt(new(next.X, next.Y), z, out var cell) || cell.Turf.IsDense)
+            if (!TryGetCellAt(new Vector2i(next.X, next.Y), z, out IDreamMapManager.Cell? cell) || cell.Turf.IsDense)
                 return;
 
             if (!toExplore.Contains(next))
@@ -73,40 +39,72 @@ public partial class DreamMapManager {
             next.Parent = current;
         }
 
-        while (toExplore.TryDequeue(out var node)) {
-            var distX = node.X - dest.X;
-            var distY = node.Y - dest.Y;
+        while (toExplore.TryDequeue(out PathFindNode? node)) {
+            int distX = node.X - dest.X;
+            int distY = node.Y - dest.Y;
             if ((int)Math.Sqrt(distX * distX + distY * distY) <= targetDistance) { // Path to the destination was found
                 Stack<AtomDirection> path = new(node.NeededSteps);
 
                 while (node.Parent != null) {
-                    var stepDir = DreamProcNativeHelpers.GetDir((node.Parent.X, node.Parent.Y, z), (node.X, node.Y, z));
+                    AtomDirection stepDir =
+                        DreamProcNativeHelpers.GetDir((node.Parent.X, node.Parent.Y, z), (node.X, node.Y, z));
 
                     node = node.Parent;
                     path.Push(stepDir);
                 }
 
-                while (path.TryPop(out var step)) {
-                    yield return step;
-                }
+                while (path.TryPop(out AtomDirection step)) yield return step;
 
                 break;
             }
 
             explored.Add(node);
-            Explore(node,  1,  0);
-            Explore(node,  1,  1);
-            Explore(node,  0,  1);
-            Explore(node, -1,  1);
-            Explore(node, -1,  0);
+            Explore(node, 1, 0);
+            Explore(node, 1, 1);
+            Explore(node, 0, 1);
+            Explore(node, -1, 1);
+            Explore(node, -1, 0);
             Explore(node, -1, -1);
-            Explore(node,  0, -1);
-            Explore(node,  1, -1);
+            Explore(node, 0, -1);
+            Explore(node, 1, -1);
         }
 
-        foreach (var node in explored)
+        foreach (PathFindNode node in explored)
             node.Dispose();
-        foreach (var node in toExplore)
+        foreach (PathFindNode node in toExplore)
             node.Dispose();
+    }
+
+    private sealed class PathFindNode : IDisposable, IEquatable<PathFindNode> {
+        private static readonly Stack<PathFindNode> Pool = new();
+        public int NeededSteps;
+        public PathFindNode? Parent;
+
+        public int X, Y;
+
+        public void Dispose() {
+            Pool.Push(this);
+        }
+
+        public bool Equals(PathFindNode? other) {
+            if (other is null)
+                return false;
+            return X == other.X && Y == other.Y;
+        }
+
+        public static PathFindNode GetNode(int x, int y) {
+            if (!Pool.TryPop(out PathFindNode? node)) node = new PathFindNode();
+
+            node.Parent = null;
+            node.X = x;
+            node.Y = y;
+            node.NeededSteps = 0;
+            return node;
+        }
+
+        [SuppressMessage("ReSharper", "NonReadonlyMemberInGetHashCode")]
+        public override int GetHashCode() {
+            return HashCode.Combine(X, Y);
+        }
     }
 }

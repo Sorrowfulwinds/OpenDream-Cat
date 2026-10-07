@@ -22,9 +22,8 @@ public static class ServerContentIoC {
         IoCManager.Register<LocalHostConGroup>();
 #endif
 
-        if (!unitTests) {
+        if (!unitTests)
             // Unit tests use their own version
             IoCManager.Register<IDreamMapManager, DreamMapManager>();
-        }
     }
 }

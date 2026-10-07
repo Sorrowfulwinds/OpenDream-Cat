@@ -1,10 +1,10 @@
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectException(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
-    public DreamValue Name = DreamValue.Null;
     public DreamValue Desc = DreamValue.Null;
     public DreamValue File = DreamValue.Null;
     public DreamValue Line = DreamValue.False;
+    public DreamValue Name = DreamValue.Null;
 
     //TODO: Match the format of BYOND exceptions since SS13 does splittext and other things to extract data from exceptions
 

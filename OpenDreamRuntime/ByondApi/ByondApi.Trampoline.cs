@@ -6,6 +6,9 @@ using System.Runtime.InteropServices;
 namespace OpenDreamRuntime.ByondApi;
 
 public static unsafe partial class ByondApi {
+    private const int RTLD_LAZY = 0x1;
+    private const int RTLD_GLOBAL = 0x100;
+
     private static void InitTrampoline() {
         var trampolines = new Trampolines {
             ByondValue_IsTrue = &ByondValue_IsTrue,
@@ -47,7 +50,7 @@ public static unsafe partial class ByondApi {
             ByondValue_DecRef = &ByondValue_DecRef,
             ByondValue_DecTempRef = &ByondValue_DecTempRef,
             Byond_TestRef = &Byond_TestRef,
-            OpenDream_Internal_SetCrash = &OpenDream_Internal_SetCrash,
+            OpenDream_Internal_SetCrash = &OpenDream_Internal_SetCrash
         };
 
         NativeLibrary.SetDllImportResolver(Assembly.GetExecutingAssembly(), DllImportResolver);
@@ -59,18 +62,17 @@ public static unsafe partial class ByondApi {
 
     private static IntPtr DllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath) {
         if (libraryName == "byond") {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 return NativeLibrary.Load("byondcore", assembly, searchPath);
-            }
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
                 var searchDirectories = (string?)AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES");
 
-                foreach (var dir in searchDirectories?.Split(':') ?? Array.Empty<string>()) {
-                    var libraryPath = Path.Combine(dir, "libbyond.so");
+                foreach (string dir in searchDirectories?.Split(':') ?? Array.Empty<string>()) {
+                    string libraryPath = Path.Combine(dir, "libbyond.so");
 
                     // Need to load as RTLD_GLOBAL, otherwise byondapi-rs can't find the symbols.
-                    var attempt = dlopen(libraryPath, RTLD_LAZY | RTLD_GLOBAL);
+                    IntPtr attempt = dlopen(libraryPath, RTLD_LAZY | RTLD_GLOBAL);
                     if (attempt != 0)
                         return attempt;
                 }
@@ -81,10 +83,7 @@ public static unsafe partial class ByondApi {
         return IntPtr.Zero;
     }
 
-    private const int RTLD_LAZY = 0x1;
-    private const int RTLD_GLOBAL = 0x100;
-
-    [LibraryImport("libc", StringMarshalling=StringMarshalling.Utf8)]
+    [LibraryImport("libc", StringMarshalling = StringMarshalling.Utf8)]
     private static partial nint dlopen(string filename, int flags);
 
     [SuppressMessage("ReSharper", "InconsistentNaming")]
@@ -96,7 +95,10 @@ public static unsafe partial class ByondApi {
         public delegate* unmanaged[Cdecl]<byte*> Byond_LastError;
         public delegate* unmanaged[Cdecl]<uint*, uint*, void> Byond_GetVersion;
         public delegate* unmanaged[Cdecl]<uint> Byond_GetDMBVersion;
-        public delegate* unmanaged[Cdecl]<delegate* unmanaged[Cdecl]<void*, CByondValue>, void*, byte, CByondValue> Byond_ThreadSync;
+
+        public delegate* unmanaged[Cdecl]<delegate* unmanaged[Cdecl]<void*, CByondValue>, void*, byte, CByondValue>
+            Byond_ThreadSync;
+
         public delegate* unmanaged[Cdecl]<byte*, uint> Byond_GetStrId;
         public delegate* unmanaged[Cdecl]<byte*, uint> Byond_AddGetStrId;
         public delegate* unmanaged[Cdecl]<CByondValue*, byte*, CByondValue*, byte> Byond_ReadVar;
@@ -112,7 +114,10 @@ public static unsafe partial class ByondApi {
         public delegate* unmanaged[Cdecl]<CByondValue*, CByondValue*, byte> Byond_ReadPointer;
         public delegate* unmanaged[Cdecl]<CByondValue*, CByondValue*, byte> Byond_WritePointer;
         public delegate* unmanaged[Cdecl]<CByondValue*, byte*, CByondValue*, uint, CByondValue*, byte> Byond_CallProc;
-        public delegate* unmanaged[Cdecl]<CByondValue*, uint, CByondValue*, uint, CByondValue*, byte> Byond_CallProcByStrId;
+
+        public delegate* unmanaged[Cdecl]<CByondValue*, uint, CByondValue*, uint, CByondValue*, byte>
+            Byond_CallProcByStrId;
+
         public delegate* unmanaged[Cdecl]<byte*, CByondValue*, uint, CByondValue*, byte> Byond_CallGlobalProc;
         public delegate* unmanaged[Cdecl]<uint, CByondValue*, uint, CByondValue*, byte> Byond_CallGlobalProcByStrId;
         public delegate* unmanaged[Cdecl]<CByondValue*, byte*, uint*, byte> Byond_ToString;

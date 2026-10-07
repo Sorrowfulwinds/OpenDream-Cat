@@ -13,9 +13,7 @@ internal static class DreamProcNativeDatabaseQuery {
 
         query.ClearCommand();
 
-        if (!bundle.GetArgument(0, "text").TryGetValueAsString(out var command)) {
-            return DreamValue.Null;
-        }
+        if (!bundle.GetArgument(0, "text").TryGetValueAsString(out string? command)) return DreamValue.Null;
 
         query.SetupCommand(command, bundle.Arguments[1..]);
 
@@ -45,15 +43,11 @@ internal static class DreamProcNativeDatabaseQuery {
     public static DreamValue NativeProc_Columns(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         var query = (DreamObjectDatabaseQuery)src!;
 
-        if (bundle.GetArgument(0, "column").TryGetValueAsInteger(out var column)) {
-            return query.GetColumn(column);
-        }
+        if (bundle.GetArgument(0, "column").TryGetValueAsInteger(out int column)) return query.GetColumn(column);
 
-        var list = bundle.ObjectTree.CreateList();
+        DreamList list = bundle.ObjectTree.CreateList();
 
-        foreach (var value in query.GetAllColumns()) {
-            list.AddValue(value);
-        }
+        foreach (DreamValue value in query.GetAllColumns()) list.AddValue(value);
 
         return new DreamValue(list);
     }
@@ -62,7 +56,7 @@ internal static class DreamProcNativeDatabaseQuery {
     public static DreamValue NativeProc_Error(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         var query = (DreamObjectDatabaseQuery)src!;
 
-        var code = query.GetErrorCode();
+        int? code = query.GetErrorCode();
         return code.HasValue ? new DreamValue(code.Value) : DreamValue.Null;
     }
 
@@ -70,7 +64,7 @@ internal static class DreamProcNativeDatabaseQuery {
     public static DreamValue NativeProc_ErrorMsg(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         var query = (DreamObjectDatabaseQuery)src!;
 
-        var message = query.GetErrorMessage();
+        string? message = query.GetErrorMessage();
 
         return message == null ? DreamValue.Null : new DreamValue(message);
     }
@@ -109,13 +103,9 @@ internal static class DreamProcNativeDatabaseQuery {
     public static DreamValue NativeProc_GetColumn(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         var query = (DreamObjectDatabaseQuery)src!;
 
-        if (!bundle.GetArgument(0, "column").TryGetValueAsInteger(out var column)) {
-            return DreamValue.Null;
-        }
+        if (!bundle.GetArgument(0, "column").TryGetValueAsInteger(out int column)) return DreamValue.Null;
 
-        if (!query.TryGetColumn(column, out var value)) {
-            return DreamValue.Null;
-        }
+        if (!query.TryGetColumn(column, out DreamValue value)) return DreamValue.Null;
 
         return value;
     }
@@ -124,16 +114,12 @@ internal static class DreamProcNativeDatabaseQuery {
     public static DreamValue NativeProc_GetRowData(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         var query = (DreamObjectDatabaseQuery)src!;
 
-        var data = query.CurrentRowData();
+        Dictionary<string, DreamValue>? data = query.CurrentRowData();
 
-        if (data == null) {
-            return DreamValue.Null;
-        }
+        if (data == null) return DreamValue.Null;
 
-        var list = bundle.ObjectTree.CreateList();
-        foreach (var entry in data) {
-            list.SetValue(new DreamValue(entry.Key), entry.Value);
-        }
+        DreamList list = bundle.ObjectTree.CreateList();
+        foreach (KeyValuePair<string, DreamValue> entry in data) list.SetValue(new DreamValue(entry.Key), entry.Value);
 
         return new DreamValue(list);
     }

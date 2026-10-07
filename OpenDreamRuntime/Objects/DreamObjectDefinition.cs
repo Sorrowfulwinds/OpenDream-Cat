@@ -6,58 +6,54 @@ using OpenDreamRuntime.Rendering;
 using OpenDreamRuntime.Resources;
 using Robust.Server.GameObjects;
 using Robust.Server.GameStates;
-using Robust.Server.Player;
-using Robust.Shared.Map;
 using Robust.Shared.Serialization.Manager;
 
 namespace OpenDreamRuntime.Objects;
 
 public sealed class DreamObjectDefinition {
+    public readonly ServerAppearanceSystem? AppearanceSystem;
+
+    public readonly AtomManager AtomManager;
+
     // IoC dependencies & entity systems for DreamObjects to use
     // TODO: Wow, remove this
     public readonly DreamManager DreamManager;
-    public readonly DreamRefManager DreamRefManager;
-    public readonly DreamObjectTree ObjectTree;
-    public readonly AtomManager AtomManager;
     public readonly IDreamMapManager DreamMapManager;
-    public readonly SharedMapSystem MapManager;
+    public readonly DreamRefManager DreamRefManager;
     public readonly DreamResourceManager DreamResourceManager;
-    public readonly WalkManager WalkManager;
+
     public readonly IEntityManager EntityManager;
-    public readonly ISerializationManager SerializationManager;
-    public readonly ServerAppearanceSystem? AppearanceSystem;
-    public readonly TransformSystem? TransformSystem;
-    public readonly PvsOverrideSystem? PvsOverrideSystem;
+
+    // Maps /static variables from name to their index in the global variable table.
+    public readonly Dictionary<string, int> GlobalVariables = new();
+    public readonly SharedMapSystem MapManager;
     public readonly MetaDataSystem? MetaDataSystem;
-    public readonly ServerVerbSystem? VerbSystem;
+    public readonly DreamObjectTree ObjectTree;
+    public readonly Dictionary<string, int> OverridingProcs = new();
     public readonly ServerDreamParticlesSystem? ParticlesSystem;
+    public readonly Dictionary<string, int> Procs = new();
+    public readonly PvsOverrideSystem? PvsOverrideSystem;
+    public readonly ISerializationManager SerializationManager;
+    public readonly TransformSystem? TransformSystem;
 
     public readonly TreeEntry TreeEntry;
-    public string Type => TreeEntry.Path;
-    public DreamObjectDefinition? Parent => TreeEntry.ParentEntry?.ObjectDefinition;
-    public int? InitializationProc;
-    public bool NoConstructors {
-        get {
-            if (_noConstructors is not { } res)
-                _noConstructors = CheckNoConstructors();
-
-            return _noConstructors.Value;
-        }
-    }
-
-    private bool? _noConstructors = null;
-    public readonly Dictionary<string, int> Procs = new();
-    public readonly Dictionary<string, int> OverridingProcs = new();
-    public Dictionary<string, int>? Verbs;
 
     // Maps variables from their name to their initial value.
     public readonly Dictionary<string, DreamValue> Variables = new();
-    // Maps /static variables from name to their index in the global variable table.
-    public readonly Dictionary<string, int> GlobalVariables = new();
+    public readonly ServerVerbSystem? VerbSystem;
+
+    public readonly WalkManager WalkManager;
+
     // Contains hashes of variables that are tagged /const.
-    public HashSet<string>? ConstVariables = null;
+    public HashSet<string>? ConstVariables;
+
+    public int? InitializationProc;
+
     // Contains hashes of variables that are tagged /tmp.
-    public HashSet<string>? TmpVariables = null;
+    public HashSet<string>? TmpVariables;
+    public Dictionary<string, int>? Verbs;
+
+    private bool? _noConstructors;
 
     public DreamObjectDefinition(DreamObjectDefinition copyFrom) {
         DreamManager = copyFrom.DreamManager;
@@ -90,7 +86,12 @@ public sealed class DreamObjectDefinition {
             Verbs = new Dictionary<string, int>(copyFrom.Verbs);
     }
 
-    public DreamObjectDefinition(DreamManager dreamManager, DreamRefManager dreamRefManager, DreamObjectTree objectTree, AtomManager atomManager, IDreamMapManager dreamMapManager, SharedMapSystem mapManager, DreamResourceManager dreamResourceManager, WalkManager walkManager, IEntityManager entityManager, ISerializationManager serializationManager, ServerAppearanceSystem? appearanceSystem, TransformSystem? transformSystem, PvsOverrideSystem? pvsOverrideSystem, MetaDataSystem? metaDataSystem, ServerVerbSystem? verbSystem, ServerDreamParticlesSystem? particlesSystem, TreeEntry? treeEntry) {
+    public DreamObjectDefinition(DreamManager dreamManager, DreamRefManager dreamRefManager, DreamObjectTree objectTree,
+        AtomManager atomManager, IDreamMapManager dreamMapManager, SharedMapSystem mapManager,
+        DreamResourceManager dreamResourceManager, WalkManager walkManager, IEntityManager entityManager,
+        ISerializationManager serializationManager, ServerAppearanceSystem? appearanceSystem,
+        TransformSystem? transformSystem, PvsOverrideSystem? pvsOverrideSystem, MetaDataSystem? metaDataSystem,
+        ServerVerbSystem? verbSystem, ServerDreamParticlesSystem? particlesSystem, TreeEntry? treeEntry) {
         DreamManager = dreamManager;
         DreamRefManager = dreamRefManager;
         ObjectTree = objectTree;
@@ -124,13 +125,23 @@ public sealed class DreamObjectDefinition {
         }
     }
 
-    private bool CheckNoConstructors() {
-        var noInit = InitializationProc is null ||
-                     ObjectTree.Procs[InitializationProc.Value] is DMProc {IsNullProc: true};
-        var noNew = !TryGetProc("New", out var proc) || proc is DMProc {IsNullProc: true};
-        if (noInit && noNew) {
-            return true;
+    public string Type => TreeEntry.Path;
+    public DreamObjectDefinition? Parent => TreeEntry.ParentEntry?.ObjectDefinition;
+
+    public bool NoConstructors {
+        get {
+            if (_noConstructors is not { } res)
+                _noConstructors = CheckNoConstructors();
+
+            return _noConstructors.Value;
         }
+    }
+
+    private bool CheckNoConstructors() {
+        bool noInit = InitializationProc is null ||
+                      ObjectTree.Procs[InitializationProc.Value] is DMProc {IsNullProc: true};
+        bool noNew = !TryGetProc("New", out DreamProc? proc) || proc is DMProc {IsNullProc: true};
+        if (noInit && noNew) return true;
 
         return false;
     }
@@ -141,7 +152,7 @@ public sealed class DreamObjectDefinition {
 
     public void SetProcDefinition(string procName, int procId, bool replace = false) {
         if (HasProc(procName) && !replace) {
-            var proc = ObjectTree.Procs[procId];
+            DreamProc proc = ObjectTree.Procs[procId];
             proc.SuperProc = GetProc(procName);
             OverridingProcs[procName] = procId;
         } else {
@@ -150,36 +161,34 @@ public sealed class DreamObjectDefinition {
     }
 
     public DreamProc GetProc(string procName) {
-        if (TryGetProc(procName, out DreamProc? proc)) {
-            return proc;
-        } else {
-            throw new DMException("Object type '" + Type + "' does not have a proc named '" + procName + "'");
-        }
+        if (TryGetProc(procName, out DreamProc? proc)) return proc;
+
+        throw new DMException("Object type '" + Type + "' does not have a proc named '" + procName + "'");
     }
 
     public bool TryGetProc(string procName, [NotNullWhen(true)] out DreamProc? proc) {
-        if (OverridingProcs.TryGetValue(procName, out var procId)) {
+        if (OverridingProcs.TryGetValue(procName, out int procId)) {
             proc = ObjectTree.Procs[procId];
             return true;
-        } else if (Procs.TryGetValue(procName, out procId)) {
-            proc = ObjectTree.Procs[procId];
-            return true;
-        } else if (Parent != null) {
-            return Parent.TryGetProc(procName, out proc);
-        } else {
-            proc = null;
-            return false;
         }
+
+        if (Procs.TryGetValue(procName, out procId)) {
+            proc = ObjectTree.Procs[procId];
+            return true;
+        }
+
+        if (Parent != null) return Parent.TryGetProc(procName, out proc);
+
+        proc = null;
+        return false;
     }
 
     public bool HasProc(string procName) {
-        if (Procs.ContainsKey(procName)) {
-            return true;
-        } else if (Parent != null) {
-            return Parent.HasProc(procName);
-        } else {
-            return false;
-        }
+        if (Procs.ContainsKey(procName)) return true;
+
+        if (Parent != null) return Parent.HasProc(procName);
+
+        return false;
     }
 
     public bool HasVariable(string variableName) {
@@ -187,13 +196,11 @@ public sealed class DreamObjectDefinition {
     }
 
     public bool TryGetVariable(string varName, out DreamValue value) {
-        if (Variables.TryGetValue(varName, out value)) {
-            return true;
-        } else if (Parent != null) {
-            return Parent.TryGetVariable(varName, out value);
-        } else {
-            return false;
-        }
+        if (Variables.TryGetValue(varName, out value)) return true;
+
+        if (Parent != null) return Parent.TryGetVariable(varName, out value);
+
+        return false;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

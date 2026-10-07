@@ -5,9 +5,9 @@ namespace OpenDreamRuntime.Objects.Types;
 public sealed class DreamObjectFilter(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
     public static readonly Dictionary<DreamFilter, DreamFilterList> FilterAttachedTo = new();
 
-    public override bool ShouldCallNew => false;
-
     public DreamFilter Filter;
+
+    public override bool ShouldCallNew => false;
 
     protected override void HandleDeletion() {
         FilterAttachedTo.Remove(Filter);
@@ -17,10 +17,10 @@ public sealed class DreamObjectFilter(DreamObjectDefinition objectDefinition) : 
     // TODO: Variable getting
 
     protected override void SetVar(string varName, DreamValue value) {
-        if (FilterAttachedTo.TryGetValue(Filter, out var attachedTo)) {
+        if (FilterAttachedTo.TryGetValue(Filter, out DreamFilterList? attachedTo)) {
             int index = attachedTo.GetIndexOfFilter(Filter);
 
-            var newFilter = DreamFilterHelpers.SetVar(Filter, varName, value);
+            DreamFilter? newFilter = DreamFilterHelpers.SetVar(Filter, varName, value);
             if (newFilter != null) {
                 Filter = newFilter;
                 attachedTo.SetFilter(index, newFilter);
@@ -28,17 +28,17 @@ public sealed class DreamObjectFilter(DreamObjectDefinition objectDefinition) : 
         }
     }
 
-    public static DreamObjectFilter? TryCreateFilter(DreamObjectTree objectTree, IEnumerable<(string Name, DreamValue Value)> properties) {
+    public static DreamObjectFilter? TryCreateFilter(DreamObjectTree objectTree,
+        IEnumerable<(string Name, DreamValue Value)> properties) {
         Type? filterType = null;
         var propertyList = new List<(string Name, DreamValue Value)>();
 
-        foreach (var property in properties) {
+        foreach ((string Name, DreamValue Value) property in properties) {
             if (property.Value.IsNull)
                 continue;
 
-            if (property.Name == "type" && property.Value.TryGetValueAsString(out var filterTypeName)) {
+            if (property.Name == "type" && property.Value.TryGetValueAsString(out string? filterTypeName))
                 filterType = DreamFilter.GetType(filterTypeName);
-            }
 
             propertyList.Add(property);
         }
@@ -46,7 +46,7 @@ public sealed class DreamObjectFilter(DreamObjectDefinition objectDefinition) : 
         if (filterType == null)
             return null;
 
-        var filter = DreamFilterHelpers.Create(filterType, propertyList);
+        DreamFilter filter = DreamFilterHelpers.Create(filterType, propertyList);
 
         var filterObject = objectTree.CreateObject<DreamObjectFilter>(objectTree.Filter);
         filterObject.Filter = filter;
@@ -55,11 +55,11 @@ public sealed class DreamObjectFilter(DreamObjectDefinition objectDefinition) : 
 
     public static DreamObjectFilter? TryCreateFilter(DreamObjectTree objectTree, DreamList list) {
         static IEnumerable<(string, DreamValue)> EnumerateProperties(DreamList list) {
-            foreach (var key in list.EnumerateValues()) {
-                if (!key.TryGetValueAsString(out var keyStr))
+            foreach (DreamValue key in list.EnumerateValues()) {
+                if (!key.TryGetValueAsString(out string? keyStr))
                     continue;
 
-                using var value = list.GetValue(key);
+                using DreamValue value = list.GetValue(key);
                 if (value.IsNull)
                     continue;
 

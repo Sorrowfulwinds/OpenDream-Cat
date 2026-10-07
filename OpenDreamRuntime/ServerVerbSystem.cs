@@ -12,16 +12,17 @@ using Robust.Shared.Player;
 namespace OpenDreamRuntime;
 
 public sealed partial class ServerVerbSystem : VerbSystem {
-    [Dependency] private DreamManager _dreamManager = default!;
-    [Dependency] private AtomManager _atomManager = default!;
-    [Dependency] private DreamObjectTree _objectTree = default!;
-    [Dependency] private IPlayerManager _playerManager = default!;
-
-    private readonly List<VerbInfo> _verbs = new();
-    private readonly Dictionary<int, DreamProc> _verbIdToProc = new();
-    private readonly Dictionary<DreamConnection, List<(int, ClientObjectReference) /* verbId */>> _repeatingVerbs = new();
+    private readonly Dictionary<DreamConnection, List<(int, ClientObjectReference) /* verbId */>> _repeatingVerbs =
+        new();
 
     private readonly ISawmill _sawmill = Logger.GetSawmill("opendream.verbs");
+    private readonly Dictionary<int, DreamProc> _verbIdToProc = new();
+
+    private readonly List<VerbInfo> _verbs = new();
+    [Dependency] private AtomManager _atomManager = default!;
+    [Dependency] private DreamManager _dreamManager = default!;
+    [Dependency] private DreamObjectTree _objectTree = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
 
     public override void Initialize() {
         _playerManager.PlayerStatusChanged += OnPlayerStatusChanged;
@@ -32,23 +33,22 @@ public sealed partial class ServerVerbSystem : VerbSystem {
     }
 
     /// <summary>
-    /// Add a verb to the total list of verbs and ensure every client has knowledge of it
+    ///     Add a verb to the total list of verbs and ensure every client has knowledge of it
     /// </summary>
     /// <param name="verb">The verb to register</param>
     public void RegisterVerb(DreamProc verb) {
         if (verb.VerbId != null) // Verb has already been registered
             return;
 
-        var verbArguments = Array.Empty<VerbArg>();
+        VerbArg[] verbArguments = Array.Empty<VerbArg>();
         if (verb.ArgumentTypes != null) {
             verbArguments = new VerbArg[verb.ArgumentTypes.Count];
 
-            for (int i = 0; i < verb.ArgumentTypes.Count; i++) {
+            for (var i = 0; i < verb.ArgumentTypes.Count; i++)
                 verbArguments[i] = new VerbArg {
                     Name = verb.ArgumentNames![i],
                     Types = verb.ArgumentTypes[i]
                 };
-            }
         }
 
         VerbAccessibility? verbAccessibility = verb.VerbSrc switch {
@@ -71,17 +71,16 @@ public sealed partial class ServerVerbSystem : VerbSystem {
         };
 
         if (verbAccessibility == null) {
-            var def = verb.OwningType.ObjectDefinition;
+            DreamObjectDefinition def = verb.OwningType.ObjectDefinition;
 
             // Assign a default based on the type this verb is defined on
-            if (def.IsSubtypeOf(_objectTree.Obj)) {
+            if (def.IsSubtypeOf(_objectTree.Obj))
                 verbAccessibility = VerbAccessibility.InUsr;
-            } else if (def.IsSubtypeOf(_objectTree.Turf) || def.IsSubtypeOf(_objectTree.Area)) {
+            else if (def.IsSubtypeOf(_objectTree.Turf) || def.IsSubtypeOf(_objectTree.Area))
                 verbAccessibility = VerbAccessibility.View; // TODO: Range of 0
-            } else {
+            else
                 // The default for everything else (/mob especially)
                 verbAccessibility = VerbAccessibility.Usr;
-            }
         }
 
         var verbInfo = new VerbInfo {
@@ -107,20 +106,22 @@ public sealed partial class ServerVerbSystem : VerbSystem {
         RaiseNetworkEvent(new RegisterVerbEvent(verb.VerbId.Value, verbInfo));
     }
 
-    public DreamProc GetVerb(int verbId) => _verbIdToProc[verbId];
+    public DreamProc GetVerb(int verbId) {
+        return _verbIdToProc[verbId];
+    }
 
     /// <summary>
-    /// Send a client an updated version of its /client's verbs
+    ///     Send a client an updated version of its /client's verbs
     /// </summary>
     /// <param name="client">The client to update</param>
     public void UpdateClientVerbs(DreamObjectClient client) {
         if (client.Connection.Session == null)
             return;
 
-        var verbs = client.ClientVerbs.Verbs;
+        List<DreamProc> verbs = client.ClientVerbs.Verbs;
         var verbIds = new List<int>(verbs.Count);
 
-        foreach (var verb in verbs) {
+        foreach (DreamProc verb in verbs) {
             if (verb.VerbId == null)
                 RegisterVerb(verb);
             verbIds.Add(verb.VerbId!.Value);
@@ -139,14 +140,16 @@ public sealed partial class ServerVerbSystem : VerbSystem {
 
     public void RunRepeatingVerbs() {
         using (Profiler.BeginZone("Repeating Verbs", color: (uint)Color.OrangeRed.ToArgb())) {
-            foreach (var repeatingVerb in _repeatingVerbs) {
+            foreach (KeyValuePair<DreamConnection, List<(int, ClientObjectReference)>> repeatingVerb in
+                     _repeatingVerbs) {
                 if (repeatingVerb.Value.Count == 0)
                     return;
-                var client = repeatingVerb.Key;
-                var (verbId, srcRef) = repeatingVerb.Value.Last();
+                DreamConnection client = repeatingVerb.Key;
+                (int verbId, ClientObjectReference srcRef) = repeatingVerb.Value.Last();
 
-                var src = _dreamManager.GetFromClientReference(client, srcRef);
-                if (src == null || !_verbIdToProc.TryGetValue(verbId, out var verb) || !CanExecute(client, src, verb))
+                DreamObject? src = _dreamManager.GetFromClientReference(client, srcRef);
+                if (src == null || !_verbIdToProc.TryGetValue(verbId, out DreamProc? verb) ||
+                    !CanExecute(client, src, verb))
                     return;
 
                 RunVerb(verb, $"repeating verb {verbId}", src, client);
@@ -161,9 +164,9 @@ public sealed partial class ServerVerbSystem : VerbSystem {
     private void OnRepeatVerbStart(RegisterRepeatVerbEvent msg, EntitySessionEventArgs args) {
         if (!_verbIdToProc.ContainsKey(msg.VerbId))
             return;
-        var conn = _dreamManager.GetConnectionBySession(args.SenderSession);
-        if (!_repeatingVerbs.TryGetValue(conn, out var list)) {
-            list = new();
+        DreamConnection conn = _dreamManager.GetConnectionBySession(args.SenderSession);
+        if (!_repeatingVerbs.TryGetValue(conn, out List<(int, ClientObjectReference)>? list)) {
+            list = new List<(int, ClientObjectReference)>();
             _repeatingVerbs.Add(conn, list);
         }
 
@@ -172,17 +175,16 @@ public sealed partial class ServerVerbSystem : VerbSystem {
     }
 
     private void OnRepeatVerbStop(UnregisterRepeatVerbEvent msg, EntitySessionEventArgs args) {
-        var conn = _dreamManager.GetConnectionBySession(args.SenderSession);
-        if (_repeatingVerbs.TryGetValue(conn, out var verb)) {
+        DreamConnection conn = _dreamManager.GetConnectionBySession(args.SenderSession);
+        if (_repeatingVerbs.TryGetValue(conn, out List<(int, ClientObjectReference)>? verb)) {
             verb.Remove((msg.VerbId, msg.Src));
-            if (verb.Count == 0) {
-                _repeatingVerbs.Remove(conn);
-            }
+            if (verb.Count == 0) _repeatingVerbs.Remove(conn);
         }
     }
 
-    private void RunVerb(DreamProc verb, string name, DreamObject src, DreamConnection usr, params DreamValue[] arguments) {
-        using var _ = Profiler.BeginZone("DM Execution", color: (uint)Color.LightPink.ToArgb());
+    private void RunVerb(DreamProc verb, string name, DreamObject src, DreamConnection usr,
+        params DreamValue[] arguments) {
+        using ProfilerZone? _ = Profiler.BeginZone("DM Execution", color: (uint)Color.LightPink.ToArgb());
 
         DreamThread.Run($"Execute {name} by {usr.Session!.Name}", async state => {
             await state.Call(verb, src, usr.Mob, arguments);
@@ -192,13 +194,13 @@ public sealed partial class ServerVerbSystem : VerbSystem {
 
     private void OnVerbExecuted(ExecuteVerbEvent msg, EntitySessionEventArgs args) {
         using (Profiler.BeginZone("Verb", color: (uint)Color.OrangeRed.ToArgb())) {
-            var connection = _dreamManager.GetConnectionBySession(args.SenderSession);
-            var src = _dreamManager.GetFromClientReference(connection, msg.Src);
-            if (src == null || !_verbIdToProc.TryGetValue(msg.VerbId, out var verb) ||
+            DreamConnection connection = _dreamManager.GetConnectionBySession(args.SenderSession);
+            DreamObject? src = _dreamManager.GetFromClientReference(connection, msg.Src);
+            if (src == null || !_verbIdToProc.TryGetValue(msg.VerbId, out DreamProc? verb) ||
                 !CanExecute(connection, src, verb))
                 return;
 
-            var argCount = verb.ArgumentTypes?.Count ?? 0;
+            int argCount = verb.ArgumentTypes?.Count ?? 0;
             if (msg.Arguments.Length != argCount) {
                 _sawmill.Error(
                     $"User \"{args.SenderSession.Name}\" gave {msg.Arguments.Length} argument(s) to the \"{verb.Name}\" verb which only has {argCount} argument(s)");
@@ -206,9 +208,9 @@ public sealed partial class ServerVerbSystem : VerbSystem {
             }
 
             // Convert the values the client gave to DreamValues
-            DreamValue[] arguments = new DreamValue[argCount];
-            for (int i = 0; i < argCount; i++) {
-                var argType = verb.ArgumentTypes![i];
+            var arguments = new DreamValue[argCount];
+            for (var i = 0; i < argCount; i++) {
+                DreamValueType argType = verb.ArgumentTypes![i];
 
                 if (!connection.TryConvertPromptResponse(argType, msg.Arguments[i], out arguments[i])) {
                     _sawmill.Error(
@@ -222,7 +224,7 @@ public sealed partial class ServerVerbSystem : VerbSystem {
     }
 
     /// <summary>
-    /// Verifies a user is allowed to execute a verb on a given target
+    ///     Verifies a user is allowed to execute a verb on a given target
     /// </summary>
     /// <param name="connection">The user</param>
     /// <param name="src">The target of the verb</param>
@@ -239,14 +241,16 @@ public sealed partial class ServerVerbSystem : VerbSystem {
             // Client verbs ignore "set src" checks
             // Deviates from BYOND, where anything but usr and world shows the verb in the statpanel but is not executable
             return true;
-        } else if (src is DreamObjectAtom atom) {
-            var appearance = _atomManager.MustGetAppearance(atom);
+        }
+
+        if (src is DreamObjectAtom atom) {
+            ImmutableAppearance appearance = _atomManager.MustGetAppearance(atom);
             if (appearance.Verbs.Contains(verb.VerbId.Value) is not true) // Inside atom.verbs?
                 return false;
         }
 
-        var verbInfo = _verbs[verb.VerbId.Value];
-        var verbAccessibility = verbInfo.Accessibility;
+        VerbInfo verbInfo = _verbs[verb.VerbId.Value];
+        VerbAccessibility verbAccessibility = verbInfo.Accessibility;
 
         // Check that "set src = ..." allows execution in this instance
         switch (verbAccessibility) {
@@ -284,16 +288,18 @@ public sealed partial class ServerVerbSystem : VerbSystem {
                     return false;
 
                 DreamList viewCollection;
-                if(verbAccessibility.IsRange()) {
-                    viewCollection = DreamProcNativeHelpers.HandleRange(connection.Mob, new(verbInfo.Range), !verbAccessibility.IsO());
-                } else { // TODO implement view
-                    viewCollection = DreamProcNativeHelpers.HandleRange(connection.Mob, new(verbInfo.Range), !verbAccessibility.IsO());
-                }
+                if (verbAccessibility.IsRange())
+                    viewCollection = DreamProcNativeHelpers.HandleRange(connection.Mob, new ViewRange(verbInfo.Range),
+                        !verbAccessibility.IsO());
+                else // TODO implement view
+                    viewCollection = DreamProcNativeHelpers.HandleRange(connection.Mob, new ViewRange(verbInfo.Range),
+                        !verbAccessibility.IsO());
 
-                return viewCollection.ContainsValue(new(srcAtom));
+                return viewCollection.ContainsValue(new DreamValue(srcAtom));
             }
             default:
-                throw new NotImplementedException($"{Enum.GetName(verbInfo.Accessibility)} is not implemented on the runtime");
+                throw new NotImplementedException(
+                    $"{Enum.GetName(verbInfo.Accessibility)} is not implemented on the runtime");
         }
     }
 }

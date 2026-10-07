@@ -7,12 +7,12 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 public sealed class RequestHotReloadResource : Request {
     [JsonPropertyName("arguments")] public required RequestHotReloadResourceArguments Arguments { get; set; }
 
+    public void Respond(DebugAdapterClient client) {
+        client.SendMessage(Response.NewSuccess(this));
+    }
+
     [UsedImplicitly]
     public sealed class RequestHotReloadResourceArguments {
         [JsonPropertyName("file")] public string? FilePath { get; set; }
-    }
-
-    public void Respond(DebugAdapterClient client) {
-        client.SendMessage(Response.NewSuccess(this));
     }
 }

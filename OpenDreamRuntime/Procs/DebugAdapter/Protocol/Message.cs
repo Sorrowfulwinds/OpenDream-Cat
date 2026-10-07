@@ -3,7 +3,7 @@
 namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 
 public struct Message {
-    private static int _idCounter = 0;
+    private static int _idCounter;
 
     [JsonPropertyName("id")] public int Id { get; set; } = _idCounter++;
     [JsonPropertyName("format")] public string Format { get; set; }

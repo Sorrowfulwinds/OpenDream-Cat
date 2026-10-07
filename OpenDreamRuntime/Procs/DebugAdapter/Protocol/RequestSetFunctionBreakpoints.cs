@@ -7,12 +7,14 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 public sealed class RequestSetFunctionBreakpoints : Request {
     [JsonPropertyName("arguments")] public required RequestSetBreakpointsArguments Arguments { get; set; }
 
+    public void Respond(DebugAdapterClient client, Breakpoint[] breakpoints) {
+        client.SendMessage(Response.NewSuccess(this, new {
+            breakpoints
+        }));
+    }
+
     [UsedImplicitly]
     public sealed class RequestSetBreakpointsArguments {
         [JsonPropertyName("breakpoints")] public required FunctionBreakpoint[] Breakpoints { get; set; }
-    }
-
-    public void Respond(DebugAdapterClient client, Breakpoint[] breakpoints) {
-        client.SendMessage(Response.NewSuccess(this, new { breakpoints = breakpoints }));
     }
 }

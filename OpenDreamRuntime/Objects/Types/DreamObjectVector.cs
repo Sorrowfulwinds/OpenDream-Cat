@@ -7,6 +7,8 @@ namespace OpenDreamRuntime.Objects.Types;
 public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamObject(definition) {
     public double X, Y;
 
+    private double _z;
+
     public double Z {
         get => Is3D ? _z : 0;
         set {
@@ -24,7 +26,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             if (X == 0 && Y == 0 && Z == 0)
                 return;
 
-            var magnitude = Size;
+            double magnitude = Size;
             X = X / magnitude * value;
             Y = Y / magnitude * value;
             Z = Z / magnitude * value;
@@ -34,13 +36,11 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     public Vector2 AsVector2 => new((float)X, (float)Y);
     public Vector3 AsVector3 => new((float)X, (float)Y, Is3D ? (float)Z : 0f);
 
-    private double _z;
-
     public override void Initialize(DreamProcArguments args) {
         base.Initialize(args);
 
-        var arg1 = args.GetArgument(0);
-        if (arg1.TryGetValueAsFloat(out var x) && args.Count is 2 or 3) { // X, Y, optionally Z
+        DreamValue arg1 = args.GetArgument(0);
+        if (arg1.TryGetValueAsFloat(out float x) && args.Count is 2 or 3) { // X, Y, optionally Z
             X = x;
             Y = args.GetArgument(1).UnsafeGetValueAsFloat();
             if (args.Count == 3) {
@@ -49,8 +49,10 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             }
 
             return;
-        } else if (arg1.TryGetValueAsString(out var vectorStr)) { // Numbers with a comma or 'x' as a delimiter
-            var components = vectorStr.Split(',', 'x');
+        }
+
+        if (arg1.TryGetValueAsString(out string? vectorStr)) { // Numbers with a comma or 'x' as a delimiter
+            string[] components = vectorStr.Split(',', 'x');
 
             if (components.Length is 2 or 3) {
                 X = float.Parse(components[0]);
@@ -62,8 +64,8 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
 
                 return;
             }
-        } else if (arg1.TryGetValueAsDreamList(out var vectorList)) { // list(X, Y) or list(X, Y, Z)
-            var components = vectorList.GetValues();
+        } else if (arg1.TryGetValueAsDreamList(out DreamList? vectorList)) { // list(X, Y) or list(X, Y, Z)
+            List<DreamValue> components = vectorList.GetValues();
 
             if (components.Count is 2 or 3 && components.All(v => v.Type == DreamValue.DreamValueType.Float)) {
                 X = components[0].UnsafeGetValueAsFloat();
@@ -75,7 +77,8 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
 
                 return;
             }
-        } else if (arg1.TryGetValueAsDreamObject<DreamObjectVector>(out var vectorCopy)) { // new /vector(vector)
+        } else if (arg1.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? vectorCopy)) {
+            // new /vector(vector)
             Is3D = vectorCopy.Is3D;
             X = vectorCopy.X;
             Y = vectorCopy.Y;
@@ -88,10 +91,137 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
         throw new DMException($"Bad vector arguments {args.ToString()}");
     }
 
+    protected override bool TryGetVar(string varName, out DreamValue value) {
+        switch (varName) {
+            case "type":
+                value = new DreamValue(ObjectDefinition.TreeEntry);
+                return true;
+            case "len":
+                value = new DreamValue(Is3D ? 3 : 2);
+                return true;
+            case "size":
+                value = new DreamValue(Size);
+                return true;
+            case "x":
+                value = new DreamValue(X);
+                return true;
+            case "y":
+                value = new DreamValue(Y);
+                return true;
+            case "z":
+                value = new DreamValue(Z);
+                return true;
+            default:
+                // Hide the base vars
+                throw new DMException($"Invalid vector variable \"{varName}\"");
+        }
+    }
+
+    protected override void SetVar(string varName, DreamValue value) {
+        switch (varName) {
+            case "type":
+                throw new DMException("Cannot set type var");
+            case "len":
+                float newLen = value.UnsafeGetValueAsFloat();
+
+                // Something like 2.3 actually isn't valid here; it doesn't cast to an int
+                if (!newLen.Equals(2f) && !newLen.Equals(3f)) throw new DMException($"Invalid vector len {value}");
+
+                Is3D = newLen.Equals(3f);
+                break;
+            case "size":
+                Size = value.UnsafeGetValueAsFloat();
+                break;
+            case "x":
+                X = value.UnsafeGetValueAsFloat();
+                break;
+            case "y":
+                Y = value.UnsafeGetValueAsFloat();
+                break;
+            case "z":
+                Z = value.UnsafeGetValueAsFloat();
+                break;
+            default:
+                // Hide the base vars
+                throw new DMException($"Invalid vector variable \"{varName}\"");
+        }
+    }
+
+    /// <summary>
+    ///     Attempt to create a <see cref="DreamObjectVector" /> from a DreamValue<br />
+    ///     A vector can be created from a list containing 2 or 3 numbers
+    /// </summary>
+    public static bool TryCreateFromValue(DreamValue value, DreamObjectTree tree,
+        [NotNullWhen(true)] out DreamObjectVector? vector) {
+        if (value.TryGetValueAsDreamObject(out vector))
+            return true;
+
+        if (value.TryGetValueAsDreamList(out DreamList? list)) {
+            int length = list.GetLength();
+
+            if (length >= 3) {
+                using DreamValue x = list.GetValue(new DreamValue(1));
+                using DreamValue y = list.GetValue(new DreamValue(2));
+                using DreamValue z = list.GetValue(new DreamValue(3));
+
+                vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+                vector.Initialize(new DreamProcArguments(x, y, z));
+                return true;
+            }
+
+            if (length == 2) {
+                using DreamValue x = list.GetValue(new DreamValue(1));
+                using DreamValue y = list.GetValue(new DreamValue(2));
+
+                vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+                vector.Initialize(new DreamProcArguments(x, y));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     <see cref="TryCreateFromValue" /> but falls back to a zero vector if it fails
+    /// </summary>
+    public static DreamObjectVector CreateFromValue(DreamValue value, DreamObjectTree tree) {
+        if (TryCreateFromValue(value, tree, out DreamObjectVector? vector))
+            return vector;
+
+        // Fallback to Vector2.Zero
+        vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+        vector.Initialize(new DreamProcArguments(new DreamValue(0f), new DreamValue(0f)));
+        return vector;
+    }
+
+    /// <summary>
+    ///     Creates a <see cref="DreamObjectVector" /> from a <see cref="Vector3" />
+    /// </summary>
+    public static DreamObjectVector CreateFromValue(Vector3 value, DreamObjectTree tree) {
+        var vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+        vector.Initialize(new DreamProcArguments(new DreamValue(value.X), new DreamValue(value.Y),
+            new DreamValue(value.Z)));
+        return vector;
+    }
+
+    /// <summary>
+    ///     Creates a <see cref="DreamObjectVector" /> from a <see cref="Vector2" />
+    /// </summary>
+    public static DreamObjectVector CreateFromValue(Vector2 value, DreamObjectTree tree) {
+        var vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
+        vector.Initialize(new DreamProcArguments(new DreamValue(value.X), new DreamValue(value.Y)));
+        return vector;
+    }
+
+    public override string ToString() {
+        return Is3D ? $"vector({X},{Y},{Z})" : $"vector({X},{Y})";
+    }
+
     #region Operators
 
     public override DreamValue OperatorAdd(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             var output = new DreamObjectVector(ObjectDefinition) {
                 X = X + right.X,
                 Y = Y + right.Y,
@@ -106,7 +236,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     public override DreamValue OperatorSubtract(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             var output = new DreamObjectVector(ObjectDefinition) {
                 X = X - right.X,
                 Y = Y - right.Y,
@@ -129,7 +259,9 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
                 Z = Z * scalar
             };
             return new DreamValue(output);
-        } else if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        }
+
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             var output = new DreamObjectVector(ObjectDefinition) {
                 X = X * right.X,
                 Y = Y * right.Y,
@@ -149,7 +281,9 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             Z *= scalar;
             IncRef();
             return new DreamValue(this);
-        } else if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        }
+
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             X *= right.X;
             Y *= right.Y;
             Z *= right.Z;
@@ -172,7 +306,9 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             };
 
             return new DreamValue(output);
-        } else if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        }
+
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             if (right.X == 0 || right.Y == 0 || (Is3D && right.Z == 0))
                 throw new DivideByZeroException("Cannot divide vector by zero vector component");
 
@@ -196,7 +332,9 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
             Z /= scalar;
             IncRef();
             return new DreamValue(this);
-        } else if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        }
+
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             if (right.X == 0 || right.Y == 0 || (Is3D && right.Z == 0))
                 throw new DivideByZeroException("Cannot divide vector by zero vector component");
             X /= right.X;
@@ -210,7 +348,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     public override DreamValue OperatorAppend(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             X += right.X;
             Y += right.Y;
             Z += right.Z;
@@ -224,7 +362,7 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     public override DreamValue OperatorRemove(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectVector>(out DreamObjectVector? right)) {
             X -= right.X;
             Y -= right.Y;
             Z -= right.Z;
@@ -238,133 +376,6 @@ public sealed class DreamObjectVector(DreamObjectDefinition definition) : DreamO
     }
 
     #endregion Operators
-
-    protected override bool TryGetVar(string varName, out DreamValue value) {
-        switch (varName) {
-            case "type":
-                value = new(ObjectDefinition.TreeEntry);
-                return true;
-            case "len":
-                value = new(Is3D ? 3 : 2);
-                return true;
-            case "size":
-                value = new(Size);
-                return true;
-            case "x":
-                value = new(X);
-                return true;
-            case "y":
-                value = new(Y);
-                return true;
-            case "z":
-                value = new(Z);
-                return true;
-            default:
-                // Hide the base vars
-                throw new DMException($"Invalid vector variable \"{varName}\"");
-        }
-    }
-
-    protected override void SetVar(string varName, DreamValue value) {
-        switch (varName) {
-            case "type":
-                throw new DMException("Cannot set type var");
-            case "len":
-                var newLen = value.UnsafeGetValueAsFloat();
-
-                // Something like 2.3 actually isn't valid here; it doesn't cast to an int
-                if (!newLen.Equals(2f) && !newLen.Equals(3f)) {
-                    throw new DMException($"Invalid vector len {value}");
-                }
-
-                Is3D = newLen.Equals(3f);
-                break;
-            case "size":
-                Size = value.UnsafeGetValueAsFloat();
-                break;
-            case "x":
-                X = value.UnsafeGetValueAsFloat();
-                break;
-            case "y":
-                Y = value.UnsafeGetValueAsFloat();
-                break;
-            case "z":
-                Z = value.UnsafeGetValueAsFloat();
-                break;
-            default:
-                // Hide the base vars
-                throw new DMException($"Invalid vector variable \"{varName}\"");
-        }
-    }
-
-    /// <summary>
-    /// Attempt to create a <see cref="DreamObjectVector"/> from a DreamValue<br/>
-    /// A vector can be created from a list containing 2 or 3 numbers
-    /// </summary>
-    public static bool TryCreateFromValue(DreamValue value, DreamObjectTree tree, [NotNullWhen(true)] out DreamObjectVector? vector) {
-        if (value.TryGetValueAsDreamObject(out vector))
-            return true;
-
-        if (value.TryGetValueAsDreamList(out var list)) {
-            var length = list.GetLength();
-
-            if (length >= 3) {
-                using var x = list.GetValue(new(1));
-                using var y = list.GetValue(new(2));
-                using var z = list.GetValue(new(3));
-
-                vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-                vector.Initialize(new(x, y, z));
-                return true;
-            }
-
-            if (length == 2) {
-                using var x = list.GetValue(new(1));
-                using var y = list.GetValue(new(2));
-
-                vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-                vector.Initialize(new(x, y));
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// <see cref="TryCreateFromValue"/> but falls back to a zero vector if it fails
-    /// </summary>
-    public static DreamObjectVector CreateFromValue(DreamValue value, DreamObjectTree tree) {
-        if (TryCreateFromValue(value, tree, out var vector))
-            return vector;
-
-        // Fallback to Vector2.Zero
-        vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-        vector.Initialize(new(new(0f), new(0f)));
-        return vector;
-    }
-
-    /// <summary>
-    /// Creates a <see cref="DreamObjectVector"/> from a <see cref="Vector3"/>
-    /// </summary>
-    public static DreamObjectVector CreateFromValue(Vector3 value, DreamObjectTree tree) {
-        var vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-        vector.Initialize(new(new(value.X), new(value.Y), new(value.Z)));
-        return vector;
-    }
-
-    /// <summary>
-    /// Creates a <see cref="DreamObjectVector"/> from a <see cref="Vector2"/>
-    /// </summary>
-    public static DreamObjectVector CreateFromValue(Vector2 value, DreamObjectTree tree) {
-        var vector = tree.CreateObject<DreamObjectVector>(tree.Vector);
-        vector.Initialize(new(new(value.X), new(value.Y)));
-        return vector;
-    }
-
-    public override string ToString() {
-        return Is3D ? $"vector({X},{Y},{Z})" : $"vector({X},{Y})";
-    }
 
     // TODO: Operators, supports indexing and "most math"
     // TODO: For loop support

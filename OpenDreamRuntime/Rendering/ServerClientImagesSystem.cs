@@ -1,6 +1,5 @@
 ﻿using OpenDreamRuntime.Objects.Types;
 using OpenDreamShared.Rendering;
-using OpenDreamRuntime.Objects;
 using Robust.Server.GameStates;
 
 namespace OpenDreamRuntime.Rendering;
@@ -15,9 +14,9 @@ public sealed partial class ServerClientImagesSystem : SharedClientImagesSystem 
         EntityUid locEntity = EntityUid.Invalid;
         Vector3 turfCoords = Vector3.Zero;
 
-        if(loc is DreamObjectMovable movable)
+        if (loc is DreamObjectMovable movable)
             locEntity = movable.Entity;
-        else if(loc is DreamObjectTurf turf)
+        else if (loc is DreamObjectTurf turf)
             turfCoords = new Vector3(turf.X, turf.Y, turf.Z);
 
         NetEntity ent = GetNetEntity(locEntity);
@@ -45,6 +44,7 @@ public sealed partial class ServerClientImagesSystem : SharedClientImagesSystem 
         if (imageObjectEntity != EntityUid.Invalid)
             _pvsOverrideSystem.RemoveSessionOverride(imageObjectEntity, connection.Session);
         NetEntity imageObjectNetEntity = GetNetEntity(imageObject.Entity);
-        RaiseNetworkEvent(new RemoveClientImageEvent(ent, turfCoords, imageObjectNetEntity), connection.Session.Channel);
+        RaiseNetworkEvent(new RemoveClientImageEvent(ent, turfCoords, imageObjectNetEntity),
+            connection.Session.Channel);
     }
 }

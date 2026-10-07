@@ -1,105 +1,66 @@
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
 using DMCompiler.Bytecode;
+using DMCompiler.Json;
 using OpenDreamRuntime.Objects;
 using OpenDreamRuntime.Objects.Types;
 using OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 using OpenDreamRuntime.Resources;
 using Robust.Server;
+using Robust.Shared.Network;
+using Thread = System.Threading.Thread;
 
 namespace OpenDreamRuntime.Procs.DebugAdapter;
 
 internal sealed partial class DreamDebugManager : IDreamDebugManager {
-    [Dependency] private DreamManager _dreamManager = default!;
-    [Dependency] private DreamObjectTree _objectTree = default!;
-    [Dependency] private DreamResourceManager _resourceManager = default!;
-    [Dependency] private ProcScheduler _procScheduler = default!;
-    [Dependency] private IBaseServer _server = default!;
+    public enum StepMode {
+        StepOver, // aka "next"
+        StepIn,
+        StepOut
+    }
 
-    private ISawmill _sawmill = default!;
+    // Breakpoint storage
+    private const string ExceptionFilterRuntimes = "runtimes";
+
+    private static readonly DisassembledInstruction LowInstruction = new() {Address = "0x1", Instruction = ""};
+
+    private static readonly DisassembledInstruction HighInstruction = new()
+        {Address = "0xffffffffffffffff", Instruction = ""};
+
+    private readonly Dictionary<int, DMProc> _disassemblyProcs = new();
+
+    private readonly Dictionary<int, WeakReference<ProcState>> _stackFramesById = new();
+    private readonly Dictionary<int, Func<RequestVariables, IEnumerable<Variable>>> _variableReferences = new();
 
     // Setup
     private DebugAdapter? _adapter;
-    private string RootPath => _resourceManager.RootPath ?? throw new Exception("No RootPath yet!");
+    private bool _breakOnRuntimes = true;
+
+    private int _breakpointIdCounter = 1;
+    [Robust.Shared.IoC.Dependency] private DreamManager _dreamManager = default!;
+
+    // Temporary data for a given Stop
+    private Exception? _exception;
+    [Robust.Shared.IoC.Dependency] private DreamObjectTree _objectTree = default!;
+
+    private Dictionary<string, Dictionary<int, FileBreakpointSlot>>? _possibleBreakpoints;
+    private Dictionary<(string Type, string Proc), FunctionBreakpointSlot>? _possibleFunctionBreakpoints;
+    [Robust.Shared.IoC.Dependency] private ProcScheduler _procScheduler = default!;
+    [Robust.Shared.IoC.Dependency] private DreamResourceManager _resourceManager = default!;
+
+    private ISawmill _sawmill = default!;
+    [Robust.Shared.IoC.Dependency] private IBaseServer _server = default!;
     private bool _stopOnEntry;
 
     // State
     private bool _stopped;
     private bool _terminated;
 
-    public enum StepMode {
-        StepOver,  // aka "next"
-        StepIn,
-        StepOut,
-    }
-
-    public struct ThreadStepMode {
-        public StepMode Mode;
-        public int FrameId;
-        public string? Granularity;
-    }
-
-    // Breakpoint storage
-    private const string ExceptionFilterRuntimes = "runtimes";
-    private bool _breakOnRuntimes = true;
-
-    private sealed class FileBreakpointSlot(DMProc proc) {
-        public IReadOnlyList<ActiveBreakpoint> Breakpoints => _breakpoints;
-        public readonly DMProc Proc = proc;
-
-        private readonly List<ActiveBreakpoint> _breakpoints = new();
-
-        public void ClearBreakpoints() {
-            // Set all the opcodes back to their original
-            foreach (var breakpoint in _breakpoints) {
-                Proc.Bytecode[breakpoint.BytecodeOffset] = breakpoint.OriginalOpcode;
-            }
-
-            _breakpoints.Clear();
-        }
-
-        public void AddBreakpoint(int offset, ActiveBreakpoint breakpoint) {
-            breakpoint.BytecodeOffset = offset;
-            breakpoint.OriginalOpcode = Proc.Bytecode[offset];
-            _breakpoints.Add(breakpoint);
-
-            // Replace the opcode with DebuggerBreakpoint so we know when we trip it
-            Proc.Bytecode[offset] = (byte)DreamProcOpcode.DebuggerBreakpoint;
-        }
-    }
-
-    private sealed class FunctionBreakpointSlot {
-        public readonly List<ActiveBreakpoint> Breakpoints = new();
-    }
-
-    private struct ActiveBreakpoint {
-        public int Id;
-        public int BytecodeOffset;
-        public byte OriginalOpcode;
-        public string? Condition;
-        public string? HitCondition;
-        public string? LogMessage;
-    }
-
-    private int _breakpointIdCounter = 1;
-
-    private Dictionary<string, Dictionary<int, FileBreakpointSlot>>? _possibleBreakpoints;
-    private Dictionary<(string Type, string Proc), FunctionBreakpointSlot>? _possibleFunctionBreakpoints;
-    private readonly Dictionary<int, DMProc> _disassemblyProcs = new();
-
-    // Temporary data for a given Stop
-    private Exception? _exception;
-
-    private readonly Dictionary<int, WeakReference<ProcState>> _stackFramesById = new();
-
     private int _variablesIdCounter;
-    private readonly Dictionary<int, Func<RequestVariables, IEnumerable<Variable>>> _variableReferences = new();
-
-    private int AllocVariableRef(Func<RequestVariables, IEnumerable<Variable>> func) {
-        int id = ++_variablesIdCounter;
-        _variableReferences[id] = func;
-        return id;
-    }
+    private string RootPath => _resourceManager.RootPath ?? throw new Exception("No RootPath yet!");
 
     // Lifecycle
     public void Initialize(int port) {
@@ -112,9 +73,7 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
 
     public void Update() {
         _adapter?.HandleMessages();
-        if (!CanStop()) {
-            _stopped = false;
-        }
+        if (!CanStop()) _stopped = false;
     }
 
     public void Shutdown() {
@@ -126,7 +85,7 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     public void HandleOutput(LogLevel logLevel, string message) {
         string category = logLevel switch {
             LogLevel.Fatal or LogLevel.Error => OutputEvent.CategoryStderr,
-            _ => OutputEvent.CategoryStdout,
+            _ => OutputEvent.CategoryStdout
         };
 
         Output(message, category);
@@ -136,7 +95,7 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         if (_stopOnEntry) {
             _stopOnEntry = false;
             Stop(state.Thread, new StoppedEvent {
-                Reason = StoppedEvent.ReasonEntry,
+                Reason = StoppedEvent.ReasonEntry
             });
             return;
         }
@@ -146,14 +105,13 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
 
         // Check for a function breakpoint
         List<int>? hit = null;
-        if (_possibleFunctionBreakpoints.TryGetValue((state.Proc.OwningType.Path, state.Proc.Name), out var slot)) {
-            foreach (var bp in slot.Breakpoints) {
+        if (_possibleFunctionBreakpoints.TryGetValue((state.Proc.OwningType.Path, state.Proc.Name),
+                out FunctionBreakpointSlot? slot))
+            foreach (ActiveBreakpoint bp in slot.Breakpoints)
                 if (TestBreakpoint(bp)) {
-                    hit ??= new(1);
+                    hit ??= new List<int>(1);
                     hit.Add(bp.Id);
                 }
-            }
-        }
 
         if (hit != null) {
             Output($"Function breakpoint hit at {state.Proc.OwningType.Path}::{state.Proc.Name}");
@@ -168,19 +126,20 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         if (state.Thread.StepMode == null)
             return;
 
-        bool stoppedOnStep = false;
+        var stoppedOnStep = false;
 
         switch (state.Thread.StepMode.Value.Granularity) {
             case SteppingGranularity.Instruction:
                 switch (state.Thread.StepMode) {
-                    case { Mode: StepMode.StepIn }:
+                    case {Mode: StepMode.StepIn}:
                         stoppedOnStep = true;
                         break;
-                    case { Mode: StepMode.StepOut, FrameId: var whenNotInStack }:
+                    case {Mode: StepMode.StepOut, FrameId: var whenNotInStack}:
                         stoppedOnStep = !state.Thread.InspectStack().Select(p => p.Id).Contains(whenNotInStack);
                         break;
-                    case { Mode: StepMode.StepOver, FrameId: var whenTop }:
-                        stoppedOnStep = state.Id == whenTop || !state.Thread.InspectStack().Select(p => p.Id).Contains(whenTop);
+                    case {Mode: StepMode.StepOver, FrameId: var whenTop}:
+                        stoppedOnStep = state.Id == whenTop ||
+                                        !state.Thread.InspectStack().Select(p => p.Id).Contains(whenTop);
                         break;
                 }
 
@@ -192,14 +151,16 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
                     return;
 
                 switch (state.Thread.StepMode) {
-                    case { Mode: StepMode.StepIn }:
+                    case {Mode: StepMode.StepIn}:
                         stoppedOnStep = true;
                         break;
-                    case { Mode: StepMode.StepOut, FrameId: var whenNotInStack }:
-                        stoppedOnStep = whenNotInStack == -1 || !state.Thread.InspectStack().Select(p => p.Id).Contains(whenNotInStack);
+                    case {Mode: StepMode.StepOut, FrameId: var whenNotInStack}:
+                        stoppedOnStep = whenNotInStack == -1 ||
+                                        !state.Thread.InspectStack().Select(p => p.Id).Contains(whenNotInStack);
                         break;
-                    case { Mode: StepMode.StepOver, FrameId: var whenTop }:
-                        stoppedOnStep = state.Id == whenTop || whenTop == -1 || !state.Thread.InspectStack().Select(p => p.Id).Contains(whenTop);
+                    case {Mode: StepMode.StepOver, FrameId: var whenTop}:
+                        stoppedOnStep = state.Id == whenTop || whenTop == -1 ||
+                                        !state.Thread.InspectStack().Select(p => p.Id).Contains(whenTop);
                         break;
                 }
 
@@ -209,30 +170,31 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         if (stoppedOnStep) {
             state.Thread.StepMode = null;
             Stop(state.Thread, new StoppedEvent {
-                Reason = StoppedEvent.ReasonStep,
+                Reason = StoppedEvent.ReasonStep
             });
         }
     }
 
     public ProcStatus HandleBreakpoint(DMProcState state) {
         // Subtract 1 because it was advanced before running the opcode
-        var sourceLocation = state.Proc.GetSourceAtOffset(state.ProgramCounter - 1);
+        (string Source, int Line) sourceLocation = state.Proc.GetSourceAtOffset(state.ProgramCounter - 1);
 
         if (_possibleBreakpoints == null)
             throw new Exception("Breakpoints not initialized");
-        if (!_possibleBreakpoints.TryGetValue(sourceLocation.Source, out var slots) ||
-            !slots.TryGetValue(sourceLocation.Line, out var slot))
+        if (!_possibleBreakpoints.TryGetValue(sourceLocation.Source, out Dictionary<int, FileBreakpointSlot>? slots) ||
+            !slots.TryGetValue(sourceLocation.Line, out FileBreakpointSlot? slot))
             throw new Exception($"No breakpoint slot at {sourceLocation.Source}:{sourceLocation.Line}");
         if (slot.Breakpoints.Count != 1)
-            throw new Exception($"Either no breakpoints or more than 1 breakpoint at {sourceLocation.Source}:{sourceLocation.Line}");
+            throw new Exception(
+                $"Either no breakpoints or more than 1 breakpoint at {sourceLocation.Source}:{sourceLocation.Line}");
 
-        var breakpoint = slot.Breakpoints[0];
+        ActiveBreakpoint breakpoint = slot.Breakpoints[0];
 
         if (TestBreakpoint(breakpoint)) {
             Output($"Breakpoint hit at {sourceLocation.Source}:{sourceLocation.Line}");
             Stop(state.Thread, new StoppedEvent {
                 Reason = StoppedEvent.ReasonBreakpoint,
-                HitBreakpointIds = new[] { breakpoint.Id }
+                HitBreakpointIds = new[] {breakpoint.Id}
             });
         }
 
@@ -247,19 +209,29 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
             _exception = exception;
             Output("Stopped on exception");
             Stop(thread, new StoppedEvent {
-                Reason = StoppedEvent.ReasonException,
+                Reason = StoppedEvent.ReasonException
             });
         }
     }
 
-    private bool TestBreakpoint(ActiveBreakpoint bp) => bp.Condition is null && bp.HitCondition is null;
+    private int AllocVariableRef(Func<RequestVariables, IEnumerable<Variable>> func) {
+        int id = ++_variablesIdCounter;
+        _variableReferences[id] = func;
+        return id;
+    }
+
+    private bool TestBreakpoint(ActiveBreakpoint bp) {
+        return bp.Condition is null && bp.HitCondition is null;
+    }
 
     // Utilities
     private void Output(string message, string category = OutputEvent.CategoryConsole) {
         _adapter?.SendAll(new OutputEvent(category, $"{message}\n"));
     }
 
-    private bool CanStop() => _adapter != null && _adapter.AnyClientsConnected() && !_terminated;
+    private bool CanStop() {
+        return _adapter != null && _adapter.AnyClientsConnected() && !_terminated;
+    }
 
     private void Stop(DreamThread? thread, StoppedEvent stoppedEvent) {
         if (_adapter == null || !CanStop())
@@ -275,7 +247,7 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         // stack. Unfortunately this also blocks the Robust engine.
         while (_stopped) {
             Update();
-            System.Threading.Thread.Sleep(50);
+            Thread.Sleep(50);
         }
     }
 
@@ -360,7 +332,7 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     }
 
     private void HandleRequestInitialize(DebugAdapterClient client, RequestInitialize reqInit) {
-        var args = reqInit.Arguments;
+        RequestInitialize.RequestInitializeArguments args = reqInit.Arguments;
 
         // Verify this is an OpenDream adapter
         if (args.AdapterId != "opendream") {
@@ -374,10 +346,10 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
             SupportsFunctionBreakpoints = true,
             SupportsExceptionInfoRequest = true,
             ExceptionBreakpointFilters = new[] {
-                new ExceptionBreakpointsFilter(ExceptionFilterRuntimes, "Runtime errors") { Default = true },
+                new ExceptionBreakpointsFilter(ExceptionFilterRuntimes, "Runtime errors") {Default = true}
             },
             SupportsDisassembleRequest = true,
-            SupportsSteppingGranularity = true,
+            SupportsSteppingGranularity = true
         });
         // ... opportunity to do stuff that might take time here if needed ...
         client.SendMessage(new InitializedEvent());
@@ -401,39 +373,35 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     }
 
     private void InitializePossibleBreakpoints() {
-        _possibleBreakpoints = new();
+        _possibleBreakpoints = new Dictionary<string, Dictionary<int, FileBreakpointSlot>>();
 
-        foreach (var proc in _objectTree.Procs.Concat(new[] { _objectTree.GlobalInitProc }).OfType<DMProc>()) {
+        foreach (DMProc proc in _objectTree.Procs.Concat(new[] {_objectTree.GlobalInitProc}).OfType<DMProc>()) {
             string? source = null;
-            foreach (var sourceInfo in proc.SourceInfo) {
+            foreach (SourceInfoJson sourceInfo in proc.SourceInfo) {
                 if (sourceInfo.File != null)
                     source = _objectTree.Strings[sourceInfo.File.Value];
                 if (source == null)
                     continue;
 
-                if (!_possibleBreakpoints.TryGetValue(source, out var slots)) {
-                    slots = new();
+                if (!_possibleBreakpoints.TryGetValue(source, out Dictionary<int, FileBreakpointSlot>? slots)) {
+                    slots = new Dictionary<int, FileBreakpointSlot>();
                     _possibleBreakpoints.Add(source, slots);
                 }
 
                 // TryAdd() because multiple procs can be defined on one line
-                slots.TryAdd(sourceInfo.Line, new(proc));
+                slots.TryAdd(sourceInfo.Line, new FileBreakpointSlot(proc));
             }
         }
     }
 
     private IEnumerable<(string Type, string Proc)> IterateProcs() {
-        foreach (var proc in _objectTree.Procs) {
-            yield return (proc.OwningType.Path, proc.Name);
-        }
+        foreach (DreamProc proc in _objectTree.Procs) yield return (proc.OwningType.Path, proc.Name);
     }
 
     private void HandleRequestConfigurationDone(DebugAdapterClient client, RequestConfigurationDone reqConfigDone) {
         _dreamManager.StartWorld();
         reqConfigDone.Respond(client);
-        if (!_terminated) {
-            client.SendMessage(new ODReadyEvent(IoCManager.Resolve<Robust.Shared.Network.IServerNetManager>().Port));
-        }
+        if (!_terminated) client.SendMessage(new ODReadyEvent(IoCManager.Resolve<IServerNetManager>().Port));
     }
 
     private void HandleRequestDisconnect(DebugAdapterClient client, RequestDisconnect reqDisconnect) {
@@ -452,85 +420,82 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
             return;
         }
 
-        var setBreakpoints = reqSetBreakpoints.Arguments.Breakpoints;
+        SourceBreakpoint[]? setBreakpoints = reqSetBreakpoints.Arguments.Breakpoints;
         var responseBreakpoints = new Breakpoint[setBreakpoints?.Length ?? 0];
 
         sourcePath = Path.GetRelativePath(RootPath, sourcePath).Replace("\\", "/");
-        if (_possibleBreakpoints is null || !_possibleBreakpoints.TryGetValue(sourcePath, out var fileSlots)) {
+        if (_possibleBreakpoints is null ||
+            !_possibleBreakpoints.TryGetValue(sourcePath, out Dictionary<int, FileBreakpointSlot>? fileSlots)) {
             // File isn't known - every breakpoint is invalid.
-            for (int i = 0; i < responseBreakpoints.Length; ++i) {
-                responseBreakpoints[i] = new Breakpoint(message: $"Unknown file \"{sourcePath}\"");
-            }
+            for (var i = 0; i < responseBreakpoints.Length; ++i)
+                responseBreakpoints[i] = new Breakpoint($"Unknown file \"{sourcePath}\"");
 
             reqSetBreakpoints.Respond(client, responseBreakpoints);
             return;
         }
 
         // Remove all the current breakpoints
-        foreach (var slot in fileSlots.Values) {
-            slot.ClearBreakpoints();
-        }
+        foreach (FileBreakpointSlot slot in fileSlots.Values) slot.ClearBreakpoints();
 
         // We've unset old breakpoints, so set new ones if needed.
-        if (setBreakpoints != null) {
-            for (int i = 0; i < setBreakpoints.Length; i++) {
+        if (setBreakpoints != null)
+            for (var i = 0; i < setBreakpoints.Length; i++) {
                 SourceBreakpoint setBreakpoint = setBreakpoints[i];
-                if (fileSlots.TryGetValue(setBreakpoint.Line, out var slot) && slot.Proc.TryGetOffsetAtSource(sourcePath, setBreakpoint.Line, out var offset)) {
+                if (fileSlots.TryGetValue(setBreakpoint.Line, out FileBreakpointSlot? slot) &&
+                    slot.Proc.TryGetOffsetAtSource(sourcePath, setBreakpoint.Line, out int offset)) {
                     int id = ++_breakpointIdCounter;
 
                     slot.AddBreakpoint(offset, new ActiveBreakpoint {
                         Id = id,
                         Condition = setBreakpoint.Condition,
                         HitCondition = setBreakpoint.HitCondition,
-                        LogMessage = setBreakpoint.LogMessage,
+                        LogMessage = setBreakpoint.LogMessage
                     });
 
-                    responseBreakpoints[i] = new(id, source, setBreakpoint.Line);
+                    responseBreakpoints[i] = new Breakpoint(id, source, setBreakpoint.Line);
                 } else {
-                    responseBreakpoints[i] = new(message: $"No code on line {setBreakpoint.Line}") { Line = setBreakpoint.Line };
+                    responseBreakpoints[i] = new Breakpoint($"No code on line {setBreakpoint.Line}")
+                        {Line = setBreakpoint.Line};
                 }
             }
-        }
 
         reqSetBreakpoints.Respond(client, responseBreakpoints);
     }
 
-    private void HandleRequestSetFunctionBreakpoints(DebugAdapterClient client, RequestSetFunctionBreakpoints reqFuncBreakpoints) {
-        var input = reqFuncBreakpoints.Arguments.Breakpoints;
+    private void HandleRequestSetFunctionBreakpoints(DebugAdapterClient client,
+        RequestSetFunctionBreakpoints reqFuncBreakpoints) {
+        FunctionBreakpoint[] input = reqFuncBreakpoints.Arguments.Breakpoints;
         var output = new Breakpoint[input.Length];
 
-        foreach (var v in _possibleFunctionBreakpoints!.Values) {
-            v.Breakpoints.Clear();
-        }
+        foreach (FunctionBreakpointSlot v in _possibleFunctionBreakpoints!.Values) v.Breakpoints.Clear();
 
-        for (int i = 0; i < input.Length; ++i) {
-            var bp = input[i];
+        for (var i = 0; i < input.Length; ++i) {
+            FunctionBreakpoint bp = input[i];
 
             string name = bp.Name.Replace("/proc/", "/").Replace("/verb/", "/");
             int last = name.LastIndexOf('/');
             string type = name[..last];
             string proc = name[(last + 1)..];
-            if (type == "") {
-                type = "/";
-            }
+            if (type == "") type = "/";
 
             if (_possibleFunctionBreakpoints.GetValueOrDefault((type, proc)) is FunctionBreakpointSlot slot) {
                 int id = ++_breakpointIdCounter;
-                output[i] = new(id, verified: true);
+                output[i] = new Breakpoint(id, true);
                 slot.Breakpoints.Add(new ActiveBreakpoint {
                     Id = id,
                     Condition = bp.Condition,
-                    HitCondition = bp.HitCondition,
+                    HitCondition = bp.HitCondition
                 });
             } else {
-                output[i] = new(message: $"No proc {type}::{proc}");
+                output[i] = new Breakpoint($"No proc {type}::{proc}");
             }
         }
 
         reqFuncBreakpoints.Respond(client, output);
     }
 
-    private void HandleRequestSetExceptionBreakpoints(DebugAdapterClient client, RequestSetExceptionBreakpoints requestSetExceptionBreakpoints) {
+    private void HandleRequestSetExceptionBreakpoints(DebugAdapterClient client,
+        RequestSetExceptionBreakpoints requestSetExceptionBreakpoints) {
         _breakOnRuntimes = requestSetExceptionBreakpoints.Arguments.Filters.Contains(ExceptionFilterRuntimes);
         requestSetExceptionBreakpoints.Respond(client, null);
     }
@@ -540,14 +505,11 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     }
 
     private void HandleRequestThreads(DebugAdapterClient client, RequestThreads reqThreads) {
-        var threads = new List<Thread>();
-        foreach (var thread in InspectThreads().Distinct()) {
-            threads.Add(new Thread(thread.Id, thread.Name));
-        }
+        var threads = new List<Protocol.Thread>();
+        foreach (DreamThread thread in InspectThreads().Distinct())
+            threads.Add(new Protocol.Thread(thread.Id, thread.Name));
 
-        if (!threads.Any()) {
-            threads.Add(new Thread(0, "Nothing"));
-        }
+        if (!threads.Any()) threads.Add(new Protocol.Thread(0, "Nothing"));
 
         reqThreads.Respond(client, threads);
     }
@@ -557,42 +519,42 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         reqPause.Respond(client);
         Stop(null, new StoppedEvent {
             Reason = StoppedEvent.ReasonPause,
-            Description = "Paused by request",
+            Description = "Paused by request"
         });
     }
 
     private void HandleRequestContinue(DebugAdapterClient client, RequestContinue reqContinue) {
         Resume();
-        reqContinue.Respond(client, allThreadsContinued: true);
+        reqContinue.Respond(client, true);
     }
 
     private void HandleRequestStepIn(DebugAdapterClient client, RequestStepIn requestStepIn) {
-        var thread = InspectThreads().First(t => t.Id == requestStepIn.Arguments.ThreadId);
+        DreamThread thread = InspectThreads().First(t => t.Id == requestStepIn.Arguments.ThreadId);
         thread.StepMode = new ThreadStepMode {
             Mode = StepMode.StepIn,
-            Granularity = requestStepIn.Arguments.Granularity,
+            Granularity = requestStepIn.Arguments.Granularity
         };
         Resume();
         requestStepIn.Respond(client);
     }
 
     private void HandleRequestNext(DebugAdapterClient client, RequestNext requestNext) {
-        var thread = InspectThreads().First(t => t.Id == requestNext.Arguments.ThreadId);
+        DreamThread thread = InspectThreads().First(t => t.Id == requestNext.Arguments.ThreadId);
         thread.StepMode = new ThreadStepMode {
             Mode = StepMode.StepOver,
             FrameId = thread.InspectStack().FirstOrDefault()?.Id ?? -1,
-            Granularity = requestNext.Arguments.Granularity,
+            Granularity = requestNext.Arguments.Granularity
         };
         Resume();
         requestNext.Respond(client);
     }
 
     private void HandleRequestStepOut(DebugAdapterClient client, RequestStepOut requestStepOut) {
-        var thread = InspectThreads().First(t => t.Id == requestStepOut.Arguments.ThreadId);
+        DreamThread thread = InspectThreads().First(t => t.Id == requestStepOut.Arguments.ThreadId);
         thread.StepMode = new ThreadStepMode {
             Mode = StepMode.StepOut,
             FrameId = thread.InspectStack().FirstOrDefault()?.Id ?? -1,
-            Granularity = requestStepOut.Arguments.Granularity,
+            Granularity = requestStepOut.Arguments.Granularity
         };
         Resume();
         requestStepOut.Respond(client);
@@ -607,30 +569,30 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         // VSC shows exceptionId, description, stackTrace in that order.
         requestExceptionInfo.Respond(client, new RequestExceptionInfo.ExceptionInfoResponse {
             ExceptionId = _exception.Message,
-            BreakMode = RequestExceptionInfo.ExceptionInfoResponse.BreakModeAlways,
+            BreakMode = RequestExceptionInfo.ExceptionInfoResponse.BreakModeAlways
         });
     }
 
     private void HandleRequestStackTrace(DebugAdapterClient client, RequestStackTrace reqStackTrace) {
-        var thread = InspectThreads().FirstOrDefault(t => t.Id == reqStackTrace.Arguments.ThreadId);
+        DreamThread? thread = InspectThreads().FirstOrDefault(t => t.Id == reqStackTrace.Arguments.ThreadId);
         if (thread is null) {
             reqStackTrace.RespondError(client, $"No thread with ID {reqStackTrace.Arguments.ThreadId}");
             return;
         }
 
         var output = new List<StackFrame>();
-        var nameBuilder = new System.Text.StringBuilder();
-        foreach (var frame in thread.InspectStack()) {
+        var nameBuilder = new StringBuilder();
+        foreach (ProcState frame in thread.InspectStack()) {
             nameBuilder.Clear();
             frame.AppendStackFrame(nameBuilder);
 
             var outputFrame = new StackFrame {
                 Id = frame.Id,
-                Name = nameBuilder.ToString(),
+                Name = nameBuilder.ToString()
             };
 
             if (frame is DMProcState dm) {
-                var sourceInfo = dm.Proc.GetSourceAtOffset(dm.ProgramCounter);
+                (string Source, int Line) sourceInfo = dm.Proc.GetSourceAtOffset(dm.ProgramCounter);
 
                 outputFrame.InstructionPointerReference = EncodeInstructionPointer(dm.Proc, dm.ProgramCounter);
                 outputFrame.Source = TranslateSource(sourceInfo.Source);
@@ -648,94 +610,84 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         if (source is null)
             return null;
 
-        var fName = Path.GetFileName(source);
-        if (Path.IsPathRooted(source)) {
-            return new Source(fName, source);
-        } else {
-            return new Source(fName, Path.Join(RootPath, source));
-        }
+        string fName = Path.GetFileName(source);
+        if (Path.IsPathRooted(source)) return new Source(fName, source);
+
+        return new Source(fName, Path.Join(RootPath, source));
     }
 
     private void HandleRequestScopes(DebugAdapterClient client, RequestScopes requestScopes) {
-        if (!_stackFramesById.TryGetValue(requestScopes.Arguments.FrameId, out var weak) || !weak.TryGetTarget(out var frame)) {
+        if (!_stackFramesById.TryGetValue(requestScopes.Arguments.FrameId, out WeakReference<ProcState>? weak) ||
+            !weak.TryGetTarget(out ProcState? frame)) {
             requestScopes.RespondError(client, $"No frame with ID {requestScopes.Arguments.FrameId}");
             return;
         }
 
         if (frame is not DMProcState dmFrame) {
-            requestScopes.RespondError(client, $"Cannot inspect native frame");
+            requestScopes.RespondError(client, "Cannot inspect native frame");
             return;
         }
 
         var scopes = new List<Scope>(4);
-        var stack = dmFrame.DebugStack();
-        if (stack.Length > 0) {
+        ReadOnlyMemory<DreamValue> stack = dmFrame.DebugStack();
+        if (stack.Length > 0)
             // Only show the Stack as a scope if there is anything worth showing,
             // which will usually only be when stepping by instruction.
             scopes.Add(new Scope {
                 Name = "Stack",
                 VariablesReference = AllocVariableRef(req => ExpandStack(req, stack)),
-                PresentationHint = Scope.PresentationHintRegisters,
+                PresentationHint = Scope.PresentationHintRegisters
             });
-        }
 
         scopes.Add(new Scope {
             Name = "Arguments",
             PresentationHint = Scope.PresentationHintArguments,
-            VariablesReference = AllocVariableRef(req => ExpandArguments(req, dmFrame)),
+            VariablesReference = AllocVariableRef(req => ExpandArguments(req, dmFrame))
         });
         scopes.Add(new Scope {
             Name = "Locals",
             PresentationHint = Scope.PresentationHintLocals,
-            VariablesReference = AllocVariableRef(req => ExpandLocals(req, dmFrame)),
+            VariablesReference = AllocVariableRef(req => ExpandLocals(req, dmFrame))
         });
         scopes.Add(new Scope {
             Name = "Globals",
-            VariablesReference = AllocVariableRef(req => ExpandGlobals(req)),
+            VariablesReference = AllocVariableRef(req => ExpandGlobals(req))
         });
 
         requestScopes.Respond(client, scopes);
     }
 
     private IEnumerable<Variable> ExpandArguments(RequestVariables req, DMProcState dmFrame) {
-        if (dmFrame.Proc.OwningType != _objectTree.Root) {
-            yield return DescribeValue("src", new(dmFrame.Instance));
-        }
+        if (dmFrame.Proc.OwningType != _objectTree.Root)
+            yield return DescribeValue("src", new DreamValue(dmFrame.Instance));
 
-        yield return DescribeValue("usr", new(dmFrame.Usr));
+        yield return DescribeValue("usr", new DreamValue(dmFrame.Usr));
 
-        foreach (var (name, value) in dmFrame.DebugArguments()) {
-            yield return DescribeValue(name, value);
-        }
+        foreach ((string name, DreamValue value) in dmFrame.DebugArguments()) yield return DescribeValue(name, value);
     }
 
     private IEnumerable<Variable> ExpandLocals(RequestVariables req, DMProcState dmFrame) {
-        foreach (var (name, value) in dmFrame.DebugLocals()) {
-            yield return DescribeValue(name, value);
-        }
+        foreach ((string name, DreamValue value) in dmFrame.DebugLocals()) yield return DescribeValue(name, value);
     }
 
     private IEnumerable<Variable> ExpandGlobals(RequestVariables req) {
-        foreach ((string name, DreamValue value) in _dreamManager.GlobalNames.Zip(_dreamManager.Globals).OrderBy(kv => kv.First)) {
-            yield return DescribeValue(name, value);
-        }
+        foreach ((string name, DreamValue value) in _dreamManager.GlobalNames.Zip(_dreamManager.Globals)
+                     .OrderBy(kv => kv.First)) yield return DescribeValue(name, value);
     }
 
     private IEnumerable<Variable> ExpandStack(RequestVariables req, ReadOnlyMemory<DreamValue> stack) {
-        for (int i = stack.Length - 1; i >= 0; --i) {
-            yield return DescribeValue($"{i}", stack.Span[i]);
-        }
+        for (int i = stack.Length - 1; i >= 0; --i) yield return DescribeValue($"{i}", stack.Span[i]);
     }
 
     private Variable DescribeValue(string name, DreamValue value) {
-        var varDesc = new Variable { Name = name, Value = value.ToString() };
+        var varDesc = new Variable {Name = name, Value = value.ToString()};
 
-        if (value.TryGetValueAsDreamList(out var list)) {
+        if (value.TryGetValueAsDreamList(out DreamList? list)) {
             if (list.GetLength() > 0) {
                 varDesc.VariablesReference = AllocVariableRef(req => ExpandList(req, list));
                 varDesc.IndexedVariables = list.GetLength() * (list.IsAssociative ? 2 : 1);
             }
-        } else if (value.TryGetValueAsDreamObject(out var obj) && obj != null) {
+        } else if (value.TryGetValueAsDreamObject(out DreamObject? obj) && obj != null) {
             varDesc.VariablesReference = AllocVariableRef(req => ExpandObject(req, obj));
             varDesc.NamedVariables = obj.ObjectDefinition?.Variables.Count;
         }
@@ -745,25 +697,26 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
 
     private IEnumerable<Variable> ExpandList(RequestVariables req, DreamList list) {
         if (list.IsAssociative) {
-            var assoc = list.GetAssociativeValues();
-            foreach (var (i, key) in list.EnumerateValues().Select((v, i) => (i + 1, v)).Skip(req.Arguments.Start ?? 0).Take((req.Arguments.Count ?? int.MaxValue) / 2)) {
-                assoc.TryGetValue(key, out var value);
+            Dictionary<DreamValue, DreamValue> assoc = list.GetAssociativeValues();
+            foreach ((int i, DreamValue key) in list.EnumerateValues().Select((v, i) => (i + 1, v))
+                         .Skip(req.Arguments.Start ?? 0).Take((req.Arguments.Count ?? int.MaxValue) / 2)) {
+                assoc.TryGetValue(key, out DreamValue value);
                 yield return DescribeValue($"keys[{i}]", key);
                 yield return DescribeValue($"vals[{i}]", value);
             }
         } else {
-            foreach (var (i, value) in list.EnumerateValues().Select((v, i) => (i + 1, v)).Skip(req.Arguments.Start ?? 0).Take(req.Arguments.Count ?? int.MaxValue)) {
-                yield return DescribeValue($"[{i}]", value);
-            }
+            foreach ((int i, DreamValue value) in list.EnumerateValues().Select((v, i) => (i + 1, v))
+                         .Skip(req.Arguments.Start ?? 0)
+                         .Take(req.Arguments.Count ?? int.MaxValue)) yield return DescribeValue($"[{i}]", value);
         }
     }
 
     private IEnumerable<Variable> ExpandObject(RequestVariables req, DreamObject obj) {
-        foreach (var name in obj.GetVariableNames().OrderBy(k => k)) {
+        foreach (string name in obj.GetVariableNames().OrderBy(k => k)) {
             Variable described;
 
             try {
-                using var value = obj.GetVariable(name);
+                using DreamValue value = obj.GetVariable(name);
 
                 described = DescribeValue(name, value);
             } catch (Exception ex) {
@@ -771,7 +724,7 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
 
                 described = new Variable {
                     Name = name,
-                    Value = $"<error: {ex.Message}>",
+                    Value = $"<error: {ex.Message}>"
                 };
             }
 
@@ -780,7 +733,8 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     }
 
     private void HandleRequestVariables(DebugAdapterClient client, RequestVariables requestVariables) {
-        if (!_variableReferences.TryGetValue(requestVariables.Arguments.VariablesReference, out var varFunc)) {
+        if (!_variableReferences.TryGetValue(requestVariables.Arguments.VariablesReference,
+                out Func<RequestVariables, IEnumerable<Variable>>? varFunc)) {
             // When stepping quickly, we may receive such requests for old scopes we've already dropped.
             // Fail silently instead of loudly to avoid spamming error messages.
             requestVariables.Respond(client, Enumerable.Empty<Variable>());
@@ -791,14 +745,15 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     }
 
     private void HandleRequestDisassemble(DebugAdapterClient client, RequestDisassemble requestDisassemble) {
-        var (proc, pc) = DecodeInstructionPointer(requestDisassemble.Arguments.MemoryReference);
+        (DMProc? proc, uint pc) = DecodeInstructionPointer(requestDisassemble.Arguments.MemoryReference);
         // If the user scrolled really far up/down, serve nothing forever.
         if (proc == null) {
-            if (pc == 0xffffffff) {
-                requestDisassemble.Respond(client, Enumerable.Repeat(HighInstruction, requestDisassemble.Arguments.InstructionCount));
-            } else {
-                requestDisassemble.Respond(client, Enumerable.Repeat(LowInstruction, requestDisassemble.Arguments.InstructionCount));
-            }
+            if (pc == 0xffffffff)
+                requestDisassemble.Respond(client,
+                    Enumerable.Repeat(HighInstruction, requestDisassemble.Arguments.InstructionCount));
+            else
+                requestDisassemble.Respond(client,
+                    Enumerable.Repeat(LowInstruction, requestDisassemble.Arguments.InstructionCount));
 
             return;
         }
@@ -806,8 +761,9 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         // Just disassemble the whole function...
         List<DisassembledInstruction> output = new();
         DisassembledInstruction? previousInstruction = null;
-        int previousOffset = 0;
-        foreach (var (offset, instruction) in new ProcDecoder(_objectTree.Strings, proc.Bytecode).Disassemble()) {
+        var previousOffset = 0;
+        foreach ((int offset, ITuple instruction) in
+                 new ProcDecoder(_objectTree.Strings, proc.Bytecode).Disassemble()) {
             /*if (previousInstruction != null) {
                 previousInstruction.InstructionBytes = BitConverter.ToString(proc.Bytecode, previousOffset, offset - previousOffset).Replace("-", " ").ToLowerInvariant();
             }*/
@@ -815,10 +771,10 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
             previousOffset = offset;
             previousInstruction = new DisassembledInstruction {
                 Address = EncodeInstructionPointer(proc, offset),
-                Instruction = ProcDecoder.Format(instruction, type => _objectTree.Types[type].Path.ToString()),
+                Instruction = ProcDecoder.Format(instruction, type => _objectTree.Types[type].Path.ToString())
             };
 
-            var sourceInfo = proc.GetSourceAtOffset(previousOffset);
+            (string Source, int Line) sourceInfo = proc.GetSourceAtOffset(previousOffset);
             previousInstruction.Location = TranslateSource(sourceInfo.Source);
             previousInstruction.Line = sourceInfo.Line;
 
@@ -831,10 +787,13 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
 
         // ... and THEN strip everything outside the requested range.
         int requestedPoint = output.FindIndex(di => di.Address == requestDisassemble.Arguments.MemoryReference);
-        requestDisassemble.Respond(client, DisassemblySkipTake(output, requestedPoint, requestDisassemble.Arguments.InstructionOffset ?? 0, requestDisassemble.Arguments.InstructionCount));
+        requestDisassemble.Respond(client,
+            DisassemblySkipTake(output, requestedPoint, requestDisassemble.Arguments.InstructionOffset ?? 0,
+                requestDisassemble.Arguments.InstructionCount));
     }
 
-    private void HandleRequestHotReloadInterface(DebugAdapterClient client, RequestHotReloadInterface requestHotReloadInterface) {
+    private void HandleRequestHotReloadInterface(DebugAdapterClient client,
+        RequestHotReloadInterface requestHotReloadInterface) {
         _sawmill.Debug("Debug adapter triggered interface hot reload");
         try {
             _dreamManager.HotReloadInterface();
@@ -844,14 +803,16 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         }
     }
 
-    private void HandleRequestHotReloadResource(DebugAdapterClient client, RequestHotReloadResource requestHotReloadResource) {
+    private void HandleRequestHotReloadResource(DebugAdapterClient client,
+        RequestHotReloadResource requestHotReloadResource) {
         if (string.IsNullOrWhiteSpace(requestHotReloadResource.Arguments.FilePath)) {
             _sawmill.Error("Debug adapter requested a resource hot reload but didn't provide a file");
             requestHotReloadResource.RespondError(client, "No file provided for a hot reload");
             return;
         }
 
-        _sawmill.Debug("Debug adapter triggered resource hot reload for "+requestHotReloadResource.Arguments.FilePath);
+        _sawmill.Debug("Debug adapter triggered resource hot reload for " +
+                       requestHotReloadResource.Arguments.FilePath);
         try {
             _dreamManager.HotReloadResource(requestHotReloadResource.Arguments.FilePath);
             requestHotReloadResource.Respond(client);
@@ -860,20 +821,16 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
         }
     }
 
-    private IEnumerable<DisassembledInstruction> DisassemblySkipTake(List<DisassembledInstruction> list, int midpoint, int offset, int count) {
-        for (int i = midpoint + offset; i < midpoint + offset + count; ++i) {
-            if (i < 0) {
+    private IEnumerable<DisassembledInstruction> DisassemblySkipTake(List<DisassembledInstruction> list, int midpoint,
+        int offset, int count) {
+        for (int i = midpoint + offset; i < midpoint + offset + count; ++i)
+            if (i < 0)
                 yield return LowInstruction;
-            } else if (i < list.Count) {
+            else if (i < list.Count)
                 yield return list[i];
-            } else {
+            else
                 yield return HighInstruction;
-            }
-        }
     }
-
-    private static readonly DisassembledInstruction LowInstruction = new DisassembledInstruction { Address = "0x1", Instruction = "" };
-    private static readonly DisassembledInstruction HighInstruction = new DisassembledInstruction { Address = "0xffffffffffffffff", Instruction = "" };
 
     private string EncodeInstructionPointer(DMProc proc, int pc) {
         // VSCode requires that the instruction pointer is parseable as a BigInt
@@ -886,20 +843,63 @@ internal sealed partial class DreamDebugManager : IDreamDebugManager {
     }
 
     private (DMProc? proc, uint pc) DecodeInstructionPointer(string ip) {
-        ulong ip2 = ulong.Parse(ip[2..], System.Globalization.NumberStyles.HexNumber);
-        _disassemblyProcs.TryGetValue((int)((ip2 & 0xffffffff00000000) >> 32), out var proc);
+        ulong ip2 = ulong.Parse(ip[2..], NumberStyles.HexNumber);
+        _disassemblyProcs.TryGetValue((int)((ip2 & 0xffffffff00000000) >> 32), out DMProc? proc);
         return (proc, (uint)(ip2 & 0xffffffff));
+    }
+
+    public struct ThreadStepMode {
+        public StepMode Mode;
+        public int FrameId;
+        public string? Granularity;
+    }
+
+    private sealed class FileBreakpointSlot(DMProc proc) {
+        public readonly DMProc Proc = proc;
+
+        private readonly List<ActiveBreakpoint> _breakpoints = new();
+        public IReadOnlyList<ActiveBreakpoint> Breakpoints => _breakpoints;
+
+        public void ClearBreakpoints() {
+            // Set all the opcodes back to their original
+            foreach (ActiveBreakpoint breakpoint in _breakpoints)
+                Proc.Bytecode[breakpoint.BytecodeOffset] = breakpoint.OriginalOpcode;
+
+            _breakpoints.Clear();
+        }
+
+        public void AddBreakpoint(int offset, ActiveBreakpoint breakpoint) {
+            breakpoint.BytecodeOffset = offset;
+            breakpoint.OriginalOpcode = Proc.Bytecode[offset];
+            _breakpoints.Add(breakpoint);
+
+            // Replace the opcode with DebuggerBreakpoint so we know when we trip it
+            Proc.Bytecode[offset] = (byte)DreamProcOpcode.DebuggerBreakpoint;
+        }
+    }
+
+    private sealed class FunctionBreakpointSlot {
+        public readonly List<ActiveBreakpoint> Breakpoints = new();
+    }
+
+    private struct ActiveBreakpoint {
+        public int Id;
+        public int BytecodeOffset;
+        public byte OriginalOpcode;
+        public string? Condition;
+        public string? HitCondition;
+        public string? LogMessage;
     }
 }
 
 public interface IDreamDebugManager {
-    public void Initialize(int port);
-    public void Update();
-    public void Shutdown();
+    void Initialize(int port);
+    void Update();
+    void Shutdown();
 
-    public void HandleOutput(LogLevel logLevel, string message);
-    public void HandleFirstResume(DMProcState dMProcState);
-    public void HandleInstruction(DMProcState dMProcState);
-    public ProcStatus HandleBreakpoint(DMProcState state);
-    public void HandleException(DreamThread dreamThread, Exception exception);
+    void HandleOutput(LogLevel logLevel, string message);
+    void HandleFirstResume(DMProcState dMProcState);
+    void HandleInstruction(DMProcState dMProcState);
+    ProcStatus HandleBreakpoint(DMProcState state);
+    void HandleException(DreamThread dreamThread, Exception exception);
 }

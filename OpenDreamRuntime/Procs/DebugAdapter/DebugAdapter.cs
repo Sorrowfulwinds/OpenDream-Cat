@@ -6,11 +6,13 @@ namespace OpenDreamRuntime.Procs.DebugAdapter;
 public sealed class DebugAdapter {
     public delegate void OnClientConnectedHandler(DebugAdapterClient client);
 
-    public event OnClientConnectedHandler? OnClientConnected;
-
     private readonly List<DebugAdapterClient> _clients = new();
 
-    public bool AnyClientsConnected() => _clients.Count > 0;
+    public event OnClientConnectedHandler? OnClientConnected;
+
+    public bool AnyClientsConnected() {
+        return _clients.Count > 0;
+    }
 
     public void ConnectOut(string? host = null, int? port = null) {
         var client = new DebugAdapterClient(new TcpClient(host ?? "127.0.0.1", port ?? 25567));
@@ -19,30 +21,27 @@ public sealed class DebugAdapter {
     }
 
     public void HandleMessages() {
-        for (int i = 0; i < _clients.Count; i++) {
+        for (var i = 0; i < _clients.Count; i++) {
             DebugAdapterClient client = _clients[i];
 
-            if (client.Connected) {
+            if (client.Connected)
                 client.HandleMessages();
-            } else {
+            else
                 _clients.RemoveAt(i--);
-            }
         }
     }
 
     public void Shutdown() {
-        foreach (DebugAdapterClient client in _clients) {
-            client.Close();
-        }
+        foreach (DebugAdapterClient client in _clients) client.Close();
 
         _clients.Clear();
     }
 
     public void SendAll<T>(T message) where T : ProtocolMessage {
-        foreach (DebugAdapterClient client in _clients) {
-            client.SendMessage(message);
-        }
+        foreach (DebugAdapterClient client in _clients) client.SendMessage(message);
     }
 
-    public void SendAll(IEvent evt) => SendAll(evt.ToEvent());
+    public void SendAll(IEvent evt) {
+        SendAll(evt.ToEvent());
+    }
 }

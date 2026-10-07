@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using OpenDreamRuntime.Resources;
 using OpenDreamShared;
 using OpenDreamShared.Network.Messages;
 using Robust.Shared.Configuration;
@@ -16,14 +17,18 @@ using Robust.Shared.Player;
 namespace OpenDreamRuntime;
 
 public sealed partial class DreamManager {
-    private static readonly byte[] ByondTopicHeaderRaw = { 0x00, 0x83 };
-    private static readonly byte[] ByondTopicHeaderEncrypted = { 0x00, 0x15 };
-
-    [Dependency] private IServerNetManager _netManager = default!;
-    [Dependency] private IConfigurationManager _config = default!;
+    private static readonly byte[] ByondTopicHeaderRaw = {0x00, 0x83};
+    private static readonly byte[] ByondTopicHeaderEncrypted = {0x00, 0x15};
 
     private readonly Dictionary<NetUserId, DreamConnection> _connections = new();
     private readonly Dictionary<string, NetUserId> _guestIds = new();
+    [Dependency] private IConfigurationManager _config = default!;
+
+    [Dependency] private IServerNetManager _netManager = default!;
+    private ulong _topicsProcessed;
+    private CancellationTokenSource? _worldTopicCancellationToken;
+
+    private Socket? _worldTopicSocket;
 
     public IEnumerable<DreamConnection> Connections => _connections.Values;
 
@@ -32,17 +37,13 @@ public sealed partial class DreamManager {
             if (_worldTopicSocket is null)
                 return null;
 
-            if (_worldTopicSocket.LocalEndPoint is not IPEndPoint boundEndpoint) {
-                throw new NotSupportedException($"Cannot retrieve bound topic port! Endpoint: {_worldTopicSocket.LocalEndPoint}");
-            }
+            if (_worldTopicSocket.LocalEndPoint is not IPEndPoint boundEndpoint)
+                throw new NotSupportedException(
+                    $"Cannot retrieve bound topic port! Endpoint: {_worldTopicSocket.LocalEndPoint}");
 
             return (ushort)boundEndpoint.Port;
         }
     }
-
-    private Socket? _worldTopicSocket;
-    private CancellationTokenSource? _worldTopicCancellationToken;
-    private ulong _topicsProcessed;
 
     private void InitializeConnectionManager() {
         _netManager.AssignUserIdCallback = AssignGuestIdTask;
@@ -76,7 +77,7 @@ public sealed partial class DreamManager {
         _netManager.RegisterNetMessage<MsgUpdateClientInfo>();
         _netManager.RegisterNetMessage<MsgAllAppearances>();
 
-        var topicPort = _config.GetCVar(OpenDreamCVars.TopicPort);
+        ushort topicPort = _config.GetCVar(OpenDreamCVars.TopicPort);
         var worldTopicAddress = new IPEndPoint(IPAddress.Loopback, topicPort);
         _sawmill.Debug($"Binding World Topic at {worldTopicAddress}");
         _worldTopicSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp) {
@@ -91,15 +92,15 @@ public sealed partial class DreamManager {
     }
 
     /// <summary>
-    /// Ensure guests keep the same UserId upon rejoining, since DM games identify players by username
+    ///     Ensure guests keep the same UserId upon rejoining, since DM games identify players by username
     /// </summary>
     /// <remarks>
-    /// This does mean someone could hijack a guest's session by joining with their name.
-    /// In the long term we'll want to replace usernames with user IDs DM-side.
+    ///     This does mean someone could hijack a guest's session by joining with their name.
+    ///     In the long term we'll want to replace usernames with user IDs DM-side.
     /// </remarks>
     private Task<NetUserId?> AssignGuestIdTask(string username) {
-        if (!_guestIds.TryGetValue(username, out var userId)) {
-            userId = new(Guid.NewGuid());
+        if (!_guestIds.TryGetValue(username, out NetUserId userId)) {
+            userId = new NetUserId(Guid.NewGuid());
             _guestIds.Add(username, userId);
         }
 
@@ -112,9 +113,9 @@ public sealed partial class DreamManager {
     }
 
     private async Task ConsumeAndHandleWorldTopicSocket(Socket remote, CancellationToken cancellationToken) {
-        var topicId = ++_topicsProcessed;
+        ulong topicId = ++_topicsProcessed;
         try {
-            using (remote)
+            using (remote) {
                 try {
                     async Task<string?> ParseByondTopic(Socket from) {
                         var buffer = new byte[2];
@@ -133,10 +134,10 @@ public sealed partial class DreamManager {
                         buffer = new byte[length];
                         var totalRead = 0;
                         do {
-                            var read = await from.ReceiveAsync(
+                            int read = await from.ReceiveAsync(
                                 new Memory<byte>(buffer, totalRead, length - totalRead),
                                 cancellationToken);
-                            if(read == 0 && totalRead != length) {
+                            if (read == 0 && totalRead != length) {
                                 _sawmill.Warning("failed to parse byond topic due to insufficient data read");
                                 return null;
                             }
@@ -147,26 +148,23 @@ public sealed partial class DreamManager {
                         return Encoding.ASCII.GetString(buffer[6..^1]);
                     }
 
-                    var topic = await ParseByondTopic(remote);
-                    if (topic is null) {
-                        return;
-                    }
+                    string? topic = await ParseByondTopic(remote);
+                    if (topic is null) return;
 
                     var remoteAddress = (remote.RemoteEndPoint as IPEndPoint)!.Address.ToString();
                     _sawmill.Debug($"World Topic #{topicId}: '{remoteAddress}' -> '{topic}'");
                     var tcs = new TaskCompletionSource<DreamValue>();
                     DreamThread.Run("Topic Handler", async state => {
-                        var topicProc = WorldInstance.GetProc("Topic");
+                        DreamProc topicProc = WorldInstance.GetProc("Topic");
 
-                        var result = await state.Call(topicProc, WorldInstance, null, new DreamValue(topic), new DreamValue(remoteAddress));
+                        DreamValue result = await state.Call(topicProc, WorldInstance, null, new DreamValue(topic),
+                            new DreamValue(remoteAddress));
                         tcs.SetResult(result);
                         return result;
                     }).Dispose();
 
-                    var topicResponse = await tcs.Task;
-                    if (topicResponse.IsNull) {
-                        return;
-                    }
+                    DreamValue topicResponse = await tcs.Task;
+                    if (topicResponse.IsNull) return;
 
                     byte[] responseData;
                     byte responseType;
@@ -178,7 +176,9 @@ public sealed partial class DreamManager {
 
                         case DreamValue.DreamValueType.String:
                             responseType = 0x06;
-                            responseData = Encoding.ASCII.GetBytes(topicResponse.MustGetValueAsString().Replace("\0", "")).Append((byte)0x00).ToArray();
+                            responseData = Encoding.ASCII
+                                .GetBytes(topicResponse.MustGetValueAsString().Replace("\0", "")).Append((byte)0x00)
+                                .ToArray();
                             break;
 
                         case DreamValue.DreamValueType.DreamResource:
@@ -192,7 +192,7 @@ public sealed partial class DreamManager {
                     }
 
                     var totalLength = (ushort)(responseData.Length + 1);
-                    var lengthData = BitConverter.GetBytes(totalLength);
+                    byte[] lengthData = BitConverter.GetBytes(totalLength);
                     if (BitConverter.IsLittleEndian)
                         lengthData = lengthData.Reverse().ToArray();
 
@@ -200,28 +200,31 @@ public sealed partial class DreamManager {
                     responseBuffer.AddRange(lengthData);
                     responseBuffer.Add(responseType);
                     responseBuffer.AddRange(responseData);
-                    var responseActual = responseBuffer.ToArray();
+                    byte[] responseActual = responseBuffer.ToArray();
 
-                    var sent = await remote.SendAsync(responseActual, cancellationToken);
+                    int sent = await remote.SendAsync(responseActual, cancellationToken);
                     if (sent != responseActual.Length)
                         _sawmill.Warning("Failed to reply to /world/Topic: response buffer not fully sent");
                 }
                 finally {
                     await remote.DisconnectAsync(false, cancellationToken);
                 }
+            }
         } catch (Exception ex) {
             _sawmill.Warning("Error processing topic #{0}: {1}", topicId, ex);
-        } finally {
+        }
+        finally {
             _sawmill.Debug("Finished world topic #{0}", topicId);
         }
     }
 
     private async Task WorldTopicListener(CancellationToken cancellationToken) {
         if (_worldTopicSocket is null)
-            throw new InvalidOperationException("Attempted to start the World Topic Listener without a valid socket bind address.");
+            throw new InvalidOperationException(
+                "Attempted to start the World Topic Listener without a valid socket bind address.");
 
         while (!cancellationToken.IsCancellationRequested) {
-            var pending = await _worldTopicSocket.AcceptAsync(cancellationToken);
+            Socket pending = await _worldTopicSocket.AcceptAsync(cancellationToken);
             _ = ConsumeAndHandleWorldTopicSocket(pending, cancellationToken);
         }
 
@@ -230,34 +233,34 @@ public sealed partial class DreamManager {
     }
 
     private void RxSelectStatPanel(MsgSelectStatPanel message) {
-        var connection = ConnectionForChannel(message.MsgChannel);
+        DreamConnection connection = ConnectionForChannel(message.MsgChannel);
         connection.HandleMsgSelectStatPanel(message);
     }
 
     private void RxPromptResponse(MsgPromptResponse message) {
-        var connection = ConnectionForChannel(message.MsgChannel);
+        DreamConnection connection = ConnectionForChannel(message.MsgChannel);
         connection.HandleMsgPromptResponse(message);
     }
 
     private void RxSoundQueryResponse(MsgSoundQueryResponse message) {
-        var connection = ConnectionForChannel(message.MsgChannel);
+        DreamConnection connection = ConnectionForChannel(message.MsgChannel);
         connection.HandleMsgSoundQueryResponse(message);
     }
 
     private void RxTopic(MsgTopic message) {
-        var connection = ConnectionForChannel(message.MsgChannel);
+        DreamConnection connection = ConnectionForChannel(message.MsgChannel);
         connection.HandleMsgTopic(message);
     }
 
     private void RxAckLoadInterface(MsgAckLoadInterface message) {
         // Once the client loaded the interface, move them to in-game.
-        var player = _playerManager.GetSessionByChannel(message.MsgChannel);
-        if(player.Status != SessionStatus.InGame) //Don't rejoin if this is a hot reload of interface
+        ICommonSession player = _playerManager.GetSessionByChannel(message.MsgChannel);
+        if (player.Status != SessionStatus.InGame) //Don't rejoin if this is a hot reload of interface
             _playerManager.JoinGame(player);
     }
 
     private void RxBrowseResourceRequest(MsgBrowseResourceRequest message) {
-        var connection = ConnectionForChannel(message.MsgChannel);
+        DreamConnection connection = ConnectionForChannel(message.MsgChannel);
         connection.HandleBrowseResourceRequest(message.Filename);
     }
 
@@ -268,7 +271,7 @@ public sealed partial class DreamManager {
             Success = false
         };
 
-        if (_dreamResourceManager.TryLoadResource(message.ResourcePathOrRef, out var dreamResource)) {
+        if (_dreamResourceManager.TryLoadResource(message.ResourcePathOrRef, out DreamResource? dreamResource)) {
             msg.ResourceId = dreamResource.Id;
             msg.Success = true;
         }
@@ -291,7 +294,7 @@ public sealed partial class DreamManager {
                 break;
 
             case SessionStatus.InGame: {
-                if (!_connections.TryGetValue(e.Session.UserId, out var connection)) {
+                if (!_connections.TryGetValue(e.Session.UserId, out DreamConnection? connection)) {
                     connection = new DreamConnection(e.Session.Name);
 
                     _connections.Add(e.Session.UserId, connection);
@@ -302,7 +305,7 @@ public sealed partial class DreamManager {
             }
 
             case SessionStatus.Disconnected: {
-                if (_connections.TryGetValue(e.Session.UserId, out var connection))
+                if (_connections.TryGetValue(e.Session.UserId, out DreamConnection? connection))
                     connection.HandleDisconnection();
 
                 break;
@@ -311,9 +314,7 @@ public sealed partial class DreamManager {
     }
 
     private void UpdateStat() {
-        foreach (var connection in _connections.Values) {
-            connection.UpdateStat();
-        }
+        foreach (DreamConnection connection in _connections.Values) connection.UpdateStat();
     }
 
     public DreamConnection GetConnectionBySession(ICommonSession session) {
@@ -327,23 +328,21 @@ public sealed partial class DreamManager {
             InterfaceText = _dreamResourceManager.InterfaceFile?.ReadAsString()
         };
 
-        foreach (var connection in _connections.Values) {
+        foreach (DreamConnection connection in _connections.Values)
             connection.Session?.Channel.SendMessage(msgLoadInterface);
-        }
     }
 
     public void HotReloadResource(string fileName) {
         //ensure all paths are relative for consistency
-        var path = Path.GetRelativePath(_dreamResourceManager.RootPath, fileName);
-        var resource = _dreamResourceManager.LoadResource(path);
+        string path = Path.GetRelativePath(_dreamResourceManager.RootPath, fileName);
+        DreamResource resource = _dreamResourceManager.LoadResource(path);
         var msgBrowseResource = new MsgNotifyResourceUpdate { //send a message that this resource id has been updated, let the clients handle re-requesting it
             ResourceId = resource.Id
         };
 
         resource.ReloadFromDisk();
-        foreach (var connection in _connections.Values) {
+        foreach (DreamConnection connection in _connections.Values)
             connection.Session?.Channel.SendMessage(msgBrowseResource);
-        }
     }
 }
 
@@ -355,7 +354,7 @@ public sealed class HotReloadInterfaceCommand : IConsoleCommand {
     public bool RequireServerOrSingleplayer => true;
 
     public void Execute(IConsoleShell shell, string argStr, string[] args) {
-        if(!shell.IsLocal) {
+        if (!shell.IsLocal) {
             shell.WriteError("You cannot use this command as a client. Execute it on the server console.");
             return;
         }
@@ -365,7 +364,7 @@ public sealed class HotReloadInterfaceCommand : IConsoleCommand {
             return;
         }
 
-        DreamManager dreamManager = IoCManager.Resolve<DreamManager>();
+        var dreamManager = IoCManager.Resolve<DreamManager>();
         dreamManager.HotReloadInterface();
         shell.WriteLine("Reloading interface");
     }
@@ -374,22 +373,26 @@ public sealed class HotReloadInterfaceCommand : IConsoleCommand {
 public sealed class HotReloadResourceCommand : IConsoleCommand {
     // ReSharper disable once StringLiteralTypo
     public string Command => "hotreloadresource";
-    public string Description => "Reload a specified resource and send the update to all clients who have the old version already";
+
+    public string Description =>
+        "Reload a specified resource and send the update to all clients who have the old version already";
+
     public string Help => "";
     public bool RequireServerOrSingleplayer => true;
 
     public void Execute(IConsoleShell shell, string argStr, string[] args) {
-        if(!shell.IsLocal) {
+        if (!shell.IsLocal) {
             shell.WriteError("You cannot use this command as a client. Execute it on the server console.");
             return;
         }
 
         if (args.Length != 1) {
-            shell.WriteError("This command requires a file path to reload as an argument! Example: hotreloadresource ./path/to/resource.dmi");
+            shell.WriteError(
+                "This command requires a file path to reload as an argument! Example: hotreloadresource ./path/to/resource.dmi");
             return;
         }
 
-        DreamManager dreamManager = IoCManager.Resolve<DreamManager>();
+        var dreamManager = IoCManager.Resolve<DreamManager>();
         shell.WriteLine($"Reloading {args[0]}");
         dreamManager.HotReloadResource(args[0]);
     }

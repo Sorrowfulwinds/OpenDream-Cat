@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Byond.TopicSender;
 using OpenDreamRuntime.Objects;
 using OpenDreamRuntime.Objects.Types;
+using OpenDreamRuntime.Resources;
 using Robust.Server;
 
 namespace OpenDreamRuntime.Procs.Native;
@@ -16,24 +17,25 @@ internal static class DreamProcNativeWorld {
     [DreamProcParameter("Persist", Type = DreamValue.DreamValueTypeFlag.Float, DefaultValue = 0)]
     [DreamProcParameter("Clients", Type = DreamValue.DreamValueTypeFlag.DreamObject)]
     public static async Task<DreamValue> NativeProc_Export(AsyncNativeProc.AsyncNativeProcState state) {
-        var addr = state.GetArgument(0, "Addr").Stringify();
+        string addr = state.GetArgument(0, "Addr").Stringify();
 
-        if (!Uri.TryCreate(addr, UriKind.RelativeOrAbsolute, out var uri))
+        if (!Uri.TryCreate(addr, UriKind.RelativeOrAbsolute, out Uri? uri))
             throw new ArgumentException("Unable to parse URI.");
 
         if (uri.Scheme is not ("http" or "https" or "byond"))
             throw new NotSupportedException($"Unknown scheme for world.Export: '{uri.Scheme}'");
 
         if (uri.Scheme is "byond") {
-            var tenSecondTimeout = TimeSpan.FromSeconds(10);
+            TimeSpan tenSecondTimeout = TimeSpan.FromSeconds(10);
             var topicClient = new TopicClient(new SocketParameters {
                 ConnectTimeout = tenSecondTimeout,
                 DisconnectTimeout = tenSecondTimeout,
                 ReceiveTimeout = tenSecondTimeout,
-                SendTimeout = tenSecondTimeout,
+                SendTimeout = tenSecondTimeout
             });
 
-            var topicResponse = await topicClient.SendTopic(uri.Host, uri.Query[1..], Convert.ToUInt16(uri.Port));
+            TopicResponse topicResponse =
+                await topicClient.SendTopic(uri.Host, uri.Query[1..], Convert.ToUInt16(uri.Port));
             switch (topicResponse.ResponseType) {
                 case TopicResponseType.FloatResponse:
                     return new DreamValue(topicResponse.FloatData!.Value);
@@ -42,8 +44,8 @@ internal static class DreamProcNativeWorld {
                     return new DreamValue(topicResponse.StringData!);
 
                 case TopicResponseType.UnknownResponse:
-                    var byteList = state.ObjectTree.CreateList();
-                    foreach (var @byte in topicResponse.RawData)
+                    DreamList byteList = state.ObjectTree.CreateList();
+                    foreach (byte @byte in topicResponse.RawData)
                         byteList.AddValue(new DreamValue(@byte));
                     return new DreamValue(byteList);
 
@@ -54,17 +56,16 @@ internal static class DreamProcNativeWorld {
 
         // TODO: Definitely cache HttpClient.
         using var client = new HttpClient();
-        using var response = await client.GetAsync(uri);
-        var contentBytes = await response.Content.ReadAsByteArrayAsync();
+        using HttpResponseMessage response = await client.GetAsync(uri);
+        byte[] contentBytes = await response.Content.ReadAsByteArrayAsync();
 
-        var list = state.ObjectTree.CreateList();
-        foreach (var header in response.Headers) {
+        DreamList list = state.ObjectTree.CreateList();
+        foreach (KeyValuePair<string, IEnumerable<string>> header in response.Headers)
             // TODO: How to handle headers with multiple values?
             list.SetValue(new DreamValue(header.Key), new DreamValue(header.Value.First()));
-        }
 
-        var content = state.ResourceManager.CreateResource(contentBytes);
-        list.SetValue(new DreamValue("STATUS"), new DreamValue(((int) response.StatusCode).ToString()));
+        DreamResource content = state.ResourceManager.CreateResource(contentBytes);
+        list.SetValue(new DreamValue("STATUS"), new DreamValue(((int)response.StatusCode).ToString()));
         list.SetValue(new DreamValue("CONTENT"), new DreamValue(content));
 
         return new DreamValue(list);
@@ -73,10 +74,11 @@ internal static class DreamProcNativeWorld {
     [DreamProc("Error")]
     [DreamProcParameter("exception", Type = DreamValue.DreamValueTypeFlag.DreamObject)]
     public static DreamValue NativeProc_Error(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        var exceptionArg = bundle.GetArgument(0, "exception");
-        if (!exceptionArg.TryGetValueAsDreamObject<DreamObjectException>(out var exception)) // Ignore anything not an /exception
+        DreamValue exceptionArg = bundle.GetArgument(0, "exception");
+        if (!exceptionArg.TryGetValueAsDreamObject<DreamObjectException>(
+                out DreamObjectException? exception)) // Ignore anything not an /exception
             return DreamValue.Null;
-        if (!exception.Desc.TryGetValueAsString(out var exceptionDesc))
+        if (!exception.Desc.TryGetValueAsString(out string? exceptionDesc))
             return DreamValue.Null;
 
         bundle.DreamManager.WriteWorldLog(exceptionDesc, LogLevel.Error);
@@ -87,28 +89,28 @@ internal static class DreamProcNativeWorld {
     [DreamProcParameter("config_set", Type = DreamValue.DreamValueTypeFlag.String)]
     [DreamProcParameter("param", Type = DreamValue.DreamValueTypeFlag.String)]
     public static DreamValue NativeProc_GetConfig(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        bundle.GetArgument(0, "config_set").TryGetValueAsString(out var configSetArg);
-        var param = bundle.GetArgument(1, "param");
+        bundle.GetArgument(0, "config_set").TryGetValueAsString(out string? configSetArg);
+        DreamValue param = bundle.GetArgument(1, "param");
 
-        ProcessConfigSet(configSetArg, out _, out var configSet);
+        ProcessConfigSet(configSetArg, out _, out string configSet);
 
         switch (configSet) {
             case "env":
-                if (param.IsNull) {
+                if (param.IsNull)
                     // DM ref says: "If no parameter is specified, a list of the names of all available parameters is returned."
                     // but apparently it's actually just null for "env".
                     return DreamValue.Null;
-                } else if (param.TryGetValueAsString(out var paramString) && Environment.GetEnvironmentVariable(paramString) is string strValue) {
-                    return new DreamValue(strValue);
-                } else {
-                    return DreamValue.Null;
-                }
+
+                if (param.TryGetValueAsString(out string? paramString) &&
+                    Environment.GetEnvironmentVariable(paramString) is string strValue) return new DreamValue(strValue);
+
+                return DreamValue.Null;
             case "ban":
             case "keyban":
             case "ipban":
             case "admin":
                 Logger.GetSawmill("opendream.world").Warning("Unsupported GetConfig config_set: " + configSet);
-                return new(bundle.ObjectTree.CreateList());
+                return new DreamValue(bundle.ObjectTree.CreateList());
             default:
                 throw new ArgumentException("Incorrect GetConfig config_set: " + configSet);
         }
@@ -119,7 +121,7 @@ internal static class DreamProcNativeWorld {
     [DreamProcParameter("type", Type = DreamValue.DreamValueTypeFlag.String)]
     [DreamProcParameter("format", Type = DreamValue.DreamValueTypeFlag.String)]
     public static DreamValue NativeProc_Profile(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        bundle.GetArgument(0, "command").TryGetValueAsInteger(out var command);
+        bundle.GetArgument(0, "command").TryGetValueAsInteger(out int command);
 
         string? type, format;
         switch (bundle.Arguments.Length) {
@@ -139,26 +141,23 @@ internal static class DreamProcNativeWorld {
 
         // TODO: Actually return profiling data
 
-        if (format == "json") {
-            return new("[]");
-        } else { // Anything else gives a /list
-            DreamList dataList = bundle.ObjectTree.CreateList();
+        if (format == "json") return new DreamValue("[]"); // Anything else gives a /list
+        DreamList dataList = bundle.ObjectTree.CreateList();
 
-            if (type == "sendmaps") {
-                dataList.AddValue(new("name"));
-                dataList.AddValue(new("value"));
-                dataList.AddValue(new("calls"));
-            } else { // Anything else is a proc profile
-                dataList.AddValue(new("name"));
-                dataList.AddValue(new("self"));
-                dataList.AddValue(new("total"));
-                dataList.AddValue(new("real"));
-                dataList.AddValue(new("over"));
-                dataList.AddValue(new("calls"));
-            }
-
-            return new(dataList);
+        if (type == "sendmaps") {
+            dataList.AddValue(new DreamValue("name"));
+            dataList.AddValue(new DreamValue("value"));
+            dataList.AddValue(new DreamValue("calls"));
+        } else { // Anything else is a proc profile
+            dataList.AddValue(new DreamValue("name"));
+            dataList.AddValue(new DreamValue("self"));
+            dataList.AddValue(new DreamValue("total"));
+            dataList.AddValue(new DreamValue("real"));
+            dataList.AddValue(new DreamValue("over"));
+            dataList.AddValue(new DreamValue("calls"));
         }
+
+        return new DreamValue(dataList);
     }
 
     [DreamProc("Reboot")]
@@ -175,15 +174,15 @@ internal static class DreamProcNativeWorld {
     [DreamProcParameter("param", Type = DreamValue.DreamValueTypeFlag.String)]
     [DreamProcParameter("value", Type = DreamValue.DreamValueTypeFlag.String)]
     public static DreamValue NativeProc_SetConfig(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        bundle.GetArgument(0, "config_set").TryGetValueAsString(out var configSetArg);
-        bundle.GetArgument(1, "param").TryGetValueAsString(out var param);
-        var value = bundle.GetArgument(2, "value");
+        bundle.GetArgument(0, "config_set").TryGetValueAsString(out string? configSetArg);
+        bundle.GetArgument(1, "param").TryGetValueAsString(out string? param);
+        DreamValue value = bundle.GetArgument(2, "value");
 
-        ProcessConfigSet(configSetArg, out _, out var configSet);
+        ProcessConfigSet(configSetArg, out _, out string configSet);
 
         switch (configSet) {
             case "env":
-                value.TryGetValueAsString(out var valueString);
+                value.TryGetValueAsString(out string? valueString);
                 Environment.SetEnvironmentVariable(param, valueString);
                 break;
             case "ban":
@@ -200,7 +199,8 @@ internal static class DreamProcNativeWorld {
     }
 
     [DreamProc("ODHotReloadInterface")]
-    public static DreamValue NativeProc_ODHotReloadInterface(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
+    public static DreamValue NativeProc_ODHotReloadInterface(NativeProc.Bundle bundle, DreamObject? src,
+        DreamObject? usr) {
         var dreamManager = IoCManager.Resolve<DreamManager>();
         dreamManager.HotReloadInterface();
         return DreamValue.Null;
@@ -208,8 +208,9 @@ internal static class DreamProcNativeWorld {
 
     [DreamProc("ODHotReloadResource")]
     [DreamProcParameter("file_name", Type = DreamValue.DreamValueTypeFlag.String)]
-    public static DreamValue NativeProc_ODHotReloadResource(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if(!bundle.GetArgument(0, "file_name").TryGetValueAsString(out var fileName))
+    public static DreamValue NativeProc_ODHotReloadResource(NativeProc.Bundle bundle, DreamObject? src,
+        DreamObject? usr) {
+        if (!bundle.GetArgument(0, "file_name").TryGetValueAsString(out string? fileName))
             throw new ArgumentException("file_name must be a string");
         var dreamManager = IoCManager.Resolve<DreamManager>();
         dreamManager.HotReloadResource(fileName);
@@ -217,7 +218,7 @@ internal static class DreamProcNativeWorld {
     }
 
     /// <summary>
-    /// Determines the specified configuration space and configuration set in a config_set argument
+    ///     Determines the specified configuration space and configuration set in a config_set argument
     /// </summary>
     private static void ProcessConfigSet(string value, out string? configSpace, out string configSet) {
         int slash = value.IndexOf('/');

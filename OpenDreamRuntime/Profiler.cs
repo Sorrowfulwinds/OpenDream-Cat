@@ -7,6 +7,23 @@ using static Tracy.PInvoke;
 namespace OpenDreamRuntime;
 
 public static class Profiler {
+    public enum PlotType {
+        /// <summary>
+        ///     Values will be displayed as plain numbers.
+        /// </summary>
+        Number = 0,
+
+        /// <summary>
+        ///     Treats the values as memory sizes. Will display kilobytes, megabytes, etc.
+        /// </summary>
+        Memory = 1,
+
+        /// <summary>
+        ///     Values will be displayed as percentage (with value 100 being equal to 100%).
+        /// </summary>
+        Percentage = 2
+    }
+
     //internal tracking for unique IDs for memory zones, because we can't use actual object pointers sadly as they are unstable outside of `unsafe`
     private static ulong _memoryUid;
 
@@ -17,26 +34,26 @@ public static class Profiler {
     private static bool _isActivated;
 
     /// <summary>
-    /// Begins a new <see cref="ProfilerZone"/> and returns the handle to that zone. Time
-    /// spent inside a zone is calculated by Tracy and shown in the profiler. A zone is
-    /// ended when <see cref="ProfilerZone.Dispose"/> is called either automatically via
-    /// disposal scope rules or by calling it manually.
+    ///     Begins a new <see cref="ProfilerZone" /> and returns the handle to that zone. Time
+    ///     spent inside a zone is calculated by Tracy and shown in the profiler. A zone is
+    ///     ended when <see cref="ProfilerZone.Dispose" /> is called either automatically via
+    ///     disposal scope rules or by calling it manually.
     /// </summary>
     /// <param name="zoneName">A custom name for this zone.</param>
     /// <param name="active">Is the zone active. An inactive zone wont be shown in the profiler.</param>
     /// <param name="color">An <c>RRGGBB</c> color code that Tracy will use to color the zone in the profiler.</param>
     /// <param name="text">Arbitrary text associated with this zone.</param>
     /// <param name="lineNumber">
-    /// The source code line number that this zone begins at.
-    /// If this param is not explicitly assigned the value will be provided by <see cref="CallerLineNumberAttribute"/>.
+    ///     The source code line number that this zone begins at.
+    ///     If this param is not explicitly assigned the value will be provided by <see cref="CallerLineNumberAttribute" />.
     /// </param>
     /// <param name="filePath">
-    /// The source code file path that this zone begins at.
-    /// If this param is not explicitly assigned the value will be provided by <see cref="CallerFilePathAttribute"/>.
+    ///     The source code file path that this zone begins at.
+    ///     If this param is not explicitly assigned the value will be provided by <see cref="CallerFilePathAttribute" />.
     /// </param>
     /// <param name="memberName">
-    /// The source code member name that this zone begins at.
-    /// If this param is not explicitly assigned the value will be provided by <see cref="CallerMemberNameAttribute"/>.
+    ///     The source code member name that this zone begins at.
+    ///     If this param is not explicitly assigned the value will be provided by <see cref="CallerMemberNameAttribute" />.
     /// </param>
     /// <returns></returns>
     public static ProfilerZone? BeginZone(
@@ -47,41 +64,42 @@ public static class Profiler {
         [CallerLineNumber] int lineNumber = 0,
         [CallerFilePath] string? filePath = null,
         [CallerMemberName] string? memberName = null) {
-        #if !TOOLS
+#if !TOOLS
         return null;
-        #else
+#else
         //if we're in a tools build, we still don't want the perf hit unless it's requested
         if (!_isActivated)
             return null;
 
-        using var fileStr = GetCString(filePath, out var fileLn);
-        using var memberStr = GetCString(memberName, out var memberLn);
-        using var nameStr = GetCString(zoneName, out var nameLn);
-        var srcLocId = TracyAllocSrclocName((uint)lineNumber, fileStr, fileLn, memberStr, memberLn, nameStr, nameLn, color);
-        var context = TracyEmitZoneBeginAlloc(srcLocId, active ? 1 : 0);
+        using CString fileStr = GetCString(filePath, out ulong fileLn);
+        using CString memberStr = GetCString(memberName, out ulong memberLn);
+        using CString nameStr = GetCString(zoneName, out ulong nameLn);
+        ulong srcLocId = TracyAllocSrclocName((uint)lineNumber, fileStr, fileLn, memberStr, memberLn, nameStr, nameLn,
+            color);
+        TracyCZoneCtx context = TracyEmitZoneBeginAlloc(srcLocId, active ? 1 : 0);
 
         if (text != null) {
-            using var textStr = GetCString(text, out var textLn);
+            using CString textStr = GetCString(text, out ulong textLn);
             TracyEmitZoneText(context, textStr, textLn);
         }
 
         return new ProfilerZone(context);
-        #endif
+#endif
     }
 
     public static ProfilerMemory? BeginMemoryZone(ulong size, string? name) {
-        #if !TOOLS
+#if !TOOLS
         return null;
-        #else
+#else
         //if we're in a tools build, we still don't want the perf hit unless it's requested
         if (!_isActivated)
             return null;
 
-        var nameStr = name is null ? GetPlotCString("null") : GetPlotCString(name);
+        CString nameStr = name is null ? GetPlotCString("null") : GetPlotCString(name);
         unsafe {
-            return new ProfilerMemory((void*)(Interlocked.Add(ref _memoryUid, size)-size), size, nameStr);
+            return new ProfilerMemory((void*)(Interlocked.Add(ref _memoryUid, size) - size), size, nameStr);
         }
-        #endif
+#endif
     }
 
     public static void Activate() {
@@ -94,58 +112,59 @@ public static class Profiler {
     }
 
     /// <summary>
-    /// Configure how Tracy will display plotted values.
+    ///     Configure how Tracy will display plotted values.
     /// </summary>
     /// <param name="name">
-    /// Name of the plot to configure. Each <paramref name="name"/> represents a unique plot.
+    ///     Name of the plot to configure. Each <paramref name="name" /> represents a unique plot.
     /// </param>
     /// <param name="type">
-    /// Changes how the values in the plot are presented by the profiler.
+    ///     Changes how the values in the plot are presented by the profiler.
     /// </param>
     /// <param name="step">
-    /// Determines whether the plot will be displayed as a staircase or will smoothly change between plot points
+    ///     Determines whether the plot will be displayed as a staircase or will smoothly change between plot points
     /// </param>
     /// <param name="fill">
-    /// If <see langword="false"/> the the area below the plot will not be filled with a solid color.
+    ///     If <see langword="false" /> the the area below the plot will not be filled with a solid color.
     /// </param>
     /// <param name="color">
-    /// An <c>RRGGBB</c> color code that Tracy will use to color the plot in the profiler.
+    ///     An <c>RRGGBB</c> color code that Tracy will use to color the plot in the profiler.
     /// </param>
-    public static void PlotConfig(string name, PlotType type = PlotType.Number, bool step = false, bool fill = true, uint color = 0) {
-        var nameStr = GetPlotCString(name);
+    public static void PlotConfig(string name, PlotType type = PlotType.Number, bool step = false, bool fill = true,
+        uint color = 0) {
+        CString nameStr = GetPlotCString(name);
 
         TracyEmitPlotConfig(nameStr, (int)type, step ? 1 : 0, fill ? 1 : 0, color);
     }
 
     /// <summary>
-    /// Add a <see langword="double"/> value to a plot.
+    ///     Add a <see langword="double" /> value to a plot.
     /// </summary>
     public static void Plot(string name, double val) {
-        var nameStr = GetPlotCString(name);
+        CString nameStr = GetPlotCString(name);
 
         TracyEmitPlot(nameStr, val);
     }
 
     /// <summary>
-    /// Add a <see langword="float"/> value to a plot.
+    ///     Add a <see langword="float" /> value to a plot.
     /// </summary>
     public static void Plot(string name, int val) {
-        var nameStr = GetPlotCString(name);
+        CString nameStr = GetPlotCString(name);
 
         TracyEmitPlotInt(nameStr, val);
     }
 
     /// <summary>
-    /// Add a <see langword="float"/> value to a plot.
+    ///     Add a <see langword="float" /> value to a plot.
     /// </summary>
     public static void Plot(string name, float val) {
-        var nameStr = GetPlotCString(name);
+        CString nameStr = GetPlotCString(name);
 
         TracyEmitPlotFloat(nameStr, val);
     }
 
     private static CString GetPlotCString(string name) {
-        if (!PlotNameCache.TryGetValue(name, out var plotCString)) {
+        if (!PlotNameCache.TryGetValue(name, out CString plotCString)) {
             plotCString = CString.FromString(name);
             PlotNameCache.Add(name, plotCString);
         }
@@ -154,22 +173,22 @@ public static class Profiler {
     }
 
     /// <summary>
-    /// Emit a string that will be included along with the trace description.
+    ///     Emit a string that will be included along with the trace description.
     /// </summary>
     /// <remarks>
-    /// Viewable in the Info tab in the profiler.
+    ///     Viewable in the Info tab in the profiler.
     /// </remarks>
     public static void AppInfo(string appInfo) {
-        using var infoStr = GetCString(appInfo, out var infoLn);
+        using CString infoStr = GetCString(appInfo, out ulong infoLn);
 
         TracyEmitMessageAppinfo(infoStr, infoLn);
     }
 
     /// <summary>
-    /// Emit the top-level frame marker.
+    ///     Emit the top-level frame marker.
     /// </summary>
     /// <remarks>
-    /// Tracy Cpp API and docs refer to this as the <c>FrameMark</c> macro.
+    ///     Tracy Cpp API and docs refer to this as the <c>FrameMark</c> macro.
     /// </remarks>
     public static void EmitFrameMark() {
         //if we're in a tools build, we still don't want the perf hit unless it's requested
@@ -180,7 +199,7 @@ public static class Profiler {
     }
 
     /// <summary>
-    /// Is the app connected to the external profiler?
+    ///     Is the app connected to the external profiler?
     /// </summary>
     /// <returns></returns>
     public static bool IsConnected() {
@@ -188,8 +207,8 @@ public static class Profiler {
     }
 
     /// <summary>
-    /// Creates a <seealso cref="CString"/> for use by Tracy. Also returns the
-    /// length of the string for interop convenience.
+    ///     Creates a <seealso cref="CString" /> for use by Tracy. Also returns the
+    ///     length of the string for interop convenience.
     /// </summary>
     public static CString GetCString(string? fromString, out ulong cLength) {
         if (fromString == null) {
@@ -199,23 +218,6 @@ public static class Profiler {
 
         cLength = (ulong)fromString.Length;
         return CString.FromString(fromString);
-    }
-
-    public enum PlotType{
-        /// <summary>
-        /// Values will be displayed as plain numbers.
-        /// </summary>
-        Number = 0,
-
-        /// <summary>
-        /// Treats the values as memory sizes. Will display kilobytes, megabytes, etc.
-        /// </summary>
-        Memory = 1,
-
-        /// <summary>
-        /// Values will be displayed as percentage (with value 100 being equal to 100%).
-        /// </summary>
-        Percentage = 2,
     }
 }
 
@@ -231,7 +233,7 @@ public readonly struct ProfilerZone : IDisposable {
     }
 
     public void EmitName(string name) {
-        using var nameStr = Profiler.GetCString(name, out var nameLn);
+        using CString nameStr = Profiler.GetCString(name, out ulong nameLn);
         TracyEmitZoneName(Context, nameStr, nameLn);
     }
 
@@ -240,7 +242,7 @@ public readonly struct ProfilerZone : IDisposable {
     }
 
     public void EmitText(string text) {
-        using var textStr = Profiler.GetCString(text, out var textLn);
+        using CString textStr = Profiler.GetCString(text, out ulong textLn);
         TracyEmitZoneText(Context, textStr, textLn);
     }
 
@@ -250,8 +252,8 @@ public readonly struct ProfilerZone : IDisposable {
 }
 
 public sealed unsafe class ProfilerMemory {
-    private readonly void* _ptr;
     private readonly CString _name;
+    private readonly void* _ptr;
     private int _hasRun;
 
     internal ProfilerMemory(void* pointer, ulong size, CString name) {
@@ -261,9 +263,8 @@ public sealed unsafe class ProfilerMemory {
     }
 
     public void ReleaseMemory() {
-        if (Interlocked.Exchange(ref _hasRun, 1) == 0) { // only run once
+        if (Interlocked.Exchange(ref _hasRun, 1) == 0) // only run once
             TracyEmitMemoryFreeNamed(_ptr, 0, _name);
-        }
     }
 
     ~ProfilerMemory() {

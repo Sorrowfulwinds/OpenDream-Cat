@@ -12,7 +12,7 @@ public sealed class DreamObjectCallee(DreamObjectDefinition objectDefinition) : 
     public bool Expired => ProcState == null || ProcState.Id != ProcStateId;
 
     public static DreamObjectCallee FromDMProcState(DMProcState procState) {
-        var proc = procState.Proc;
+        DMProc proc = procState.Proc;
         var callee = proc.ObjectTree.CreateObject<DreamObjectCallee>(proc.ObjectTree.Callee);
         callee.ProcState = procState;
         callee.ProcStateId = procState.Id;
@@ -26,30 +26,30 @@ public sealed class DreamObjectCallee(DreamObjectDefinition objectDefinition) : 
 
         switch (varName) {
             case "proc":
-                value = new(ProcState.Proc);
+                value = new DreamValue(ProcState.Proc);
                 return true;
             case "args":
-                value = new(new ProcArgsList(ObjectTree.List.ObjectDefinition, ProcState));
+                value = new DreamValue(new ProcArgsList(ObjectTree.List.ObjectDefinition, ProcState));
                 return true;
             case "caller":
-                var caller = ProcState.Caller;
-                while(caller is not (DMProcState or null))
+                ProcState? caller = ProcState.Caller;
+                while (caller is not (DMProcState or null))
                     caller = caller.Caller;
 
                 value = caller is DMProcState dmCaller ? new DreamValue(dmCaller.CalleeObject) : DreamValue.Null;
                 value.IncRef();
                 return true;
             case "name":
-                value = new(ProcState.Proc.VerbName);
+                value = new DreamValue(ProcState.Proc.VerbName);
                 return true;
             case "desc":
                 value = ProcState.Proc.VerbDesc is not null
-                    ? new(ProcState.Proc.VerbDesc)
+                    ? new DreamValue(ProcState.Proc.VerbDesc)
                     : DreamValue.Null;
                 return true;
             case "category":
                 value = ProcState.Proc.VerbCategory is not null
-                    ? new(ProcState.Proc.VerbCategory)
+                    ? new DreamValue(ProcState.Proc.VerbCategory)
                     : DreamValue.Null;
                 return true;
             case "file":
@@ -60,14 +60,14 @@ public sealed class DreamObjectCallee(DreamObjectDefinition objectDefinition) : 
                 return true;
             case "src":
                 ProcState.Instance?.IncRef();
-                value = new(ProcState.Instance);
+                value = new DreamValue(ProcState.Instance);
                 return true;
             case "usr":
                 ProcState.Usr?.IncRef();
-                value = new(ProcState.Usr);
+                value = new DreamValue(ProcState.Usr);
                 return true;
             case "type":
-                value = new(ObjectDefinition.TreeEntry);
+                value = new DreamValue(ObjectDefinition.TreeEntry);
                 return true;
 
             default:

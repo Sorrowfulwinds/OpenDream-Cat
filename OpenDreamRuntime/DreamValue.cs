@@ -1,4 +1,3 @@
-using Dependency = Robust.Shared.IoC.DependencyAttribute;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Contracts;
@@ -10,13 +9,8 @@ using OpenDreamRuntime.Objects;
 using OpenDreamRuntime.Objects.Types;
 using OpenDreamRuntime.Resources;
 using OpenDreamShared.Dream;
-using Robust.Shared.Serialization;
-using Robust.Shared.Serialization.Manager;
-using Robust.Shared.Serialization.Markdown;
-using Robust.Shared.Serialization.Markdown.Validation;
-using Robust.Shared.Serialization.TypeSerializers.Interfaces;
-using OpenDreamRuntime.Procs.Native;
 using Robust.Shared.Utility;
+using Dependency = Robust.Shared.IoC.DependencyAttribute;
 
 namespace OpenDreamRuntime;
 
@@ -49,22 +43,22 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
 
     public static DreamValue Null {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => new DreamValue((DreamObject?) null);
+        get => new((DreamObject?)null);
     }
 
     public static DreamValue True {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => new DreamValue(1f);
+        get => new(1f);
     }
 
     public static DreamValue False {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => new DreamValue(0f);
+        get => new(0f);
     }
 
     public static DreamValue EmptyString {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => new DreamValue("");
+        get => new("");
     }
 
     public readonly DreamValueType Type;
@@ -72,17 +66,18 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     private object? _refValue;
     private readonly float _floatValue;
 
-    #if TOOLS
+#if TOOLS
     //ReSharper disable once NotAccessedField.Local
-    private readonly ProfilerMemory? _tracyMemoryId; //only used for strings, since everything else is a value type or handled in DreamObject
-    #endif
+    private readonly ProfilerMemory?
+        _tracyMemoryId; //only used for strings, since everything else is a value type or handled in DreamObject
+#endif
 
     public DreamValue(string value) {
         DebugTools.Assert(value != null);
         Type = DreamValueType.String;
-        #if TOOLS
-        _tracyMemoryId = Profiler.BeginMemoryZone((ulong) (1+value.Length*sizeof(char)), "string");
-        #endif
+#if TOOLS
+        _tracyMemoryId = Profiler.BeginMemoryZone((ulong)(1 + value.Length * sizeof(char)), "string");
+#endif
         _refValue = value;
     }
 
@@ -91,9 +86,11 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         _floatValue = value;
     }
 
-    public DreamValue(int value) : this((float)value) { }
+    public DreamValue(int value) : this((float)value) {
+    }
 
-    public DreamValue(double value) : this((float)value) { }
+    public DreamValue(double value) : this((float)value) {
+    }
 
     public DreamValue(DreamResource value) {
         Type = DreamValueType.DreamResource;
@@ -129,15 +126,13 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     public readonly override string ToString() {
         if (Type == DreamValueType.Float)
             return _floatValue.ToString(CultureInfo.InvariantCulture);
-        else if (Type == 0)
+        if (Type == 0)
             return "<Uninitialized DreamValue>";
-        else if (_refValue == null) {
-            return "null";
-        } else if (Type == DreamValueType.String) {
-            return $"\"{_refValue}\"";
-        } else {
-            return _refValue.ToString() ?? "<ToString() = null>";
-        }
+        if (_refValue == null) return "null";
+
+        if (Type == DreamValueType.String) return $"\"{_refValue}\"";
+
+        return _refValue.ToString() ?? "<ToString() = null>";
     }
 
     public void Dispose() {
@@ -167,10 +162,10 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         if (Type == DreamValueType.String) {
             value = Unsafe.As<string>(_refValue)!;
             return true;
-        } else {
-            value = null;
-            return false;
         }
+
+        value = null;
+        return false;
     }
 
     public string MustGetValueAsString() {
@@ -202,13 +197,14 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         if (Type != DreamValueType.Float)
             ThrowInvalidCastFloat();
 
-        return (int) _floatValue;
+        return (int)_floatValue;
     }
 
     /// <summary>
-    /// Casts the DreamValue to a float without throwing exceptions. Useful where BYOND coerces non-numbers to 0.
+    ///     Casts the DreamValue to a float without throwing exceptions. Useful where BYOND coerces non-numbers to 0.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining), Pure]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [Pure]
     public float UnsafeGetValueAsFloat() {
         return _floatValue;
     }
@@ -220,12 +216,12 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     }
 
     /// <summary>
-    /// Identical to <see cref="TryGetValueAsFloat"/> except null is treated as zero and returns true
+    ///     Identical to <see cref="TryGetValueAsFloat" /> except null is treated as zero and returns true
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool TryGetValueAsFloatCoerceNull(out float value) {
         value = _floatValue;
-        return (Type == DreamValueType.Float || this == Null) ;
+        return Type == DreamValueType.Float || this == Null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -245,16 +241,14 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         if (Type == DreamValueType.DreamResource) {
             value = Unsafe.As<DreamResource>(_refValue)!;
             return true;
-        } else {
-            value = null;
-            return false;
         }
+
+        value = null;
+        return false;
     }
 
     public DreamResource MustGetValueAsDreamResource() {
-        if (Type == DreamValueType.DreamResource) {
-            return Unsafe.As<DreamResource>(_refValue)!;
-        }
+        if (Type == DreamValueType.DreamResource) return Unsafe.As<DreamResource>(_refValue)!;
 
         throw new InvalidCastException("Value " + this + " was not the expected type of DreamResource");
     }
@@ -263,18 +257,16 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         if (Type == DreamValueType.DreamObject) {
             dreamObject = MustGetValueAsDreamObject();
             return true;
-        } else {
-            dreamObject = null;
-            return false;
         }
+
+        dreamObject = null;
+        return false;
     }
 
     public DreamObject? MustGetValueAsDreamObject() {
-        if (Type != DreamValueType.DreamObject) {
-            ThrowInvalidCastDreamObject();
-        }
+        if (Type != DreamValueType.DreamObject) ThrowInvalidCastDreamObject();
 
-        DreamObject? dreamObject = Unsafe.As<DreamObject>(_refValue);
+        var dreamObject = Unsafe.As<DreamObject>(_refValue);
         if (dreamObject == null || dreamObject.Deleted)
             return null;
 
@@ -368,9 +360,7 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     }
 
     public DreamProc MustGetValueAsProc() {
-        if (Type == DreamValueType.DreamProc) {
-            return Unsafe.As<DreamProc>(_refValue)!;
-        }
+        if (Type == DreamValueType.DreamProc) return Unsafe.As<DreamProc>(_refValue)!;
 
         throw new InvalidCastException("Value " + this + " was not the expected type of DreamProc");
     }
@@ -387,9 +377,7 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     }
 
     public MutableAppearance MustGetValueAsAppearance() {
-        if (Type == DreamValueType.Appearance) {
-            return Unsafe.As<MutableAppearance>(_refValue)!;
-        }
+        if (Type == DreamValueType.Appearance) return Unsafe.As<MutableAppearance>(_refValue)!;
 
         throw new InvalidCastException("Value " + this + " was not the expected type of Appearance");
     }
@@ -398,7 +386,7 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         switch (Type) {
             case DreamValueType.DreamObject: {
                 Debug.Assert(_refValue is DreamObject or null, "Failed to cast a DreamValue's DreamObject");
-                return _refValue != null && Unsafe.As<DreamObject>(_refValue).Deleted == false;
+                return _refValue != null && !Unsafe.As<DreamObject>(_refValue).Deleted;
             }
             case DreamValueType.Float:
                 return _floatValue != 0;
@@ -420,37 +408,33 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
             case DreamValueType.String:
                 return MustGetValueAsString();
             case DreamValueType.Float:
-                var floatValue = MustGetValueAsFloat();
+                float floatValue = MustGetValueAsFloat();
 
                 if (float.IsInfinity(floatValue)) {
-                    var str = float.IsPositiveInfinity(floatValue) ? "inf" : "-inf";
+                    string str = float.IsPositiveInfinity(floatValue) ? "inf" : "-inf";
                     return str;
                 }
 
-                if (floatValue > 16777216f) {
-                    return floatValue.ToString("g6");
-                }
+                if (floatValue > 16777216f) return floatValue.ToString("g6");
 
                 // ReSharper disable once CompareOfFloatsByEqualityOperator
-                if (floatValue >= 1000000 && ((int)floatValue == floatValue)) {
-                    return floatValue.ToString("g8");
-                }
+                if (floatValue >= 1000000 && (int)floatValue == floatValue) return floatValue.ToString("g8");
 
                 if (float.IsNaN(floatValue)) return "nan";
 
                 return floatValue.ToString("g6");
 
             case DreamValueType.DreamResource:
-                var rsc = MustGetValueAsDreamResource();
+                DreamResource rsc = MustGetValueAsDreamResource();
                 return rsc.ResourcePath ?? string.Empty;
             case DreamValueType.DreamType:
                 return MustGetValueAsType().Path;
             case DreamValueType.DreamProc:
-                var proc = MustGetValueAsProc();
+                DreamProc proc = MustGetValueAsProc();
 
                 return proc.ToString();
             case DreamValueType.DreamObject: {
-                TryGetValueAsDreamObject(out var dreamObject);
+                TryGetValueAsDreamObject(out DreamObject? dreamObject);
 
                 return dreamObject?.GetDisplayName() ?? string.Empty;
             }
@@ -463,7 +447,9 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
         }
     }
 
-    public override bool Equals(object? other) => other is DreamValue otherValue && Equals(otherValue);
+    public override bool Equals(object? other) {
+        return other is DreamValue otherValue && Equals(otherValue);
+    }
 
     public bool Equals(DreamValue other) {
         if (Type != other.Type) return false;
@@ -496,9 +482,7 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     }
 
     public override int GetHashCode() {
-        if (_refValue != null) {
-            return _refValue.GetHashCode();
-        }
+        if (_refValue != null) return _refValue.GetHashCode();
 
         return _floatValue.GetHashCode();
     }
@@ -512,7 +496,6 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
     }
 }
 
-
 public sealed partial class DreamValueJsonConverter : JsonConverter<DreamValue> {
     [Dependency] private DreamObjectTree _objectTree = default!;
     [Dependency] private DreamResourceManager _resourceManager = default!;
@@ -523,26 +506,25 @@ public sealed partial class DreamValueJsonConverter : JsonConverter<DreamValue> 
 
     public override void Write(Utf8JsonWriter writer, DreamValue value, JsonSerializerOptions options) {
         writer.WriteStartObject();
-        writer.WriteNumber("Type", (int) value.Type);
+        writer.WriteNumber("Type", (int)value.Type);
 
         switch (value.Type) {
             case DreamValue.DreamValueType.String: writer.WriteString("Value", value.MustGetValueAsString()); break;
             case DreamValue.DreamValueType.Float: writer.WriteNumber("Value", value.MustGetValueAsFloat()); break;
             case DreamValue.DreamValueType.DreamObject: {
-                var dreamObject = value.MustGetValueAsDreamObject();
+                DreamObject? dreamObject = value.MustGetValueAsDreamObject();
 
                 if (dreamObject == null) {
                     writer.WriteNull("Value");
                 } else {
                     writer.WriteString("Value", dreamObject.ObjectDefinition.Type);
 
-                    if (dreamObject is not DreamObjectIcon icon) {
+                    if (dreamObject is not DreamObjectIcon icon)
                         throw new NotImplementedException($"Json serialization for {value} is not implemented");
-                    }
 
                     // TODO Check what happens with multiple states
-                    var resource = icon.Icon.GenerateDMI();
-                    var base64 = Convert.ToBase64String(resource.ResourceData);
+                    IconResource resource = icon.Icon.GenerateDMI();
+                    string base64 = Convert.ToBase64String(resource.ResourceData);
                     writer.WriteString("icon-data", base64);
                 }
 
@@ -560,7 +542,7 @@ public sealed partial class DreamValueJsonConverter : JsonConverter<DreamValue> 
 
         if (reader.GetString() != "Type") throw new Exception("Expected type property");
         reader.Read();
-        DreamValue.DreamValueType type = (DreamValue.DreamValueType) reader.GetInt32();
+        var type = (DreamValue.DreamValueType)reader.GetInt32();
         reader.Read();
 
         if (reader.GetString() != "Value") throw new Exception("Expected value property");
@@ -576,10 +558,10 @@ public sealed partial class DreamValueJsonConverter : JsonConverter<DreamValue> 
                 if (objectTypePath == null) {
                     value = DreamValue.Null;
                 } else {
-                    var objectDef = _objectTree.GetTreeEntry(objectTypePath).ObjectDefinition;
-                    if (!objectDef.IsSubtypeOf(_objectTree.Icon)) {
-                        throw new NotImplementedException($"Json deserialization for type {objectTypePath} is not implemented");
-                    }
+                    DreamObjectDefinition objectDef = _objectTree.GetTreeEntry(objectTypePath).ObjectDefinition;
+                    if (!objectDef.IsSubtypeOf(_objectTree.Icon))
+                        throw new NotImplementedException(
+                            $"Json deserialization for type {objectTypePath} is not implemented");
 
                     reader.Read();
                     if (reader.GetString() != "icon-data") throw new Exception("Expected icon-data property");
@@ -608,4 +590,3 @@ public sealed partial class DreamValueJsonConverter : JsonConverter<DreamValue> 
         return value;
     }
 }
-

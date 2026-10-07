@@ -4,8 +4,19 @@ using OpenDreamShared.Rendering;
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectMob : DreamObjectMovable {
+    private readonly DreamMobSightComponent _sightComponent;
     public DreamConnection? Connection;
     public string? Key;
+
+    public DreamObjectMob(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
+        _sightComponent = EntityManager.AddComponent<DreamMobSightComponent>(Entity);
+
+        objectDefinition.Variables["see_invisible"].TryGetValueAsInteger(out int seeVis);
+        objectDefinition.Variables["sight"].TryGetValueAsInteger(out int sight);
+
+        SeeInvisible = seeVis;
+        Sight = (SightFlags)sight;
+    }
 
     // DM specific behavior, do not garbage collect mobs that have a key.
     public override bool ShouldGarbageCollect => string.IsNullOrEmpty(Key);
@@ -26,35 +37,23 @@ public sealed class DreamObjectMob : DreamObjectMovable {
         }
     }
 
-    private readonly DreamMobSightComponent _sightComponent;
-
-    public DreamObjectMob(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
-        _sightComponent = EntityManager.AddComponent<DreamMobSightComponent>(Entity);
-
-        objectDefinition.Variables["see_invisible"].TryGetValueAsInteger(out var seeVis);
-        objectDefinition.Variables["sight"].TryGetValueAsInteger(out var sight);
-
-        SeeInvisible = seeVis;
-        Sight = (SightFlags)sight;
-    }
-
     protected override bool TryGetVar(string varName, out DreamValue value) {
         switch (varName) {
             case "client":
                 Connection?.Client?.IncRef();
-                value = new(Connection?.Client);
+                value = new DreamValue(Connection?.Client);
                 return true;
             case "key":
-                value = (Key != null) ? new(Key) : DreamValue.Null;
+                value = Key != null ? new DreamValue(Key) : DreamValue.Null;
                 return true;
             case "ckey":
-                value = (Key != null) ? new(DreamProcNativeHelpers.Ckey(Key)) : DreamValue.Null;
+                value = Key != null ? new DreamValue(DreamProcNativeHelpers.Ckey(Key)) : DreamValue.Null;
                 return true;
             case "see_invisible":
-                value = new(SeeInvisible);
+                value = new DreamValue(SeeInvisible);
                 return true;
             case "sight":
-                value = new((int)Sight);
+                value = new DreamValue((int)Sight);
                 return true;
             default:
                 return base.TryGetVar(varName, out value);
@@ -65,16 +64,16 @@ public sealed class DreamObjectMob : DreamObjectMovable {
         switch (varName) {
             case "client":
                 // An invalid client or a null does nothing here
-                if (value.TryGetValueAsDreamObject<DreamObjectClient>(out var newClient)) {
+                if (value.TryGetValueAsDreamObject<DreamObjectClient>(out DreamObjectClient? newClient))
                     newClient.Connection.Mob = this;
-                }
 
                 break;
             // "key" uses ckey comparison when *assigning* according to docs so... Just make them use same code path
             // RobustToolbox auth allows usernames in form of a-z0-9_ so there can be a collision between User1 and User_1
             case "key":
             case "ckey":
-                if (!value.TryGetValueAsString(out Key)) { // TODO: Does the key get set to a player's un-canonized username?
+                if (!value.TryGetValueAsString(out Key)) {
+                    // TODO: Does the key get set to a player's un-canonized username?
                     Connection?.Mob = null;
                     break;
                 }
@@ -82,12 +81,11 @@ public sealed class DreamObjectMob : DreamObjectMovable {
                 // Ensure "canonical" form
                 Key = DreamProcNativeHelpers.Ckey(Key);
 
-                foreach (var connection in DreamManager.Connections) {
+                foreach (DreamConnection connection in DreamManager.Connections)
                     if (DreamProcNativeHelpers.Ckey(connection.Key) == Key) {
                         connection.Mob = this;
                         break;
                     }
-                }
 
                 break;
             case "see_invisible":

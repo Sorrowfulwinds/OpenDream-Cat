@@ -16,21 +16,21 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace OpenDreamRuntime.Resources;
 
 public sealed partial class DreamResourceManager {
-    [Dependency] private IServerNetManager _netManager = default!;
-    [Dependency] private IStatusHost _statusHost = default!;
+    private readonly Dictionary<string, IconResource> _md5ToGeneratedIcon = new();
+    private readonly List<string> _queuedResourceLoads = new();
+    private readonly List<DreamResource> _resourceCache = new();
+    private readonly Dictionary<string, int> _resourcePathToId = new();
+
+    private DreamAczProvider _aczProvider = default!;
     [Dependency] private IDependencyCollection _dependencyCollection = default!;
+    [Dependency] private IServerNetManager _netManager = default!;
+
+    private ISawmill _sawmill = default!;
     [Dependency] private ISerializationManager _serializationManager = default!;
+    [Dependency] private IStatusHost _statusHost = default!;
 
     public string RootPath { get; private set; } = default!;
     public DMFResource? InterfaceFile { get; private set; }
-
-    private DreamAczProvider _aczProvider = default!;
-    private readonly List<DreamResource> _resourceCache = new();
-    private readonly Dictionary<string, int> _resourcePathToId = new();
-    private readonly Dictionary<string, IconResource> _md5ToGeneratedIcon = new();
-    private readonly List<string> _queuedResourceLoads = new();
-
-    private ISawmill _sawmill = default!;
 
     public void PreInitialize() {
         _sawmill = Logger.GetSawmill("opendream.res");
@@ -56,8 +56,8 @@ public sealed partial class DreamResourceManager {
 
         // Immediately build list of resources from rsc.
         for (var i = 0; i < resources.Length; i++) {
-            var resource = resources[i];
-            var loaded = LoadResource(resource);
+            string resource = resources[i];
+            DreamResource loaded = LoadResource(resource);
             // Resource IDs must be consistent with the ordering, or else packaged resources will mismatch.
             // First resource is the hardcoded console resource
             DebugTools.Assert(loaded.Id == i + 1, "Resource IDs not consistent!");
@@ -126,9 +126,7 @@ public sealed partial class DreamResourceManager {
     }
 
     public void ProcessQueuedResourceLoads() {
-        while(_queuedResourceLoads.Any()) {
-            LoadResource(_queuedResourceLoads.Pop());
-        }
+        while (_queuedResourceLoads.Any()) LoadResource(_queuedResourceLoads.Pop());
     }
 
     public bool TryLoadResource(int resourceId, [NotNullWhen(true)] out DreamResource? resource) {
@@ -144,22 +142,22 @@ public sealed partial class DreamResourceManager {
     public bool TryLoadResource(string resourcePathOrRef, [NotNullWhen(true)] out DreamResource? resource) {
         resource = null;
         //TODO lookup by \ref[] string
-        return _resourcePathToId.TryGetValue(resourcePathOrRef, out var resourceId) && TryLoadResource(resourceId, out resource);
+        return _resourcePathToId.TryGetValue(resourcePathOrRef, out int resourceId) &&
+               TryLoadResource(resourceId, out resource);
     }
 
     public bool TryLoadIcon(DreamValue value, [NotNullWhen(true)] out IconResource? icon) {
-        if (value.TryGetValueAsDreamObject<DreamObjectIcon>(out var iconObj)) {
+        if (value.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? iconObj)) {
             icon = iconObj.Icon.GenerateDMI();
             return true;
         }
 
         DreamResource? resource;
 
-        if (value.TryGetValueAsString(out var resourcePath)) {
+        if (value.TryGetValueAsString(out string? resourcePath))
             resource = LoadResource(resourcePath);
-        } else {
+        else
             value.TryGetValueAsDreamResource(out resource);
-        }
 
         if (resource is IconResource iconResource) {
             icon = iconResource;
@@ -171,12 +169,12 @@ public sealed partial class DreamResourceManager {
     }
 
     /// <summary>
-    /// Dynamically create a new generic resource that clients can use
+    ///     Dynamically create a new generic resource that clients can use
     /// </summary>
     /// <param name="data">The resource's data</param>
     public DreamResource CreateResource(byte[] data) {
         int resourceId = _resourceCache.Count;
-        DreamResource resource = new DreamResource(resourceId, data);
+        var resource = new DreamResource(resourceId, data);
 
         _resourceCache.Add(resource);
         _aczProvider.AddResource(resourceId, data);
@@ -184,20 +182,20 @@ public sealed partial class DreamResourceManager {
     }
 
     /// <summary>
-    /// Dynamically create a new icon resource that clients can use
+    ///     Dynamically create a new icon resource that clients can use
     /// </summary>
     /// <param name="data">The resource's data</param>
     /// <param name="texture">The image texture</param>
     /// <param name="dmi">The image's DMI information, assumed to be equal to what's in the data argument</param>
     public IconResource CreateIconResource(byte[] data, Image<Rgba32> texture, DMIParser.ParsedDMIDescription dmi) {
-        var resourceId = _resourceCache.Count;
-        var md5 = CalculateMd5(data);
-        if (_md5ToGeneratedIcon.TryGetValue(md5, out var possibleDuplicate) && possibleDuplicate.ResourceData != null) {
+        int resourceId = _resourceCache.Count;
+        string md5 = CalculateMd5(data);
+        if (_md5ToGeneratedIcon.TryGetValue(md5, out IconResource? possibleDuplicate) &&
+            possibleDuplicate.ResourceData != null)
             if (data.SequenceEqual(possibleDuplicate.ResourceData))
                 return possibleDuplicate;
-        }
 
-        IconResource resource = new IconResource(resourceId, data, texture, dmi);
+        var resource = new IconResource(resourceId, data, texture, dmi);
         _resourceCache.Add(resource);
         _md5ToGeneratedIcon[md5] = resource; // Would override in the case of collisions, but whatever
         _aczProvider.AddResource(resourceId, data);
@@ -205,29 +203,28 @@ public sealed partial class DreamResourceManager {
     }
 
     /// <summary>
-    /// Dynamically create a new icon resource that clients can use
+    ///     Dynamically create a new icon resource that clients can use
     /// </summary>
     /// <param name="data">The resource's data</param>
     public IconResource CreateIconResource(byte[] data) {
-        var resourceId = _resourceCache.Count;
-        var md5 = CalculateMd5(data);
-        if (_md5ToGeneratedIcon.TryGetValue(md5, out var possibleDuplicate) && possibleDuplicate.ResourceData != null) {
+        int resourceId = _resourceCache.Count;
+        string md5 = CalculateMd5(data);
+        if (_md5ToGeneratedIcon.TryGetValue(md5, out IconResource? possibleDuplicate) &&
+            possibleDuplicate.ResourceData != null)
             if (data.SequenceEqual(possibleDuplicate.ResourceData))
                 return possibleDuplicate;
-        }
 
-        IconResource resource = new IconResource(resourceId, data);
+        var resource = new IconResource(resourceId, data);
         _resourceCache.Add(resource);
-        _md5ToGeneratedIcon[md5] = resource;  // Would override in the case of collisions, but whatever
+        _md5ToGeneratedIcon[md5] = resource; // Would override in the case of collisions, but whatever
         _aczProvider.AddResource(resourceId, data);
         return resource;
     }
 
     public void RxRequestResource(MsgRequestResource pRequestResource) {
-        if (TryLoadResource(pRequestResource.ResourceId, out var resource)) {
-            if(resource.ResourceData is null) {
+        if (TryLoadResource(pRequestResource.ResourceId, out DreamResource? resource)) {
+            if (resource.ResourceData is null)
                 throw new Exception($"Attempted to send a bad resource {resource.ResourcePath} with ID {resource.Id}");
-            }
             var msg = new MsgResource {
                 ResourceId = resource.Id, ResourceData = resource.ResourceData
             };
@@ -272,7 +269,7 @@ public sealed partial class DreamResourceManager {
 
     public bool CopyFile(DreamResource sourceFile, string destinationFilePath) {
         try {
-            var dir = Path.GetDirectoryName(destinationFilePath);
+            string? dir = Path.GetDirectoryName(destinationFilePath);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
@@ -291,9 +288,9 @@ public sealed partial class DreamResourceManager {
         string directory = Path.GetDirectoryName(path);
         string searchPattern = Path.GetFileName(path);
 
-        var entries = Directory.GetFileSystemEntries(directory, searchPattern);
+        string[] entries = Directory.GetFileSystemEntries(directory, searchPattern);
         for (var i = 0; i < entries.Length; i++) {
-            var relPath = Path.GetRelativePath(directory, entries[i]);
+            string relPath = Path.GetRelativePath(directory, entries[i]);
             if (Directory.Exists(entries[i])) relPath += "/";
             entries[i] = relPath;
         }
@@ -302,7 +299,7 @@ public sealed partial class DreamResourceManager {
     }
 
     private string CalculateMd5(byte[] date) {
-        using MD5 md5 = MD5.Create();
+        using var md5 = MD5.Create();
 
         return Encoding.ASCII.GetString(md5.ComputeHash(date));
     }

@@ -1,4 +1,5 @@
 using OpenDreamRuntime.Procs;
+using OpenDreamRuntime.Resources;
 
 namespace OpenDreamRuntime.Objects.Types;
 
@@ -6,7 +7,7 @@ public sealed class DreamObjectIcon : DreamObject {
     public DreamIcon Icon;
 
     public DreamObjectIcon(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
-        Icon = new(DreamManager, DreamResourceManager);
+        Icon = new DreamIcon(DreamManager, DreamResourceManager);
     }
 
     public override void Initialize(DreamProcArguments args) {
@@ -20,18 +21,17 @@ public sealed class DreamObjectIcon : DreamObject {
         DreamValue moving = args.GetArgument(4);
 
         if (!icon.IsNull) {
-            if (icon.TryGetValueAsDreamObject<DreamObjectIcon>(out var iconObj)) {
+            if (icon.TryGetValueAsDreamObject<DreamObjectIcon>(out DreamObjectIcon? iconObj)) {
                 // Copy directly only when no constructor selectors were supplied; otherwise filter the source DMI.
-                if (state.IsNull && dir.IsNull && frame.IsNull && moving.IsNull) {
+                if (state.IsNull && dir.IsNull && frame.IsNull && moving.IsNull)
                     Icon.CopyFrom(iconObj.Icon);
-                } else {
-                    Icon.InsertStates(iconObj.Icon.GenerateDMI(), state, dir, frame, isConstructor: true);
-                }
+                else
+                    Icon.InsertStates(iconObj.Icon.GenerateDMI(), state, dir, frame, true);
             } else {
-                if (!DreamResourceManager.TryLoadIcon(icon, out var iconRsc))
+                if (!DreamResourceManager.TryLoadIcon(icon, out IconResource? iconRsc))
                     throw new DMException($"Cannot create an icon from {icon}");
 
-                Icon.InsertStates(iconRsc, state, dir, frame, isConstructor: true);
+                Icon.InsertStates(iconRsc, state, dir, frame, true);
             }
         }
     }
@@ -66,10 +66,10 @@ public sealed class DreamObjectIcon : DreamObject {
     }
 
     public void Turn(DreamValue angle) {
-        if(Icon.Width != Icon.Height)
+        if (Icon.Width != Icon.Height)
             return;
 
-        if (!angle.TryGetValueAsFloat(out var degrees) || degrees == 0)
+        if (!angle.TryGetValueAsFloat(out float degrees) || degrees == 0)
             return;
 
         Icon.ApplyOperation(new DreamIconOperationTurn(degrees));

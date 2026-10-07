@@ -1,21 +1,21 @@
-﻿namespace OpenDreamRuntime.Procs {
-    [AttributeUsage(AttributeTargets.Method)]
-    sealed class DreamProcAttribute : Attribute {
-        public string Name;
+﻿namespace OpenDreamRuntime.Procs;
 
-        public DreamProcAttribute(string name) {
-            Name = name;
-        }
+[AttributeUsage(AttributeTargets.Method)]
+internal sealed class DreamProcAttribute : Attribute {
+    public string Name;
+
+    public DreamProcAttribute(string name) {
+        Name = name;
     }
+}
 
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-    sealed class DreamProcParameterAttribute : Attribute {
-        public string Name;
-        public DreamValue.DreamValueTypeFlag Type;
-        public object? DefaultValue;
+[AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
+internal sealed class DreamProcParameterAttribute : Attribute {
+    public object? DefaultValue;
+    public string Name;
+    public DreamValue.DreamValueTypeFlag Type;
 
-        public DreamProcParameterAttribute(string name) {
-            Name = name;
-        }
+    public DreamProcParameterAttribute(string name) {
+        Name = name;
     }
 }

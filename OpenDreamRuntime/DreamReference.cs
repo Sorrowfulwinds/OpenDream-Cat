@@ -56,6 +56,11 @@ public readonly struct DreamReference(DMRefType type, int value) : IEquatable<Dr
         return _innerValue.GetHashCode();
     }
 
-    public static bool operator ==(DreamReference a, DreamReference b) => a._innerValue == b._innerValue;
-    public static bool operator !=(DreamReference a, DreamReference b) => a._innerValue != b._innerValue;
+    public static bool operator ==(DreamReference a, DreamReference b) {
+        return a._innerValue == b._innerValue;
+    }
+
+    public static bool operator !=(DreamReference a, DreamReference b) {
+        return a._innerValue != b._innerValue;
+    }
 }

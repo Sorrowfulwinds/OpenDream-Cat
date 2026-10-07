@@ -5,6 +5,31 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 
 [UsedImplicitly]
 public sealed class VariablePresentationHint {
+    public const string KindProperty = "property";
+    public const string KindMethod = "method";
+    public const string KindClass = "class";
+    public const string KindData = "data";
+    public const string KindEvent = "event";
+    public const string KindBaseClass = "baseClass";
+    public const string KindInnerClass = "innerClass";
+    public const string KindInterface = "interface";
+    public const string KindMostDerivedClass = "mostDerivedClass";
+    public const string KindVirtual = "virtual";
+    public const string KindDataBreakpoint = "dataBreakpoint";
+    public const string AttributeStatic = "static";
+    public const string AttributeConstant = "constant";
+    public const string AttributeReadOnly = "readOnly";
+    public const string AttributeRawString = "rawString";
+    public const string AttributeHasObjectId = "hasObjectId";
+    public const string AttributeCanHaveObjectId = "canHaveObjectId";
+    public const string AttributeHasSideEffects = "hasSideEffects";
+    public const string AttributeHasDataBreakpoint = "hasDataBreakpoint";
+    public const string VisibilityPublic = "public";
+    public const string VisibilityPrivate = "private";
+    public const string VisibilityProtected = "protected";
+    public const string VisibilityInternal = "internal";
+    public const string VisibilityFinal = "final";
+
     /**
      * The kind of variable. Before introducing additional values, try to use the
      * listed values.
@@ -26,18 +51,8 @@ public sealed class VariablePresentationHint {
      * generally be used instead.
      * etc.
      */
-    [JsonPropertyName("kind")] public string? Kind { get; set; }
-    public const string KindProperty = "property";
-    public const string KindMethod = "method";
-    public const string KindClass = "class";
-    public const string KindData = "data";
-    public const string KindEvent = "event";
-    public const string KindBaseClass = "baseClass";
-    public const string KindInnerClass = "innerClass";
-    public const string KindInterface = "interface";
-    public const string KindMostDerivedClass = "mostDerivedClass";
-    public const string KindVirtual = "virtual";
-    public const string KindDataBreakpoint = "dataBreakpoint";
+    [JsonPropertyName("kind")]
+    public string? Kind { get; set; }
 
     /**
      * Set of attributes represented as an array of strings. Before introducing
@@ -56,27 +71,16 @@ public sealed class VariablePresentationHint {
      * data breakpoint.
      * etc.
      */
-    [JsonPropertyName("attributes")] public IEnumerable<string>? Attributes { get; set; }
-    public const string AttributeStatic = "static";
-    public const string AttributeConstant = "constant";
-    public const string AttributeReadOnly = "readOnly";
-    public const string AttributeRawString = "rawString";
-    public const string AttributeHasObjectId = "hasObjectId";
-    public const string AttributeCanHaveObjectId = "canHaveObjectId";
-    public const string AttributeHasSideEffects = "hasSideEffects";
-    public const string AttributeHasDataBreakpoint = "hasDataBreakpoint";
+    [JsonPropertyName("attributes")]
+    public IEnumerable<string>? Attributes { get; set; }
 
     /**
      * Visibility of variable. Before introducing additional values, try to use
      * the listed values.
      * Values: 'public', 'private', 'protected', 'internal', 'final', etc.
      */
-    [JsonPropertyName("visibility")] public string? Visiblity { get; set; }
-    public const string VisibilityPublic = "public";
-    public const string VisibilityPrivate = "private";
-    public const string VisibilityProtected = "protected";
-    public const string VisibilityInternal = "internal";
-    public const string VisibilityFinal = "final";
+    [JsonPropertyName("visibility")]
+    public string? Visiblity { get; set; }
 
     /**
      * If true, clients can present the variable with a UI that supports a
@@ -89,5 +93,6 @@ public sealed class VariablePresentationHint {
      * `variablesReference` is expected to refer to a variable that will provide
      * the value through another `variable` request.
      */
-    [JsonPropertyName("lazy")] public bool? Lazy { get; set; }
+    [JsonPropertyName("lazy")]
+    public bool? Lazy { get; set; }
 }

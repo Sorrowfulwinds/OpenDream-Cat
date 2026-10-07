@@ -17,21 +17,21 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
     }
 
     public DreamProcOpcode ReadOpcode() {
-        return (DreamProcOpcode) ReadByte();
+        return (DreamProcOpcode)ReadByte();
     }
 
     public int ReadInt() {
-        int value = BitConverter.ToInt32(Bytecode, Offset);
+        var value = BitConverter.ToInt32(Bytecode, Offset);
         Offset += 4;
         return value;
     }
 
     public DreamValueType ReadValueType() {
-        return (DreamValueType) ReadInt();
+        return (DreamValueType)ReadInt();
     }
 
     public float ReadFloat() {
-        float value = BitConverter.ToSingle(Bytecode, Offset);
+        var value = BitConverter.ToSingle(Bytecode, Offset);
         Offset += 4;
         return value;
     }
@@ -42,7 +42,7 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
     }
 
     public DMReference ReadReference() {
-        DMReference.Type refType = (DMReference.Type)ReadByte();
+        var refType = (DMReference.Type)ReadByte();
 
         switch (refType) {
             case DMReference.Type.Argument: return DMReference.CreateArgument(ReadByte());
@@ -61,13 +61,13 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
             case DMReference.Type.ListIndex: return DMReference.ListIndex;
             case DMReference.Type.Caller: return DMReference.Caller;
             case DMReference.Type.Callee: return DMReference.Callee;
-            case DMReference.Type.NoRef: return new DMReference { RefType = DMReference.Type.NoRef };
+            case DMReference.Type.NoRef: return new DMReference {RefType = DMReference.Type.NoRef};
             default: throw new Exception($"Invalid reference type {refType}");
         }
     }
 
     public ITuple DecodeInstruction() {
-        var opcode = ReadOpcode();
+        DreamProcOpcode opcode = ReadOpcode();
         switch (opcode) {
             case DreamProcOpcode.FormatString:
                 return (opcode, ReadString(), ReadInt());
@@ -77,11 +77,11 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
             case DreamProcOpcode.PushFloatAssign:
                 return (opcode, ReadFloat(), ReadReference());
             case DreamProcOpcode.NPushFloatAssign: {
-                var count = ReadInt();
+                int count = ReadInt();
                 var floats = new float[count];
                 var refs = new DMReference[count];
 
-                for (int i = 0; i < count; i++) {
+                for (var i = 0; i < count; i++) {
                     floats[i] = ReadFloat();
                     refs[i] = ReadReference();
                 }
@@ -195,46 +195,40 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
 
             case DreamProcOpcode.CreateListNRefs:
             case DreamProcOpcode.PushNRefs: {
-                var count = ReadInt();
+                int count = ReadInt();
                 var values = new DMReference[count];
 
-                for (int i = 0; i < count; i++) {
-                    values[i] = ReadReference();
-                }
+                for (var i = 0; i < count; i++) values[i] = ReadReference();
 
                 return (opcode, values);
             }
 
             case DreamProcOpcode.CreateListNStrings:
             case DreamProcOpcode.PushNStrings: {
-                var count = ReadInt();
+                int count = ReadInt();
                 var values = new string[count];
 
-                for (int i = 0; i < count; i++) {
-                    values[i] = ReadString();
-                }
+                for (var i = 0; i < count; i++) values[i] = ReadString();
 
                 return (opcode, values);
             }
 
             case DreamProcOpcode.CreateListNFloats:
             case DreamProcOpcode.PushNFloats: {
-                var count = ReadInt();
+                int count = ReadInt();
                 var values = new float[count];
 
-                for (int i = 0; i < count; i++) {
-                    values[i] = ReadFloat();
-                }
+                for (var i = 0; i < count; i++) values[i] = ReadFloat();
 
                 return (opcode, values);
             }
 
             case DreamProcOpcode.PushNOfStringFloats: {
-                var count = ReadInt();
+                int count = ReadInt();
                 var strings = new string[count];
                 var floats = new float[count];
 
-                for (int i = 0; i < count; i++) {
+                for (var i = 0; i < count; i++) {
                     strings[i] = ReadString();
                     floats[i] = ReadFloat();
                 }
@@ -244,12 +238,10 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
 
             case DreamProcOpcode.CreateListNResources:
             case DreamProcOpcode.PushNResources: {
-                var count = ReadInt();
+                int count = ReadInt();
                 var values = new string[count];
 
-                for (int i = 0; i < count; i++) {
-                    values[i] = ReadString();
-                }
+                for (var i = 0; i < count; i++) values[i] = ReadString();
 
                 return (opcode, values);
             }
@@ -260,13 +252,11 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
     }
 
     public IEnumerable<(int Offset, ITuple Instruction)> Disassemble() {
-        while (Remaining) {
-            yield return (Offset, DecodeInstruction());
-        }
+        while (Remaining) yield return (Offset, DecodeInstruction());
     }
 
     public static string Format(ITuple instruction, Func<int, string> getTypePath) {
-        StringBuilder text = new StringBuilder();
+        var text = new StringBuilder();
         text.Append(instruction[0]);
         text.Append(' ');
         switch (instruction) {
@@ -285,15 +275,15 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
                 break;
 
             case (DreamProcOpcode.Spawn
-                    or DreamProcOpcode.BooleanOr
-                    or DreamProcOpcode.BooleanAnd
-                    or DreamProcOpcode.SwitchCase
-                    or DreamProcOpcode.SwitchCaseRange
-                    or DreamProcOpcode.Jump
-                    or DreamProcOpcode.JumpIfFalse
-                    or DreamProcOpcode.JumpIfNull
-                    or DreamProcOpcode.JumpIfNullNoPop
-                    or DreamProcOpcode.TryNoValue, int jumpPosition):
+                or DreamProcOpcode.BooleanOr
+                or DreamProcOpcode.BooleanAnd
+                or DreamProcOpcode.SwitchCase
+                or DreamProcOpcode.SwitchCaseRange
+                or DreamProcOpcode.Jump
+                or DreamProcOpcode.JumpIfFalse
+                or DreamProcOpcode.JumpIfNull
+                or DreamProcOpcode.JumpIfNullNoPop
+                or DreamProcOpcode.TryNoValue, int jumpPosition):
                 text.AppendFormat("0x{0:x}", jumpPosition);
                 break;
 
@@ -310,8 +300,8 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
                 break;
 
             case (DreamProcOpcode.JumpIfFalseReference
-                    or DreamProcOpcode.JumpIfTrueReference
-                    or DreamProcOpcode.JumpIfReferenceFalse, DMReference reference, int jumpPosition):
+                or DreamProcOpcode.JumpIfTrueReference
+                or DreamProcOpcode.JumpIfReferenceFalse, DMReference reference, int jumpPosition):
                 text.Append(reference.ToString());
                 text.AppendFormat(" 0x{0:x}", jumpPosition);
                 break;
@@ -345,7 +335,7 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
                 break;
 
             case (DreamProcOpcode.PushType
-                    or DreamProcOpcode.IsTypeDirect, int type):
+                or DreamProcOpcode.IsTypeDirect, int type):
                 text.Append(getTypePath(type));
                 break;
 
@@ -356,8 +346,8 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
                 break;
 
             case (DreamProcOpcode.CreateListNRefs
-                    or DreamProcOpcode.PushNRefs, DMReference[] refs): {
-                foreach (var reference in refs) {
+                or DreamProcOpcode.PushNRefs, DMReference[] refs): {
+                foreach (DMReference reference in refs) {
                     text.Append(reference.ToString());
                     text.Append(' ');
                 }
@@ -366,8 +356,8 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
             }
 
             case (DreamProcOpcode.CreateListNStrings
-                    or DreamProcOpcode.PushNStrings, string[] strings): {
-                foreach (var value in strings) {
+                or DreamProcOpcode.PushNStrings, string[] strings): {
+                foreach (string value in strings) {
                     text.Append('"');
                     text.Append(value);
                     text.Append("\" ");
@@ -377,8 +367,8 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
             }
 
             case (DreamProcOpcode.CreateListNFloats
-                    or DreamProcOpcode.PushNFloats, float[] floats): {
-                foreach (var value in floats) {
+                or DreamProcOpcode.PushNFloats, float[] floats): {
+                foreach (float value in floats) {
                     text.Append(value);
                     text.Append(' ');
                 }
@@ -387,8 +377,8 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
             }
 
             case (DreamProcOpcode.CreateListNResources
-                    or DreamProcOpcode.PushNResources, string[] resources): {
-                foreach (var value in resources) {
+                or DreamProcOpcode.PushNResources, string[] resources): {
+                foreach (string value in resources) {
                     text.Append('\'');
                     text.Append(value);
                     text.Append("' ");
@@ -403,7 +393,7 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
                     text.Append($"\"{strings[index]}\"");
                     text.Append(' ');
                     text.Append(floats[index]);
-                    if(index + 1 < strings.Length) // Don't leave a trailing space
+                    if (index + 1 < strings.Length) // Don't leave a trailing space
                         text.Append(' ');
                 }
 
@@ -424,7 +414,7 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
                     text.Append('=');
                     text.Append(floats[index]);
 
-                    if(index + 1 < refs.Length) // Don't leave a trailing space
+                    if (index + 1 < refs.Length) // Don't leave a trailing space
                         text.Append(' ');
                 }
 
@@ -432,8 +422,8 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
             }
 
             default:
-                for (int i = 1; i < instruction.Length; ++i) {
-                    var arg = instruction[i];
+                for (var i = 1; i < instruction.Length; ++i) {
+                    object? arg = instruction[i];
 
                     if (arg is string) {
                         text.Append('"');
@@ -454,22 +444,22 @@ public struct ProcDecoder(IReadOnlyList<string> strings, byte[] bytecode) {
     public static int? GetJumpDestination(ITuple instruction) {
         switch (instruction) {
             case (DreamProcOpcode.Spawn
-                    or DreamProcOpcode.BooleanOr
-                    or DreamProcOpcode.BooleanAnd
-                    or DreamProcOpcode.SwitchCase
-                    or DreamProcOpcode.SwitchCaseRange
-                    or DreamProcOpcode.Jump
-                    or DreamProcOpcode.JumpIfFalse
-                    or DreamProcOpcode.JumpIfNull
-                    or DreamProcOpcode.JumpIfNullNoPop
-                    or DreamProcOpcode.TryNoValue, int jumpPosition):
+                or DreamProcOpcode.BooleanOr
+                or DreamProcOpcode.BooleanAnd
+                or DreamProcOpcode.SwitchCase
+                or DreamProcOpcode.SwitchCaseRange
+                or DreamProcOpcode.Jump
+                or DreamProcOpcode.JumpIfFalse
+                or DreamProcOpcode.JumpIfNull
+                or DreamProcOpcode.JumpIfNullNoPop
+                or DreamProcOpcode.TryNoValue, int jumpPosition):
                 return jumpPosition;
             case (DreamProcOpcode.JumpIfFalseReference
-                    or DreamProcOpcode.JumpIfTrueReference
-                    or DreamProcOpcode.JumpIfReferenceFalse, DMReference, int jumpPosition):
+                or DreamProcOpcode.JumpIfTrueReference
+                or DreamProcOpcode.JumpIfReferenceFalse, DMReference, int jumpPosition):
                 return jumpPosition;
             case (DreamProcOpcode.SwitchOnFloat
-                    or DreamProcOpcode.SwitchOnString, float or string, int jumpPosition):
+                or DreamProcOpcode.SwitchOnString, float or string, int jumpPosition):
                 return jumpPosition;
             case (DreamProcOpcode.Try, int jumpPosition, DMReference):
                 return jumpPosition;

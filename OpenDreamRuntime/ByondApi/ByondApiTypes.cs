@@ -36,17 +36,15 @@ public enum ByondValueType : byte {
     Filter              = 0x53,
     AssocList           = 0x55,
     Vector              = 0x57,
-    Callee              = 0x58,
+    Callee              = 0x58
     // @formatter:on
 }
 
 [StructLayout(LayoutKind.Explicit)]
 public struct ByondValueData {
-    [FieldOffset(0)]
-    public uint @ref;
+    [FieldOffset(0)] public uint @ref;
 
-    [FieldOffset(0)]
-    public float num;
+    [FieldOffset(0)] public float num;
 }
 
 public struct CByondValue {
@@ -64,4 +62,4 @@ public struct CByondPixLoc {
     public float x, y;
     public short z;
     public short junk;
-};
+}

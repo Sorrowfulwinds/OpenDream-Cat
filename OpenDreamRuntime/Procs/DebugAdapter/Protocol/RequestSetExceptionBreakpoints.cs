@@ -7,6 +7,12 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 public sealed class RequestSetExceptionBreakpoints : Request {
     [JsonPropertyName("arguments")] public required RequestSetExceptionBreakpointsArguments Arguments { get; set; }
 
+    public void Respond(DebugAdapterClient client, Breakpoint[]? breakpoints) {
+        client.SendMessage(Response.NewSuccess(this, new {
+            breakpoints
+        }));
+    }
+
     [UsedImplicitly]
     public sealed class RequestSetExceptionBreakpointsArguments {
         /**
@@ -14,7 +20,8 @@ public sealed class RequestSetExceptionBreakpoints : Request {
          * exception filters is defined by the `exceptionBreakpointFilters`
          * capability. The `filter` and `filterOptions` sets are additive.
          */
-        [JsonPropertyName("filters")] public required string[] Filters { get; set; }
+        [JsonPropertyName("filters")]
+        public required string[] Filters { get; set; }
 
         /*
         /**
@@ -33,9 +40,5 @@ public sealed class RequestSetExceptionBreakpoints : Request {
          * capability `supportsExceptionOptions` is true.
          */
         //[JsonPropertyName("exceptionOptions")] public ExceptionOptions[]? ExceptionOptions { get; set; }
-    }
-
-    public void Respond(DebugAdapterClient client, Breakpoint[]? breakpoints) {
-        client.SendMessage(Response.NewSuccess(this, new { breakpoints = breakpoints }));
     }
 }

@@ -5,23 +5,23 @@ using OpenDreamRuntime.Procs;
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectRegex(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
-    public override bool ShouldCallNew => false;
+    public bool IsGlobal;
 
     public Regex Regex;
-    public bool IsGlobal;
+    public override bool ShouldCallNew => false;
 
     public override void Initialize(DreamProcArguments args) {
         base.Initialize(args);
 
-        var pattern = args.GetArgument(0);
-        var flags = args.GetArgument(1);
+        DreamValue pattern = args.GetArgument(0);
+        DreamValue flags = args.GetArgument(1);
 
-        if (pattern.TryGetValueAsDreamObject<DreamObjectRegex>(out var copyFrom)) {
+        if (pattern.TryGetValueAsDreamObject<DreamObjectRegex>(out DreamObjectRegex? copyFrom)) {
             Regex = copyFrom.Regex;
             IsGlobal = copyFrom.IsGlobal;
-        } else if (pattern.TryGetValueAsString(out var patternString)) {
+        } else if (pattern.TryGetValueAsString(out string? patternString)) {
             var options = RegexOptions.None;
-            if (flags.TryGetValueAsString(out var flagsString)) {
+            if (flags.TryGetValueAsString(out string? flagsString)) {
                 if (flagsString.Contains('i')) options |= RegexOptions.IgnoreCase;
                 if (flagsString.Contains('m')) options |= RegexOptions.Multiline;
                 if (flagsString.Contains('g')) IsGlobal = true;
@@ -30,7 +30,7 @@ public sealed class DreamObjectRegex(DreamObjectDefinition objectDefinition) : D
             // BYOND has some escape codes C# doesn't understand, like \l and \L
             // We need to replace those with ones it does understand
             StringBuilder newPatternBuilder = new(patternString.Length);
-            bool insideBrackets = false;
+            var insideBrackets = false;
             for (var i = 0; i < patternString.Length; i++) {
                 char c = patternString[i];
 
@@ -45,9 +45,7 @@ public sealed class DreamObjectRegex(DreamObjectDefinition objectDefinition) : D
                             if (!insideBrackets)
                                 newPatternBuilder.Append(']');
                         } else if (c == 'L') {
-                            if (!insideBrackets) {
-                                newPatternBuilder.Append('[');
-                            }
+                            if (!insideBrackets) newPatternBuilder.Append('[');
 
                             // TODO: This should really be "\W0-9_-[\n]" but "-[\n]" doesn't work unless it's at the end
                             newPatternBuilder.Append("\\W0-9_");
@@ -55,7 +53,8 @@ public sealed class DreamObjectRegex(DreamObjectDefinition objectDefinition) : D
                             if (!insideBrackets)
                                 newPatternBuilder.Append(']');
                         } else if (c == '_') {
-                            newPatternBuilder.Append('_'); //I don't know why BYOND supports escaping this, but C# doesn't
+                            newPatternBuilder
+                                .Append('_'); //I don't know why BYOND supports escaping this, but C# doesn't
                         } else {
                             newPatternBuilder.Append('\\');
                             goto default;
@@ -88,24 +87,18 @@ public sealed class DreamObjectRegex(DreamObjectDefinition objectDefinition) : D
             if (match.Groups.Count > 0) {
                 DreamList groupList = ObjectTree.CreateList(match.Groups.Count);
 
-                for (int i = 1; i < match.Groups.Count; i++) {
-                    groupList.AddValue(new DreamValue(match.Groups[i].Value));
-                }
+                for (var i = 1; i < match.Groups.Count; i++) groupList.AddValue(new DreamValue(match.Groups[i].Value));
 
                 SetVariable("group", new DreamValue(groupList));
                 groupList.DecRef();
             }
 
-            if (IsGlobal) {
-                SetVariable("next", new DreamValue(match.Index + match.Length + 1));
-            }
+            if (IsGlobal) SetVariable("next", new DreamValue(match.Index + match.Length + 1));
 
             return new DreamValue(match.Index + 1);
         }
 
-        if (IsGlobal) {
-            SetVariable("next", DreamValue.Null);
-        }
+        if (IsGlobal) SetVariable("next", DreamValue.Null);
 
         return new DreamValue(0);
     }

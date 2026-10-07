@@ -22,11 +22,12 @@
 namespace OpenDreamRuntime.Procs;
 
 public sealed partial class ProcScheduler {
-    private readonly HashSet<AsyncNativeProc.AsyncNativeProcState> _sleeping = new();
     private readonly Queue<AsyncNativeProc.AsyncNativeProcState> _scheduled = new();
+    private readonly HashSet<AsyncNativeProc.AsyncNativeProcState> _sleeping = new();
     private AsyncNativeProc.AsyncNativeProcState? _current;
 
-    public Task Schedule(AsyncNativeProc.AsyncNativeProcState state, Func<AsyncNativeProc.AsyncNativeProcState, Task<DreamValue>> taskFunc) {
+    public Task Schedule(AsyncNativeProc.AsyncNativeProcState state,
+        Func<AsyncNativeProc.AsyncNativeProcState, Task<DreamValue>> taskFunc) {
         async Task Foo() {
             state.Result = await taskFunc(state);
             if (!_sleeping.Remove(state))
@@ -35,7 +36,7 @@ public sealed partial class ProcScheduler {
             _scheduled.Enqueue(state);
         }
 
-        var task = Foo();
+        Task task = Foo();
         if (!task.IsCompleted) // No need to schedule the proc if it's already finished
             _sleeping.Add(state);
 
@@ -52,13 +53,9 @@ public sealed partial class ProcScheduler {
         // When we drain the _deferredTasks lists, it'll indirectly schedule things into _scheduled again.
         // This should all happen synchronously (see above).
         while (_scheduled.Count > 0 || _deferredTasks.Count > 0) {
-            while (_scheduled.TryDequeue(out _current)) {
-                _current.SafeResume();
-            }
+            while (_scheduled.TryDequeue(out _current)) _current.SafeResume();
 
-            while (_deferredTasks.TryDequeue(out var task)) {
-                task.TrySetResult();
-            }
+            while (_deferredTasks.TryDequeue(out TaskCompletionSource? task)) task.TrySetResult();
         }
     }
 
@@ -66,17 +63,15 @@ public sealed partial class ProcScheduler {
         // TODO: We shouldn't need to check if Thread is null here
         //       I think we're keeping disposed states somewhere here
 
-        if (_current?.Thread is not null) {
-            yield return _current.Thread;
-        }
+        if (_current?.Thread is not null) yield return _current.Thread;
 
-        foreach (var state in _scheduled) {
+        foreach (AsyncNativeProc.AsyncNativeProcState state in _scheduled) {
             if (state.Thread == null)
                 continue;
             yield return state.Thread;
         }
 
-        foreach (var state in _sleeping) {
+        foreach (AsyncNativeProc.AsyncNativeProcState state in _sleeping) {
             if (state.Thread == null)
                 continue;
             yield return state.Thread;

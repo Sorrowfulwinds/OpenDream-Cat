@@ -5,11 +5,9 @@ namespace OpenDreamRuntime.Rendering;
 
 [RegisterComponent]
 public sealed partial class DMISpriteComponent : SharedDMISpriteComponent {
-    [ViewVariables]
-    [Access(typeof(DMISpriteSystem))]
+    [Access(typeof(DMISpriteSystem))] [ViewVariables]
+    public ImmutableAppearance? Appearance;
+
+    [ViewVariables] [Access(typeof(DMISpriteSystem))]
     public ScreenLocation ScreenLocation;
-
-    [Access(typeof(DMISpriteSystem))]
-    [ViewVariables] public ImmutableAppearance? Appearance;
 }
-

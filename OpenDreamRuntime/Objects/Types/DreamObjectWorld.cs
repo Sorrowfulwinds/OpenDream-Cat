@@ -13,26 +13,63 @@ using Robust.Shared.Timing;
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed partial class DreamObjectWorld : DreamObject {
-    public override bool ShouldCallNew => false; // Gets called manually later
-
     public readonly ViewRange DefaultView;
+    public readonly int IconSize;
+
+    private readonly ISawmill _sawmill = Logger.GetSawmill("opendream.world");
     public DreamResource? Log;
+    [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private IGameTiming _gameTiming = default!;
+    [Dependency] private INetManager _netManager = default!;
+
+    private DreamValue _params;
+
+    [Dependency] private IBaseServer _server = default!;
+
+    public DreamObjectWorld(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
+        IoCManager.InjectDependencies(this);
+
+        SetTicklag(objectDefinition.Variables["tick_lag"]);
+        SetLog(objectDefinition.Variables["log"]);
+        if (objectDefinition.Variables["fps"].TryGetValueAsInteger(out int fpsVal) &&
+            fpsVal != 10) // To not override tick_lag, only set if it isn't the default 10 FPS
+            SetFps(objectDefinition.Variables["fps"]);
+        SetSleepOffline(objectDefinition.Variables["sleep_offline"]);
+
+        DreamValue iconSize = objectDefinition.Variables["icon_size"];
+        if (!iconSize.TryGetValueAsInteger(out IconSize)) {
+            _sawmill.Warning("world.icon_size did not contain a valid value. A default of 32 is being used.");
+            IconSize = 32;
+        }
+
+        DreamValue view = objectDefinition.Variables["view"];
+        if (view.TryGetValueAsString(out string? viewString)) {
+            DefaultView = new ViewRange(viewString);
+        } else {
+            if (!view.TryGetValueAsInteger(out int viewInt)) {
+                _sawmill.Warning("world.view did not contain a valid value. A default of 5 is being used.");
+                viewInt = 5;
+            }
+
+            DefaultView = new ViewRange(viewInt);
+        }
+
+        string worldParams = _cfg.GetCVar(OpenDreamCVars.WorldParams);
+        _params = worldParams != string.Empty
+            ? new DreamValue(DreamProcNativeRoot.Params2List(ObjectTree, worldParams))
+            : new DreamValue(ObjectTree.CreateList());
+    }
+
+    public override bool ShouldCallNew => false; // Gets called manually later
 
     // DM code may request this info a *lot* so we use the more performant Environment.TickCount64 over RT's stopwatches
     public float TickUsage =>
-        (Environment.TickCount64 - DreamManager.CurrentTickStart) / (float)(_gameTiming.TickPeriod.TotalMilliseconds) * 100;
+        (Environment.TickCount64 - DreamManager.CurrentTickStart) / (float)_gameTiming.TickPeriod.TotalMilliseconds *
+        100;
 
     public int TimeOfDay => (int)DateTime.UtcNow.TimeOfDay.TotalMilliseconds / 100;
 
     public float Cpu { get; set; }
-    public readonly int IconSize;
-
-    [Dependency] private IBaseServer _server = default!;
-    [Dependency] private IGameTiming _gameTiming = default!;
-    [Dependency] private INetManager _netManager = default!;
-    [Dependency] private IConfigurationManager _cfg = default!;
-
-    private readonly ISawmill _sawmill = Logger.GetSawmill("opendream.world");
 
     private double TickLag {
         get => _gameTiming.TickPeriod.TotalMilliseconds / 100;
@@ -47,60 +84,21 @@ public sealed partial class DreamObjectWorld : DreamObject {
     /// <summary> Determines whether we try to show IPv6 or IPv4 to the user during .address and .internet_address queries.</summary>
     private bool DisplayIPv6 {
         get {
-            var binds = _cfg.GetCVar(CVars.NetBindTo).Split(',');
+            string[] binds = _cfg.GetCVar(CVars.NetBindTo).Split(',');
 
-            foreach (var bindAddress in binds) {
+            foreach (string bindAddress in binds) {
                 // EXTREMELY unlikely since RT does this same check on network startup
-                if (!IPAddress.TryParse(bindAddress.Trim(), out var address)) {
-                    continue;
-                }
+                if (!IPAddress.TryParse(bindAddress.Trim(), out IPAddress? address)) continue;
 
-                if (address.AddressFamily == AddressFamily.InterNetworkV6) {
-                    return true;
-                }
+                if (address.AddressFamily == AddressFamily.InterNetworkV6) return true;
             }
 
             return false;
         }
     }
 
-    private DreamValue _params;
-
     /// <summary> Tries to return the address of the server, as it appears over the internet. May return null.</summary>
     private IPAddress? InternetAddress => null; //TODO: Implement this!
-
-    public DreamObjectWorld(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
-        IoCManager.InjectDependencies(this);
-
-        SetTicklag(objectDefinition.Variables["tick_lag"]);
-        SetLog(objectDefinition.Variables["log"]);
-        if(objectDefinition.Variables["fps"].TryGetValueAsInteger(out var fpsVal) && fpsVal != 10) // To not override tick_lag, only set if it isn't the default 10 FPS
-            SetFps(objectDefinition.Variables["fps"]);
-        SetSleepOffline(objectDefinition.Variables["sleep_offline"]);
-
-        DreamValue iconSize = objectDefinition.Variables["icon_size"];
-        if (!iconSize.TryGetValueAsInteger(out IconSize)) {
-            _sawmill.Warning("world.icon_size did not contain a valid value. A default of 32 is being used.");
-            IconSize = 32;
-        }
-
-        DreamValue view = objectDefinition.Variables["view"];
-        if (view.TryGetValueAsString(out var viewString)) {
-            DefaultView = new ViewRange(viewString);
-        } else {
-            if (!view.TryGetValueAsInteger(out var viewInt)) {
-                _sawmill.Warning("world.view did not contain a valid value. A default of 5 is being used.");
-                viewInt = 5;
-            }
-
-            DefaultView = new ViewRange(viewInt);
-        }
-
-        var worldParams = _cfg.GetCVar(OpenDreamCVars.WorldParams);
-        _params = worldParams != string.Empty ?
-            new DreamValue(DreamProcNativeRoot.Params2List(ObjectTree, worldParams)) :
-            new DreamValue(ObjectTree.CreateList());
-    }
 
     // TODO: Respect /world/Delete() not calling parent and aborting shutdown
     protected override void HandleDeletion() {
@@ -109,7 +107,7 @@ public sealed partial class DreamObjectWorld : DreamObject {
         _params.DecRef();
 
         // There shouldn't be two instances of world, but to be safe
-        var isServerWorld = (this == DreamManager.WorldInstance);
+        bool isServerWorld = this == DreamManager.WorldInstance;
 
         base.HandleDeletion();
         if (isServerWorld)
@@ -119,7 +117,7 @@ public sealed partial class DreamObjectWorld : DreamObject {
     protected override bool TryGetVar(string varName, out DreamValue value) {
         switch (varName) {
             case "log":
-                value = (Log != null) ? new(Log) : DreamValue.Null;
+                value = Log != null ? new DreamValue(Log) : DreamValue.Null;
                 return true;
 
             case "params":
@@ -129,19 +127,19 @@ public sealed partial class DreamObjectWorld : DreamObject {
 
             case "status":
             case "name":
-                value = new(string.Empty); // TODO
+                value = new DreamValue(string.Empty); // TODO
                 return true;
 
             case "contents":
-                value = new(new WorldContentsList(ObjectTree.List.ObjectDefinition, AtomManager));
+                value = new DreamValue(new WorldContentsList(ObjectTree.List.ObjectDefinition, AtomManager));
                 return true;
 
             case "process":
-                value = new(Environment.ProcessId);
+                value = new DreamValue(Environment.ProcessId);
                 return true;
 
             case "tick_lag":
-                value = new(TickLag);
+                value = new DreamValue(TickLag);
                 return true;
 
             case "fps":
@@ -185,28 +183,27 @@ public sealed partial class DreamObjectWorld : DreamObject {
                 return true;
 
             case "address": // By address they mean, the local address we have on the network, not on the internet.
-                var host = Dns.GetHostEntry(Dns.GetHostName());
-                var ipType = DisplayIPv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
-                foreach (var ip in host.AddressList) {
+                IPHostEntry host = Dns.GetHostEntry(Dns.GetHostName());
+                AddressFamily ipType = DisplayIPv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
+                foreach (IPAddress ip in host.AddressList)
                     if (ip.AddressFamily == ipType) {
                         value = new DreamValue(ip.ToString());
 
                         return true;
                     }
-                }
 
                 value = DreamValue.Null;
                 return true;
 
             case "port":
-                value = new(_netManager.Port);
+                value = new DreamValue(_netManager.Port);
                 return true;
 
             case "url":
                 if (InternetAddress == null)
                     value = DreamValue.Null;
                 else
-                    value = new(InternetAddress + ":" + _netManager.Port); // RIP "opendream://"
+                    value = new DreamValue(InternetAddress + ":" + _netManager.Port); // RIP "opendream://"
 
                 return true;
 
@@ -217,7 +214,7 @@ public sealed partial class DreamObjectWorld : DreamObject {
                 if (address == null)
                     value = DreamValue.Null;
                 else
-                    value = new(address.ToString());
+                    value = new DreamValue(address.ToString());
 
                 return true;
 
@@ -232,17 +229,16 @@ public sealed partial class DreamObjectWorld : DreamObject {
 
             case "view":
                 // Number if square & centerable, string representation otherwise
-                if (DefaultView.CanSquareRange) {
+                if (DefaultView.CanSquareRange)
                     value = new DreamValue(DefaultView.SquareRange.Value);
-                } else {
+                else
                     value = new DreamValue(DefaultView.ToString());
-                }
 
                 return true;
 
             // Remove OPENDREAM_TOPIC_PORT_EXISTS if this is ever removed
             case "opendream_topic_port":
-                var topicPort = DreamManager.ActiveTopicPort;
+                ushort? topicPort = DreamManager.ActiveTopicPort;
                 value = topicPort.HasValue ? new DreamValue((int)topicPort) : DreamValue.Null;
                 return true;
 
@@ -288,7 +284,7 @@ public sealed partial class DreamObjectWorld : DreamObject {
                 break;
 
             case "maxz":
-                value.TryGetValueAsInteger(out var maxz);
+                value.TryGetValueAsInteger(out int maxz);
 
                 DreamMapManager.SetZLevels(maxz);
                 break;
@@ -298,13 +294,13 @@ public sealed partial class DreamObjectWorld : DreamObject {
                 break;
 
             case "maxx":
-                value.TryGetValueAsInteger(out var maxx);
+                value.TryGetValueAsInteger(out int maxx);
 
                 DreamMapManager.SetWorldSize(new Vector2i(maxx, DreamMapManager.Size.Y));
                 break;
 
             case "maxy":
-                value.TryGetValueAsInteger(out var maxy);
+                value.TryGetValueAsInteger(out int maxy);
 
                 DreamMapManager.SetWorldSize(new Vector2i(DreamMapManager.Size.X, maxy));
                 break;
@@ -315,30 +311,27 @@ public sealed partial class DreamObjectWorld : DreamObject {
     }
 
     public override void OperatorOutput(DreamValue b) {
-        foreach (DreamConnection connection in DreamManager.Connections) {
-            connection.OutputDreamValue(b);
-        }
+        foreach (DreamConnection connection in DreamManager.Connections) connection.OutputDreamValue(b);
     }
 
     private void SetLog(DreamValue log) {
-        if (log.TryGetValueAsString(out var logStr)) {
+        if (log.TryGetValueAsString(out string? logStr))
             Log = DreamResourceManager.LoadResource(logStr);
-        } else if (log.TryGetValueAsDreamResource(out var logRsc)) {
+        else if (log.TryGetValueAsDreamResource(out DreamResource? logRsc))
             Log = logRsc;
-        } else {
+        else
             Log = new ConsoleOutputResource();
-        }
     }
 
     private void SetFps(DreamValue fps) {
-        if (!fps.TryGetValueAsFloat(out var fpsValue))
+        if (!fps.TryGetValueAsFloat(out float fpsValue))
             fpsValue = 10f;
 
         Fps = (int)Math.Round(fpsValue);
     }
 
     private void SetTicklag(DreamValue value) {
-        if (!value.TryGetValueAsFloat(out var tickLag))
+        if (!value.TryGetValueAsFloat(out float tickLag))
             tickLag = 1; // An invalid tick_lag gets turned into 1
 
         TickLag = tickLag;

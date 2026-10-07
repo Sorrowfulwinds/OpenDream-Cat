@@ -220,14 +220,15 @@ internal static class DreamProcNative {
     }
 
     /// <summary>
-    /// Sets a native proc that can be overriden by DM code
+    ///     Sets a native proc that can be overriden by DM code
     /// </summary>
-    private static void SetOverridableNativeProc(DreamObjectTree objectTree, TreeEntry type, NativeProc.HandlerFn func) {
-        var nativeProc = objectTree.CreateNativeProc(type, func);
+    private static void
+        SetOverridableNativeProc(DreamObjectTree objectTree, TreeEntry type, NativeProc.HandlerFn func) {
+        NativeProc nativeProc = objectTree.CreateNativeProc(type, func);
 
-        var proc = objectTree.World.ObjectDefinition.GetProc(nativeProc.Name);
+        DreamProc proc = objectTree.World.ObjectDefinition.GetProc(nativeProc.Name);
         if (proc.SuperProc == null) { // This proc was never overriden so just replace it
-            type.ObjectDefinition.SetProcDefinition(proc.Name, nativeProc.Id, replace: true);
+            type.ObjectDefinition.SetProcDefinition(proc.Name, nativeProc.Id, true);
             return;
         }
 

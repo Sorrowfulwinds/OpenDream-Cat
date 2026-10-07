@@ -1,8 +1,8 @@
 #if TOOLS
-using Robust.Shared.Player;
-using Robust.Server.Console;
 using System.Net;
+using Robust.Server.Console;
 using Robust.Shared.Network;
+using Robust.Shared.Player;
 using Robust.Shared.Toolshed;
 using Robust.Shared.Toolshed.Errors;
 
@@ -13,10 +13,6 @@ namespace OpenDreamRuntime;
 /// </summary>
 public sealed class LocalHostConGroup : IConGroupControllerImplementation, IPostInjectInit {
     public bool CanCommand(ICommonSession session, string cmdName) {
-        return IsLocal(session);
-    }
-
-    public bool CanViewVar(ICommonSession session) {
         return IsLocal(session);
     }
 
@@ -36,20 +32,6 @@ public sealed class LocalHostConGroup : IConGroupControllerImplementation, IPost
         return IsLocal(session);
     }
 
-    private static bool IsLocal(ICommonSession player) {
-        return IsLocal(player.Channel);
-    }
-
-    private static bool IsLocal(INetChannel client) {
-        var ep = client.RemoteEndPoint;
-        var addr = ep.Address;
-        if (addr.IsIPv4MappedToIPv6) {
-            addr = addr.MapToIPv4();
-        }
-
-        return Equals(addr, IPAddress.Loopback) || Equals(addr, IPAddress.IPv6Loopback);
-    }
-
     public bool CheckInvokable(CommandSpec command, ICommonSession? user, out IConError? error) {
         error = null;
         if (user is null) return true; // Server console
@@ -58,6 +40,22 @@ public sealed class LocalHostConGroup : IConGroupControllerImplementation, IPost
 
     void IPostInjectInit.PostInject() {
         IoCManager.Resolve<IConGroupController>().Implementation = this;
+    }
+
+    public bool CanViewVar(ICommonSession session) {
+        return IsLocal(session);
+    }
+
+    private static bool IsLocal(ICommonSession player) {
+        return IsLocal(player.Channel);
+    }
+
+    private static bool IsLocal(INetChannel client) {
+        IPEndPoint ep = client.RemoteEndPoint;
+        IPAddress addr = ep.Address;
+        if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+
+        return Equals(addr, IPAddress.Loopback) || Equals(addr, IPAddress.IPv6Loopback);
     }
 }
 #endif

@@ -5,8 +5,8 @@ using OpenDreamShared.Dream;
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectTurf : DreamObjectAtom {
-    public readonly int X, Y, Z;
     public readonly TurfContentsList Contents;
+    public readonly int X, Y, Z;
     public ImmutableAppearance Appearance;
     public IDreamMapManager.Cell Cell;
     public bool IsDense;
@@ -24,7 +24,7 @@ public sealed class DreamObjectTurf : DreamObjectAtom {
     public override void Initialize(DreamProcArguments args) {
         base.Initialize(args);
 
-        ObjectDefinition.TryGetVariable("density", out var density);
+        ObjectDefinition.TryGetVariable("density", out DreamValue density);
         IsDense = density.IsTruthy();
     }
 
@@ -35,20 +35,20 @@ public sealed class DreamObjectTurf : DreamObjectAtom {
         ObjectDefinition = objectDefinition;
 
         if (Variables != null) {
-            foreach (var varValue in Variables.Values)
+            foreach (DreamValue varValue in Variables.Values)
                 varValue.DecRef();
 
             Variables?.Clear();
         }
 
-        Initialize(new());
+        Initialize(new DreamProcArguments());
     }
 
     public void OnAreaChange(DreamObjectArea oldArea) {
         if (Cell == null!)
             return;
 
-        using var newAppearance = Appearance.ToMutable();
+        using MutableAppearance newAppearance = Appearance.ToMutable();
 
         newAppearance.Overlays.Remove(oldArea.Appearance);
         DreamMapManager.SetTurfAppearance(this, newAppearance);
@@ -63,24 +63,24 @@ public sealed class DreamObjectTurf : DreamObjectAtom {
     protected override bool TryGetVar(string varName, out DreamValue value) {
         switch (varName) {
             case "x":
-                value = new(X);
+                value = new DreamValue(X);
                 return true;
             case "y":
-                value = new(Y);
+                value = new DreamValue(Y);
                 return true;
             case "z":
-                value = new(Z);
+                value = new DreamValue(Z);
                 return true;
             case "loc":
                 Cell.Area.IncRef();
-                value = new(Cell.Area);
+                value = new DreamValue(Cell.Area);
                 return true;
             case "density":
                 value = IsDense ? DreamValue.True : DreamValue.False;
                 return true;
             case "contents":
                 Contents.IncRef();
-                value = new(Contents);
+                value = new DreamValue(Contents);
                 return true;
             default:
                 return base.TryGetVar(varName, out value);
@@ -95,11 +95,9 @@ public sealed class DreamObjectTurf : DreamObjectAtom {
             case "contents":
                 Contents.Cut();
 
-                if (value.TryGetValueAsDreamList(out var valueList)) {
-                    foreach (DreamValue contentValue in valueList.EnumerateValues()) {
+                if (value.TryGetValueAsDreamList(out DreamList? valueList))
+                    foreach (DreamValue contentValue in valueList.EnumerateValues())
                         Contents.AddValue(contentValue);
-                    }
-                }
 
                 break;
             default:

@@ -1,14 +1,14 @@
-using OpenDreamRuntime.Objects;
-using OpenDreamShared.Dream;
-using System.Text.RegularExpressions;
-using OpenDreamRuntime.Objects.Types;
 using System.Text;
+using System.Text.RegularExpressions;
 using OpenDreamRuntime.Map;
+using OpenDreamRuntime.Objects;
+using OpenDreamRuntime.Objects.Types;
+using OpenDreamShared.Dream;
 
 namespace OpenDreamRuntime.Procs.Native;
 
 /// <summary>
-/// A container of procs that act as helpers for a few native procs.
+///     A container of procs that act as helpers for a few native procs.
 /// </summary>
 internal static partial class DreamProcNativeHelpers {
     private static readonly char[] RadixArray = [
@@ -25,10 +25,10 @@ internal static partial class DreamProcNativeHelpers {
     ];
 
     /// <summary>
-    /// This is a helper method for oview, view, orange, and range to do their strange iteration with.<br/>
-    /// BYOND has a very strange, kinda-spiralling iteration pattern for these procs,
-    /// which looks like this in a 3x3 case:
-    /// <code>
+    ///     This is a helper method for oview, view, orange, and range to do their strange iteration with.<br />
+    ///     BYOND has a very strange, kinda-spiralling iteration pattern for these procs,
+    ///     which looks like this in a 3x3 case:
+    ///     <code>
     /// 13 15 17 19 24
     /// 12 03 05 08 23
     /// 11 02 00 07 22
@@ -37,7 +37,7 @@ internal static partial class DreamProcNativeHelpers {
     /// </code>
     /// </summary>
     /// <remarks>
-    /// Does not iterate over the center.
+    ///     Does not iterate over the center.
     /// </remarks>
     /// <returns>Tuple representing X/Y coordinates.</returns>
     private static IEnumerable<(int X, int Y)> DantomSpiral((int X, int Y) center, (int Width, int Height) range) {
@@ -47,128 +47,122 @@ internal static partial class DreamProcNativeHelpers {
         int rightRange = (range.Width - 1) / 2;
 
         int donutCount = Math.Max(bottomRange, leftRange);
-        for(int donut = 1; donut <= donutCount; donut++) {
+        for (var donut = 1; donut <= donutCount; donut++) {
             int columnBottom = center.Y - Math.Min(donut, bottomRange);
             int columnTop = center.Y + Math.Min(donut, topRange);
 
             // left column
-            if(donut <= leftRange) {
+            if (donut <= leftRange) {
                 int posX = center.X - donut;
-                for(int posY = columnBottom; posY <= columnTop; posY++) {
-                    yield return (posX, posY);
-                }
+                for (int posY = columnBottom; posY <= columnTop; posY++) yield return (posX, posY);
             }
 
             // the criss-cross-apple-sauce
-            if(donut <= bottomRange) {
+            if (donut <= bottomRange) {
                 int startingPosX = center.X - Math.Min(donut, leftRange + 1) + 1;
                 int endingPosX = center.X + Math.Min(donut, rightRange + 1) - 1;
-                for(int posX = startingPosX; posX <= endingPosX; posX++) {
+                for (int posX = startingPosX; posX <= endingPosX; posX++) {
                     yield return (posX, center.Y - donut); // the criss
 
-                    if(donut > topRange) continue;
+                    if (donut > topRange) continue;
 
                     yield return (posX, center.Y + donut); // the cross
                 }
             }
 
             // right column
-            if(donut <= rightRange) {
+            if (donut <= rightRange) {
                 int posX = center.X + donut; // this is the only difference
-                for(int posY = columnBottom; posY <= columnTop; posY++) {
-                    yield return (posX, posY);
-                }
+                for (int posY = columnBottom; posY <= columnTop; posY++) yield return (posX, posY);
             }
         }
     }
 
-    /// <seealso cref="DantomSpiral"/>
+    /// <seealso cref="DantomSpiral" />
     public static IEnumerable<DreamObjectTurf> MakeViewSpiral(DreamObjectAtom center, ViewRange distance) {
         var mapMgr = IoCManager.Resolve<IDreamMapManager>();
         var atomMgr = IoCManager.Resolve<AtomManager>();
-        var centerPos = atomMgr.GetAtomPosition(center);
+        (int X, int Y, int Z) centerPos = atomMgr.GetAtomPosition(center);
 
-        foreach((int posX, int posY) in DantomSpiral((centerPos.X, centerPos.Y), (distance.Width, distance.Height))) {
-            if(mapMgr.TryGetTurfAt((posX, posY), centerPos.Z, out var turf)) {
+        foreach ((int posX, int posY) in DantomSpiral((centerPos.X, centerPos.Y), (distance.Width, distance.Height)))
+            if (mapMgr.TryGetTurfAt((posX, posY), centerPos.Z, out DreamObjectTurf? turf))
                 yield return turf;
-            }
-        }
     }
 
-    /// <seealso cref="DantomSpiral"/>
+    /// <seealso cref="DantomSpiral" />
     public static IEnumerable<ViewAlgorithm.Tile?> MakeViewSpiral(ViewAlgorithm.Tile?[,] tiles, bool includeCenter) {
-        var width = tiles.GetLength(0);
-        var height = tiles.GetLength(1);
-        var centerPos = (X: width / 2, Y: height / 2);
+        int width = tiles.GetLength(0);
+        int height = tiles.GetLength(1);
+        (int X, int Y) centerPos = (X: width / 2, Y: height / 2);
 
         if (includeCenter)
             yield return tiles[centerPos.X, centerPos.Y];
 
-        foreach((int posX, int posY) in DantomSpiral((centerPos.X, centerPos.Y), (width, height)))  {
+        foreach ((int posX, int posY) in DantomSpiral((centerPos.X, centerPos.Y), (width, height)))
             yield return tiles[posX, posY];
-        }
     }
 
     /// <summary>
-    /// Resolves the arguments of view, oview, orange, and range procs, <br/>
-    /// Since it's rather convoluted for a few reasons.
+    ///     Resolves the arguments of view, oview, orange, and range procs, <br />
+    ///     Since it's rather convoluted for a few reasons.
     /// </summary>
     /// <remarks>
-    /// Arguments are optional and can be passed in any order.
-    /// If a range argument is passed, like "11x4", then THAT is what we have to deal with.
+    ///     Arguments are optional and can be passed in any order.
+    ///     If a range argument is passed, like "11x4", then THAT is what we have to deal with.
     /// </remarks>
-    /// <returns>The center (which may not be the turf), the distance along the x-axis, and the distance along the y-axis to iterate.</returns>
-    public static (DreamObjectAtom?, ViewRange) ResolveViewArguments(DreamManager dreamMan, DreamObjectAtom? usr, ReadOnlySpan<DreamValue> arguments) {
+    /// <returns>
+    ///     The center (which may not be the turf), the distance along the x-axis, and the distance along the y-axis to
+    ///     iterate.
+    /// </returns>
+    public static (DreamObjectAtom?, ViewRange) ResolveViewArguments(DreamManager dreamMan, DreamObjectAtom? usr,
+        ReadOnlySpan<DreamValue> arguments) {
         ViewRange range = dreamMan.WorldInstance.DefaultView;
 
-        if(arguments.Length == 0) {
-            return (usr, range);
-        }
+        if (arguments.Length == 0) return (usr, range);
 
         DreamObjectAtom? center = usr;
 
-        foreach (var arg in arguments) {
-            if(arg.TryGetValueAsDreamObject<DreamObjectAtom>(out var centerObject)) {
+        foreach (DreamValue arg in arguments)
+            if (arg.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? centerObject))
                 center = centerObject;
-            } else if(arg.TryGetValueAsInteger(out int distValue)) {
+            else if (arg.TryGetValueAsInteger(out int distValue))
                 range = new ViewRange(distValue);
-            } else if (arg.TryGetValueAsString(out var distString)) {
+            else if (arg.TryGetValueAsString(out string? distString))
                 range = new ViewRange(distString);
-            } else if (!arg.IsNull) { // null range arg is handled by DefaultView above
+            else if (!arg.IsNull) // null range arg is handled by DefaultView above
                 throw new DMException($"Invalid argument: {arg}");
-            }
-        }
 
         return (center, range);
     }
 
-    public static ViewAlgorithm.Tile?[,] CollectViewData(AtomManager atomManager, IDreamMapManager mapManager, (int X, int Y, int Z) eyePos, ViewRange range) {
+    public static ViewAlgorithm.Tile?[,] CollectViewData(AtomManager atomManager, IDreamMapManager mapManager,
+        (int X, int Y, int Z) eyePos, ViewRange range) {
         var tiles = new ViewAlgorithm.Tile?[range.Width, range.Height];
 
-        for (int viewX = 0; viewX < range.Width; viewX++) {
-            for (int viewY = 0; viewY < range.Height; viewY++) {
-                int deltaX = -(range.Width / 2) + viewX;
-                int deltaY = -(range.Height / 2) + viewY;
+        for (var viewX = 0; viewX < range.Width; viewX++)
+        for (var viewY = 0; viewY < range.Height; viewY++) {
+            int deltaX = -(range.Width / 2) + viewX;
+            int deltaY = -(range.Height / 2) + viewY;
 
-                if (!mapManager.TryGetCellAt((eyePos.X + deltaX, eyePos.Y + deltaY), eyePos.Z, out var cell))
-                    continue;
+            if (!mapManager.TryGetCellAt((eyePos.X + deltaX, eyePos.Y + deltaY), eyePos.Z,
+                    out IDreamMapManager.Cell? cell))
+                continue;
 
-                var appearance = atomManager.MustGetAppearance(cell.Turf);
-                var tile = new ViewAlgorithm.Tile() {
-                    Opaque = appearance.Opacity,
-                    Luminosity = 0,
-                    DeltaX = deltaX,
-                    DeltaY = deltaY
-                };
+            ImmutableAppearance appearance = atomManager.MustGetAppearance(cell.Turf);
+            var tile = new ViewAlgorithm.Tile {
+                Opaque = appearance.Opacity,
+                Luminosity = 0,
+                DeltaX = deltaX,
+                DeltaY = deltaY
+            };
 
-                foreach (var movable in cell.Movables) {
-                    appearance = atomManager.MustGetAppearance(movable);
+            foreach (DreamObjectMovable movable in cell.Movables) {
+                appearance = atomManager.MustGetAppearance(movable);
 
-                    tile.Opaque |= appearance.Opacity;
-                }
-
-                tiles[viewX, viewY] = tile;
+                tile.Opaque |= appearance.Opacity;
             }
+
+            tiles[viewX, viewY] = tile;
         }
 
         return tiles;
@@ -179,79 +173,73 @@ internal static partial class DreamProcNativeHelpers {
         DreamList rangeList = center.ObjectDefinition.ObjectTree.CreateList(range.Height * range.Width);
 
         void AddToList(DreamValue value) {
-            if(value.TryGetValueAsDreamObject<DreamObjectAtom>(out var atomValue)) {
-                using var appearanceValue = atomValue.GetVariable("appearance");
-                using var appearance = appearanceValue.MustGetValueAsAppearance();
-                if(appearance.Invisibility >= 101)
+            if (value.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? atomValue)) {
+                using DreamValue appearanceValue = atomValue.GetVariable("appearance");
+                using MutableAppearance appearance = appearanceValue.MustGetValueAsAppearance();
+                if (appearance.Invisibility >= 101)
                     return;
             }
 
             rangeList.AddValue(value);
-            if(value.TryGetValueAsDreamObject<DreamObjectTurf>(out var turfValue) && !seenAreas.Contains(turfValue.Cell.Area)) {
-                var area = turfValue.Cell.Area;
-                rangeList.AddValue(new(area));
+            if (value.TryGetValueAsDreamObject<DreamObjectTurf>(out DreamObjectTurf? turfValue) &&
+                !seenAreas.Contains(turfValue.Cell.Area)) {
+                DreamObjectArea area = turfValue.Cell.Area;
+                rangeList.AddValue(new DreamValue(area));
                 seenAreas.Add(area);
             }
         }
 
-        if(center is DreamObjectArea areaCenter) { // yeah you can do this
-            rangeList.AddValue(new(areaCenter)); // dodges the invisibility check
+        if (center is DreamObjectArea areaCenter) { // yeah you can do this
+            rangeList.AddValue(new DreamValue(areaCenter)); // dodges the invisibility check
             seenAreas.Add(areaCenter);
-            foreach(var turf in areaCenter.Turfs) {
-                AddToList(new(turf));
-                foreach(var content in turf.Contents.EnumerateValues()) {
-                    AddToList(content);
-                }
+            foreach (DreamObjectTurf turf in areaCenter.Turfs) {
+                AddToList(new DreamValue(turf));
+                foreach (DreamValue content in turf.Contents.EnumerateValues()) AddToList(content);
             }
 
             return rangeList;
-        } else if(center is DreamObjectTurf turfCenter) {
-            if(includeCenter) { // if we're orange, we want to skip the else block too
-                AddToList(new(center));
-                foreach(DreamValue content in turfCenter.Contents.EnumerateValues()) {
-                    AddToList(content);
-                }
+        }
+
+        if (center is DreamObjectTurf turfCenter) {
+            if (includeCenter) { // if we're orange, we want to skip the else block too
+                AddToList(new DreamValue(center));
+                foreach (DreamValue content in turfCenter.Contents.EnumerateValues()) AddToList(content);
             }
         } else { // we're getting the range of a container
             // add our contents first
-            if(includeCenter) {
-                if(center.TryGetVariable("contents", out var centerContents) && centerContents.TryGetValueAsDreamList(out var centerContentsList)) {
-                    foreach(DreamValue content in centerContentsList.EnumerateValues()) {
+            if (includeCenter) {
+                if (center.TryGetVariable("contents", out DreamValue centerContents) &&
+                    centerContents.TryGetValueAsDreamList(out DreamList? centerContentsList))
+                    foreach (DreamValue content in centerContentsList.EnumerateValues())
                         AddToList(content);
-                    }
-                }
 
                 centerContents.Dispose();
             }
 
             // the loc's contents will include us
             if (center.TryGetVariable("loc", out DreamValue centerLoc)) {
-                if (centerLoc.TryGetValueAsDreamObject<DreamObjectAtom>(out var centerLocObject)) {
+                if (centerLoc.TryGetValueAsDreamObject<DreamObjectAtom>(out DreamObjectAtom? centerLocObject)) {
                     AddToList(centerLoc);
 
-                    using var contents = centerLocObject.GetVariable("contents");
-                    if (contents.TryGetValueAsDreamList(out var locContentsList)) {
+                    using DreamValue contents = centerLocObject.GetVariable("contents");
+                    if (contents.TryGetValueAsDreamList(out DreamList? locContentsList))
                         foreach (DreamValue content in locContentsList.EnumerateValues()) {
-                            if(!includeCenter && content.TryGetValueAsDreamObject(out var dreamObject) && dreamObject == center)
+                            if (!includeCenter && content.TryGetValueAsDreamObject(out DreamObject? dreamObject) &&
+                                dreamObject == center)
                                 continue;
                             AddToList(content);
                         }
-                    }
                 }
 
                 centerLoc.Dispose();
-                if(centerLocObject is not DreamObjectTurf) {
-                    return rangeList;
-                }
+                if (centerLocObject is not DreamObjectTurf) return rangeList;
             }
         }
 
         // finally, add the surrounding turfs
-        foreach (var turf in DreamProcNativeHelpers.MakeViewSpiral(center, range)) {
+        foreach (DreamObjectTurf turf in MakeViewSpiral(center, range)) {
             AddToList(new DreamValue(turf));
-            foreach (DreamValue content in turf.Contents.EnumerateValues()) {
-                AddToList(content);
-            }
+            foreach (DreamValue content in turf.Contents.EnumerateValues()) AddToList(content);
         }
 
         return rangeList;
@@ -266,15 +254,11 @@ internal static partial class DreamProcNativeHelpers {
             DreamValue firstArgument = bundle.GetArgument(0, "Depth");
 
             if (firstArgument.TryGetValueAsDreamObject(out center)) {
-                if (bundle.Arguments.Length > 1) {
-                    depthValue = bundle.GetArgument(1, "Center");
-                }
+                if (bundle.Arguments.Length > 1) depthValue = bundle.GetArgument(1, "Center");
             } else {
                 depthValue = firstArgument;
 
-                if (bundle.Arguments.Length > 1) {
-                    bundle.GetArgument(1, "Center").TryGetValueAsDreamObject(out center);
-                }
+                if (bundle.Arguments.Length > 1) bundle.GetArgument(1, "Center").TryGetValueAsDreamObject(out center);
             }
         }
 
@@ -282,29 +266,28 @@ internal static partial class DreamProcNativeHelpers {
 
         DreamList view = bundle.ObjectTree.CreateList();
         if (center == null)
-            return new(view);
+            return new DreamValue(view);
 
-        var centerPos = bundle.AtomManager.GetAtomPosition(center);
-        if (depthValue is null || !depthValue.Value.TryGetValueAsInteger(out var depth))
+        (int X, int Y, int Z) centerPos = bundle.AtomManager.GetAtomPosition(center);
+        if (depthValue is null || !depthValue.Value.TryGetValueAsInteger(out int depth))
             depth = bundle.DreamManager.WorldInstance.DefaultView.BiggestAxis;
 
-        foreach (var mob in bundle.MapManager.GetMobsInRange(centerPos, depth)) {
-            var (_, range) = ResolveViewArguments(bundle.DreamManager, mob, bundle.Arguments);
-            var eyePos = bundle.AtomManager.GetAtomPosition(mob);
-            var viewData = CollectViewData(bundle.AtomManager, bundle.MapManager, eyePos, range);
+        foreach (DreamObjectMob mob in bundle.MapManager.GetMobsInRange(centerPos, depth)) {
+            (_, ViewRange range) = ResolveViewArguments(bundle.DreamManager, mob, bundle.Arguments);
+            (int X, int Y, int Z) eyePos = bundle.AtomManager.GetAtomPosition(mob);
+            ViewAlgorithm.Tile?[,] viewData = CollectViewData(bundle.AtomManager, bundle.MapManager, eyePos, range);
 
             ViewAlgorithm.CalculateVisibility(viewData, ignoreLight);
 
-            for (int x = 0; x < viewData.GetLength(0); x++) {
-                for (int y = 0; y < viewData.GetLength(1); y++) {
-                    var tile = viewData[x, y];
-                    if (tile == null || tile.IsVisible == false)
-                        continue;
+            for (var x = 0; x < viewData.GetLength(0); x++)
+            for (var y = 0; y < viewData.GetLength(1); y++) {
+                ViewAlgorithm.Tile? tile = viewData[x, y];
+                if (tile == null || !tile.IsVisible)
+                    continue;
 
-                    if (centerPos.X == eyePos.X + tile.DeltaX && eyePos.Y + tile.DeltaY == centerPos.Y) {
-                        view.AddValue(new DreamValue(mob));
-                        break;
-                    }
+                if (centerPos.X == eyePos.X + tile.DeltaX && eyePos.Y + tile.DeltaY == centerPos.Y) {
+                    view.AddValue(new DreamValue(mob));
+                    break;
                 }
             }
         }
@@ -321,15 +304,11 @@ internal static partial class DreamProcNativeHelpers {
             DreamValue firstArgument = bundle.GetArgument(0, "Depth");
 
             if (firstArgument.TryGetValueAsDreamObject(out center)) {
-                if (bundle.Arguments.Length > 1) {
-                    depthValue = bundle.GetArgument(1, "Center");
-                }
+                if (bundle.Arguments.Length > 1) depthValue = bundle.GetArgument(1, "Center");
             } else {
                 depthValue = firstArgument;
 
-                if (bundle.Arguments.Length > 1) {
-                    bundle.GetArgument(1, "Center").TryGetValueAsDreamObject(out center);
-                }
+                if (bundle.Arguments.Length > 1) bundle.GetArgument(1, "Center").TryGetValueAsDreamObject(out center);
             }
         }
 
@@ -337,35 +316,35 @@ internal static partial class DreamProcNativeHelpers {
 
         DreamList view = bundle.ObjectTree.CreateList();
         if (center == null)
-            return new(view);
+            return new DreamValue(view);
 
-        var centerPos = bundle.AtomManager.GetAtomPosition(center);
-        if (depthValue is null || !depthValue.Value.TryGetValueAsInteger(out var depth))
+        (int X, int Y, int Z) centerPos = bundle.AtomManager.GetAtomPosition(center);
+        if (depthValue is null || !depthValue.Value.TryGetValueAsInteger(out int depth))
             depth = bundle.DreamManager.WorldInstance.DefaultView.BiggestAxis;
 
-        foreach (var atom in bundle.AtomManager.EnumerateAtoms(bundle.ObjectTree.Mob)) {
+        foreach (DreamObjectAtom atom in bundle.AtomManager.EnumerateAtoms(bundle.ObjectTree.Mob)) {
             var mob = (DreamObjectMob)atom;
 
             if (mob.X == centerPos.X && mob.Y == centerPos.Y)
                 continue;
 
-            if (centerPos.Z == mob.Z && Math.Abs(centerPos.X - mob.X) <= depth && Math.Abs(centerPos.Y - mob.Y) <= depth) {
+            if (centerPos.Z == mob.Z && Math.Abs(centerPos.X - mob.X) <= depth &&
+                Math.Abs(centerPos.Y - mob.Y) <= depth) {
                 (_, ViewRange range) = ResolveViewArguments(bundle.DreamManager, mob, bundle.Arguments);
-                var eyePos = bundle.AtomManager.GetAtomPosition(mob);
-                var viewData = CollectViewData(bundle.AtomManager, bundle.MapManager, eyePos, range);
+                (int X, int Y, int Z) eyePos = bundle.AtomManager.GetAtomPosition(mob);
+                ViewAlgorithm.Tile?[,] viewData = CollectViewData(bundle.AtomManager, bundle.MapManager, eyePos, range);
 
                 ViewAlgorithm.CalculateVisibility(viewData, ignoreLight);
 
-                for (int x = 0; x < viewData.GetLength(0); x++) {
-                    for (int y = 0; y < viewData.GetLength(1); y++) {
-                        var tile = viewData[x, y];
-                        if (tile == null || tile.IsVisible == false)
-                            continue;
+                for (var x = 0; x < viewData.GetLength(0); x++)
+                for (var y = 0; y < viewData.GetLength(1); y++) {
+                    ViewAlgorithm.Tile? tile = viewData[x, y];
+                    if (tile == null || !tile.IsVisible)
+                        continue;
 
-                        if (centerPos.X == eyePos.X + tile.DeltaX && eyePos.Y + tile.DeltaY == centerPos.Y) {
-                            view.AddValue(new DreamValue(mob));
-                            break;
-                        }
+                    if (centerPos.X == eyePos.X + tile.DeltaX && eyePos.Y + tile.DeltaY == centerPos.Y) {
+                        view.AddValue(new DreamValue(mob));
+                        break;
                     }
                 }
             }
@@ -374,41 +353,37 @@ internal static partial class DreamProcNativeHelpers {
         return new DreamValue(view);
     }
 
-    public static DreamValue HandleReplaceText(DreamValue haystackValue, DreamValue needleValue, DreamValue replacementValue, int start, int end, bool exact) {
+    public static DreamValue HandleReplaceText(DreamValue haystackValue, DreamValue needleValue,
+        DreamValue replacementValue, int start, int end, bool exact) {
         // TODO: byte support if/when we support working with bytes
 
-        if(needleValue.TryGetValueAsDreamObject<DreamObjectRegex>(out var regexObject)) {
+        if (needleValue.TryGetValueAsDreamObject<DreamObjectRegex>(out DreamObjectRegex? regexObject))
             // Equivalent to regex.Replace according to spec
             return DreamProcNativeRegex.RegexReplace(regexObject, haystackValue, replacementValue, start, end);
-        }
 
-        if(!haystackValue.TryGetValueAsString(out var haystack))
+        if (!haystackValue.TryGetValueAsString(out string? haystack))
             return DreamValue.Null;
 
-        if(start == 0)
-            return new(haystack);
+        if (start == 0)
+            return new DreamValue(haystack);
 
-        if(start < 0)// Negative wrap-around
+        if (start < 0) // Negative wrap-around
             start = Math.Max(start + haystack.Length + 1, 1);
-        if(end <= 0)// Zero or negative wrap-around
+        if (end <= 0) // Zero or negative wrap-around
             end = Math.Max(end + haystack.Length + 1, start);
 
-        var replacement = replacementValue.Stringify();
+        string replacement = replacementValue.Stringify();
 
-        needleValue.TryGetValueAsString(out var needle);
-        if(string.IsNullOrEmpty(needle)) {
-            if(replacement.Length == 0) {
-                return new DreamValue(haystack);
-            }
+        needleValue.TryGetValueAsString(out string? needle);
+        if (string.IsNullOrEmpty(needle)) {
+            if (replacement.Length == 0) return new DreamValue(haystack);
 
-            if(start == 1) {
-                start = 2;
-            }
+            if (start == 1) start = 2;
 
             end = Math.Min(end, haystack.Length);
 
             StringBuilder result = new();
-            for(int i = 0; i < haystack.Length; i++) {
+            for (var i = 0; i < haystack.Length; i++) {
                 result.Append(haystack[i]);
                 if (i >= start - 2 && i < end - 1)
                     result.Append(replacement);
@@ -421,7 +396,8 @@ internal static partial class DreamProcNativeHelpers {
         string before = haystack[..(start - 1)];
         string after = haystack[(end - 1)..];
         string textSub = haystack.Substring(start - 1, end - start);
-        string replaced = textSub.Replace(needle, replacement, exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
+        string replaced = textSub.Replace(needle, replacement,
+            exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase);
 
         StringBuilder newTextBuilder = new();
         newTextBuilder.Append(before);
@@ -432,45 +408,44 @@ internal static partial class DreamProcNativeHelpers {
     }
 
     /// <summary>
-    /// Determines whether the first parameter is "visible" to the second parameter, according to BYOND's various rules on visibility.
+    ///     Determines whether the first parameter is "visible" to the second parameter, according to BYOND's various rules on
+    ///     visibility.
     /// </summary>
     /// <remarks>
-    /// <see langword="TODO:"/> This proc is DEFINITELY incomplete. <br/>
+    ///     <see langword="TODO:" /> This proc is DEFINITELY incomplete. <br />
     /// </remarks>
     /// <returns>True if observer can see obj. False if not.</returns>
-    public static bool IsObjectVisible(AtomManager atomManager, DreamObjectTree objectTree, DreamObjectAtom obj, DreamObject observer) {
-        if(obj == observer) // Not proven to be true, but makes intuitive sense.
+    public static bool IsObjectVisible(AtomManager atomManager, DreamObjectTree objectTree, DreamObjectAtom obj,
+        DreamObject observer) {
+        if (obj == observer) // Not proven to be true, but makes intuitive sense.
             return true;
-        if (!atomManager.TryGetAppearance(obj, out var appearance))
+        if (!atomManager.TryGetAppearance(obj, out ImmutableAppearance? appearance))
             return false;
 
         // https://www.byond.com/docs/ref/#/atom/var/invisibility
         // Ref says: "A value of 101 is absolutely invisible, no matter what"
-        if(appearance.Invisibility == 101)
+        if (appearance.Invisibility == 101)
             return false;
 
         // Ref:
         // "This determines the object's level of invisibility."
         // "The corresponding mob variable see_invisible controls the maximum level of invisibility that the mob may see."
-        if(observer is DreamObjectMob observerMob) {
-            if(observerMob.SeeInvisible < appearance.Invisibility) {
+        if (observer is DreamObjectMob observerMob)
+            if (observerMob.SeeInvisible < appearance.Invisibility)
                 return false;
-            }
-        }
+
         return true;
     }
 
     public static bool TryParseColor(DreamValue value, out Color color) {
-        value.TryGetValueAsString(out var str);
+        value.TryGetValueAsString(out string? str);
         return TryParseColor(str, out color);
     }
 
     public static bool TryParseColor(string? value, out Color color) {
-        if(string.IsNullOrEmpty(value)) {
-            value = ColorHelpers.Transparent;
-        }
+        if (string.IsNullOrEmpty(value)) value = ColorHelpers.Transparent;
 
-        if(!ColorHelpers.TryParseColor(value, out var maybeColor)) {
+        if (!ColorHelpers.TryParseColor(value, out Color maybeColor)) {
             color = default;
             return false;
         }
@@ -480,20 +455,20 @@ internal static partial class DreamProcNativeHelpers {
     }
 
     /// <summary>
-    /// Takes in a DreamList and tries to interpret it as representing a color matrix, for use in filters and /atom.color.
+    ///     Takes in a DreamList and tries to interpret it as representing a color matrix, for use in filters and /atom.color.
     /// </summary>
     /// <remarks>
-    /// There are MANY different ways to initialize a color matrix, only some of which even appear in our targets: <br/>
-    /// list(rr,rg,rb, gr,gg,gb, br,bg,bb) <br/>
-    /// list(rr, rg, rb, gr, gg, gb, br, bg, bb, cr, cg, cb) <br/>
-    /// list(rr, rg, rb, ra, gr, gg, gb, ga, br, bg, bb, ba, ar, ag, ab, aa) <br/>
-    /// list(rr, rg, rb, ra, gr, gg, gb, ga, br, bg, bb, ba, ar, ag, ab, aa, cr, cg, cb, ca) <br/>
-    /// list(rgb() or null, rgb() or null, rgb() or null, rgb() or null, rgb() or null) <br/>
+    ///     There are MANY different ways to initialize a color matrix, only some of which even appear in our targets: <br />
+    ///     list(rr,rg,rb, gr,gg,gb, br,bg,bb) <br />
+    ///     list(rr, rg, rb, gr, gg, gb, br, bg, bb, cr, cg, cb) <br />
+    ///     list(rr, rg, rb, ra, gr, gg, gb, ga, br, bg, bb, ba, ar, ag, ab, aa) <br />
+    ///     list(rr, rg, rb, ra, gr, gg, gb, ga, br, bg, bb, ba, ar, ag, ab, aa, cr, cg, cb, ca) <br />
+    ///     list(rgb() or null, rgb() or null, rgb() or null, rgb() or null, rgb() or null) <br />
     /// </remarks>
     /// <returns>True if the list was successfully parsed, false if not.</returns>
     public static bool TryParseColorMatrix(DreamList list, out ColorMatrix matrix) {
         matrix = ColorMatrix.Identity;
-        var listArray = list.GetValues();
+        List<DreamValue> listArray = list.GetValues();
         try {
             switch (list.GetLength()) {
                 case 0:
@@ -504,68 +479,73 @@ internal static partial class DreamProcNativeHelpers {
                 case 4:
                 case 5:
                     for (var i = 0; i < listArray.Count && i < 5; ++i) {
-                        var listValue = listArray[i];
-                        if (listValue.TryGetValueAsString(out var RGBString)) {
-                            if (ColorHelpers.TryParseColor(RGBString, out var color, defaultAlpha: "00")) {
+                        DreamValue listValue = listArray[i];
+                        if (listValue.TryGetValueAsString(out string? RGBString))
+                            if (ColorHelpers.TryParseColor(RGBString, out Color color, "00"))
                                 matrix.SetRow(i, color);
-                            }
-                        }
                     }
+
                     return true;
                 case 9: // list(rr,rg,rb, gr,gg,gb, br,bg,bb)
                     for (var row = 0; row < listArray.Count && row < 3; ++row) {
-                        var offset = row * 3;
+                        int offset = row * 3;
                         matrix.SetRow(row, listArray[offset].MustGetValueAsFloat(),
-                                           listArray[offset + 1].MustGetValueAsFloat(),
-                                           listArray[offset + 2].MustGetValueAsFloat(),
-                                           0f);
+                            listArray[offset + 1].MustGetValueAsFloat(),
+                            listArray[offset + 2].MustGetValueAsFloat(),
+                            0f);
                     }
+
                     return true;
                 case 12: // list(rr,rg,rb, gr,gg,gb, br,bg,bb, cr,cg,cb)
                     for (var row = 0; row < listArray.Count && row < 3; ++row) {
-                        var offset = row * 3;
+                        int offset = row * 3;
                         matrix.SetRow(row, listArray[offset].MustGetValueAsFloat(),
-                                           listArray[offset + 1].MustGetValueAsFloat(),
-                                           listArray[offset + 2].MustGetValueAsFloat(),
-                                           0f);
+                            listArray[offset + 1].MustGetValueAsFloat(),
+                            listArray[offset + 2].MustGetValueAsFloat(),
+                            0f);
                     }
+
                     //We skip over the alpha row in this one. It's kinda wonky.
                     matrix.SetRow(4, listArray[9].MustGetValueAsFloat(),
-                                     listArray[10].MustGetValueAsFloat(),
-                                     listArray[11].MustGetValueAsFloat(),
-                                     0f);
+                        listArray[10].MustGetValueAsFloat(),
+                        listArray[11].MustGetValueAsFloat(),
+                        0f);
                     return true;
 
                 case 16: // list(rr, rg, rb, ra, gr, gg, gb, ga, br, bg, bb, ba, ar, ag, ab, aa)
                     for (var row = 0; row < listArray.Count && row < 4; ++row) {
-                        var offset = row * 4;
+                        int offset = row * 4;
                         matrix.SetRow(row, listArray[offset].MustGetValueAsFloat(),
-                                           listArray[offset + 1].MustGetValueAsFloat(),
-                                           listArray[offset + 2].MustGetValueAsFloat(),
-                                           listArray[offset + 3].MustGetValueAsFloat());
+                            listArray[offset + 1].MustGetValueAsFloat(),
+                            listArray[offset + 2].MustGetValueAsFloat(),
+                            listArray[offset + 3].MustGetValueAsFloat());
                     }
+
                     return true;
                 case 20: // list(rr, rg, rb, ra, gr, gg, gb, ga, br, bg, bb, ba, ar, ag, ab, aa, cr, cg, cb, ca)
                     for (var row = 0; row < listArray.Count && row < 5; ++row) {
-                        var offset = row * 4;
+                        int offset = row * 4;
                         matrix.SetRow(row, listArray[offset].MustGetValueAsFloat(),
-                                           listArray[offset + 1].MustGetValueAsFloat(),
-                                           listArray[offset + 2].MustGetValueAsFloat(),
-                                           listArray[offset + 3].MustGetValueAsFloat());
+                            listArray[offset + 1].MustGetValueAsFloat(),
+                            listArray[offset + 2].MustGetValueAsFloat(),
+                            listArray[offset + 3].MustGetValueAsFloat());
                     }
+
                     return true;
                 default:
                     return false;
             }
-        } catch(InvalidCastException) { // Lets us use MustGet more liberally in here.
+        } catch (InvalidCastException) { // Lets us use MustGet more liberally in here.
             return false;
-        } catch(IndexOutOfRangeException) { // Trying to access stuff that should be there but isn't is also pretty catchable for us, here.
+        } catch (IndexOutOfRangeException) {
+            // Trying to access stuff that should be there but isn't is also pretty catchable for us, here.
             return false;
         }
     }
 
     /// <remarks>
-    /// It's a very BYONDish converter. Probably, you don't want to reuse it somewhere aside from the text2num implementation
+    ///     It's a very BYONDish converter. Probably, you don't want to reuse it somewhere aside from the text2num
+    ///     implementation
     /// </remarks>
     public static double? StringToDouble(ReadOnlySpan<char> value, int radix) {
         if (value == null || value.IsEmpty)
@@ -578,17 +558,16 @@ internal static partial class DreamProcNativeHelpers {
         if (negative || value[0] == '+')
             value = value.Slice(1);
 
-        if (value.StartsWith("0x")) {
+        if (value.StartsWith("0x"))
             if (radix == 10 || radix == 16) {
                 radix = 16;
                 value = value.Slice(2);
             }
-        }
 
         int letterDigitsVariety = Math.Max(radix - 10, 0);
 
         double? result = null;
-        int fractionalGrade = 0;
+        var fractionalGrade = 0;
 
         foreach (char c in value) {
             if (c == '.') {
@@ -600,21 +579,20 @@ internal static partial class DreamProcNativeHelpers {
 
             int digit = c;
             if (!char.IsAsciiDigit(c)) {
-                if (c >= 'A' && c < 'A' + letterDigitsVariety) {
+                if (c >= 'A' && c < 'A' + letterDigitsVariety)
                     digit -= 'A' - 10;
-                } else if (c >= 'a' && c < 'a' + letterDigitsVariety) {
+                else if (c >= 'a' && c < 'a' + letterDigitsVariety)
                     digit -= 'a' - 10;
-                } else {
+                else
                     break;
-                }
             } else {
                 digit -= '0';
             }
 
             result ??= 0;
-            if (fractionalGrade == 0)
+            if (fractionalGrade == 0) {
                 result = result * radix + digit;
-            else {
+            } else {
                 result += digit / Math.Pow(radix, fractionalGrade);
                 fractionalGrade++;
             }
@@ -627,14 +605,12 @@ internal static partial class DreamProcNativeHelpers {
     }
 
     public static string ToBase(int value, int radix) {
-        if(radix > 36) {
-            throw new ArgumentOutOfRangeException(nameof(radix), "radix is above 36");
-        }
+        if (radix > 36) throw new ArgumentOutOfRangeException(nameof(radix), "radix is above 36");
 
         StringBuilder resString = new();
-        bool wasNegative = false; // Theres likely a better way
+        var wasNegative = false; // Theres likely a better way
 
-        if(value < 0) {
+        if (value < 0) {
             wasNegative = true;
             value = Math.Abs(value);
         }
@@ -644,16 +620,14 @@ internal static partial class DreamProcNativeHelpers {
             value /= radix;
         }
 
-        if(wasNegative) {
-            resString.Insert(0, '-');
-        }
+        if (wasNegative) resString.Insert(0, '-');
 
         return new string(resString.ToString());
     }
 
     /// <summary>
-    /// Returns the string with all non-alphanumeric characters (except @) removed, and all letters converted to lowercase.
-    /// Mirrors the behaviour of BYOND's ckey() proc.
+    ///     Returns the string with all non-alphanumeric characters (except @) removed, and all letters converted to lowercase.
+    ///     Mirrors the behaviour of BYOND's ckey() proc.
     /// </summary>
     /// <param name="input">The string to canonicalize</param>
     /// <returns></returns>
@@ -662,21 +636,22 @@ internal static partial class DreamProcNativeHelpers {
     }
 
     /// <summary>
-    /// Gets the direction from loc1 to loc2
+    ///     Gets the direction from loc1 to loc2
     /// </summary>
     public static AtomDirection GetDir(AtomManager atomManager, DreamObjectAtom loc1, DreamObjectAtom loc2) {
-        var loc1Pos = atomManager.GetAtomPosition(loc1);
-        var loc2Pos = atomManager.GetAtomPosition(loc2);
+        (int X, int Y, int Z) loc1Pos = atomManager.GetAtomPosition(loc1);
+        (int X, int Y, int Z) loc2Pos = atomManager.GetAtomPosition(loc2);
 
         return GetDir(loc1Pos, loc2Pos);
     }
 
-    /// <inheritdoc cref="GetDir(OpenDreamRuntime.AtomManager,OpenDreamRuntime.Objects.Types.DreamObjectAtom,OpenDreamRuntime.Objects.Types.DreamObjectAtom)"/>
+    /// <inheritdoc
+    ///     cref="GetDir(OpenDreamRuntime.AtomManager,OpenDreamRuntime.Objects.Types.DreamObjectAtom,OpenDreamRuntime.Objects.Types.DreamObjectAtom)" />
     public static AtomDirection GetDir((int X, int Y, int Z) loc1, (int X, int Y, int Z) loc2) {
         if (loc1.Z != loc2.Z) // They must be on the same z-level
             return 0;
 
-        AtomDirection direction = AtomDirection.None;
+        var direction = AtomDirection.None;
 
         // East or West
         if (loc2.X < loc1.X)
@@ -694,29 +669,29 @@ internal static partial class DreamProcNativeHelpers {
     }
 
     /// <summary>
-    /// Gets the turf 1 step away from an atom in the given direction
+    ///     Gets the turf 1 step away from an atom in the given direction
     /// </summary>
     public static DreamObjectTurf? GetStep(AtomManager atomManager, IDreamMapManager mapManager, DreamObjectAtom loc,
         AtomDirection dir) {
         var dirInt = (int)dir;
-        var locPos = atomManager.GetAtomPosition(loc);
+        (int X, int Y, int Z) locPos = atomManager.GetAtomPosition(loc);
 
-        if ((dirInt & (int) AtomDirection.North) != 0)
+        if ((dirInt & (int)AtomDirection.North) != 0)
             locPos.Y += 1;
-        if ((dirInt & (int) AtomDirection.South) != 0) // A dir of NORTH | SOUTH will cancel out
+        if ((dirInt & (int)AtomDirection.South) != 0) // A dir of NORTH | SOUTH will cancel out
             locPos.Y -= 1;
 
-        if ((dirInt & (int) AtomDirection.East) != 0)
+        if ((dirInt & (int)AtomDirection.East) != 0)
             locPos.X += 1;
-        if ((dirInt & (int) AtomDirection.West) != 0) // A dir of EAST | WEST will cancel out
+        if ((dirInt & (int)AtomDirection.West) != 0) // A dir of EAST | WEST will cancel out
             locPos.X -= 1;
 
-        if ((dirInt & (int) AtomDirection.Up) != 0)
+        if ((dirInt & (int)AtomDirection.Up) != 0)
             locPos.Z += 1;
-        if ((dirInt & (int) AtomDirection.Down) != 0) // A dir of UP | DOWN will cancel out
+        if ((dirInt & (int)AtomDirection.Down) != 0) // A dir of UP | DOWN will cancel out
             locPos.Z -= 1;
 
-        mapManager.TryGetTurfAt((locPos.X, locPos.Y), locPos.Z, out var turf);
+        mapManager.TryGetTurfAt((locPos.X, locPos.Y), locPos.Z, out DreamObjectTurf? turf);
         return turf;
     }
 
@@ -724,10 +699,10 @@ internal static partial class DreamProcNativeHelpers {
     private static partial Regex CkeyRegex();
 
     /// <summary>
-    /// Returns one of NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, SOUTHEAST, or SOUTHWEST
+    ///     Returns one of NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, SOUTHEAST, or SOUTHWEST
     /// </summary>
     public static AtomDirection GetRandomDirection(DreamManager dreamManager) {
-        var index = dreamManager.Random.Next(0, 8); // [0, 8). There's 8 options but arrays start at 0.
+        int index = dreamManager.Random.Next(0, 8); // [0, 8). There's 8 options but arrays start at 0.
         return AtomDirs[index];
     }
 }

@@ -3,6 +3,11 @@
 namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 
 public sealed class Source {
+    public Source(string name, string path) {
+        Name = name;
+        Path = path;
+    }
+
     [JsonPropertyName("name")] public string? Name { get; set; }
     [JsonPropertyName("path")] public string? Path { get; set; }
     [JsonPropertyName("sourceReference")] public int? SourceReference { get; set; }
@@ -11,9 +16,4 @@ public sealed class Source {
     [JsonPropertyName("sources")] public Source[]? Sources { get; set; }
     [JsonPropertyName("adapterData")] public object? AdapterData { get; set; }
     [JsonPropertyName("checksums")] public Checksum[]? Checksums { get; set; }
-
-    public Source(string name, string path) {
-        Name = name;
-        Path = path;
-    }
 }

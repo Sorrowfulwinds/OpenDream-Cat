@@ -7,6 +7,10 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 public sealed class RequestLaunch : Request {
     [JsonPropertyName("arguments")] public required RequestLaunchArguments Arguments { get; set; }
 
+    public void Respond(DebugAdapterClient client) {
+        client.SendMessage(Response.NewSuccess(this));
+    }
+
     [UsedImplicitly]
     public sealed class RequestLaunchArguments {
         [JsonPropertyName("noDebug")] public bool NoDebug { get; set; }
@@ -17,9 +21,5 @@ public sealed class RequestLaunch : Request {
 
         // OpenDream debugger specific
         [JsonPropertyName("json_path")] public string? JsonPath { get; set; }
-    }
-
-    public void Respond(DebugAdapterClient client) {
-        client.SendMessage(Response.NewSuccess(this));
     }
 }

@@ -6,13 +6,14 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 
 [Virtual]
 public class Request : ProtocolMessage {
+    [UsedImplicitly]
+    public Request() : base("request") {
+    }
+
     [JsonPropertyName("command")] public required string Command { get; set; }
 
-    [UsedImplicitly]
-    public Request() : base("request") { }
-
     public static Request? DeserializeRequest(JsonDocument json) {
-        Request? request = json.Deserialize<Request>();
+        var request = json.Deserialize<Request>();
         if (request == null)
             return null;
 
@@ -38,11 +39,11 @@ public class Request : ProtocolMessage {
             "hotreloadinterface" => json.Deserialize<RequestHotReloadInterface>(),
             "hotreloadresource" => json.Deserialize<RequestHotReloadResource>(),
             // Caller will fail to recognize it and can respond with `success: false`.
-            _ => request,
+            _ => request
         };
     }
 
     public void RespondError(DebugAdapterClient client, string errorText) {
-        client.SendMessage(Response.NewError(this, new { error = new Message(errorText, showUser: true) }, errorText));
+        client.SendMessage(Response.NewError(this, new {error = new Message(errorText, true)}, errorText));
     }
 }

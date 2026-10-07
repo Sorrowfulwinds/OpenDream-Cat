@@ -6,18 +6,8 @@ using Robust.Shared.Map;
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectImage : DreamObject {
-    public EntityUid Entity = EntityUid.Invalid;
-    public readonly DMISpriteComponent? SpriteComponent;
-    private DreamObject? _loc;
-    private DreamList _overlays;
-    private DreamList _underlays;
-    private readonly DreamList _visContents;
-    private readonly DreamList _filters;
-    public readonly bool IsMutableAppearance;
-    public MutableAppearance? MutableAppearance;
-
     /// <summary>
-    /// All the args in /image/New() after "icon" and "loc", in their correct order
+    ///     All the args in /image/New() after "icon" and "loc", in their correct order
     /// </summary>
     private static readonly string[] IconCreationArgs = {
         "icon_state",
@@ -26,6 +16,16 @@ public sealed class DreamObjectImage : DreamObject {
         "pixel_x",
         "pixel_y"
     };
+
+    public readonly bool IsMutableAppearance;
+    public readonly DMISpriteComponent? SpriteComponent;
+    private readonly DreamList _filters;
+    private readonly DreamList _visContents;
+    public EntityUid Entity = EntityUid.Invalid;
+    public MutableAppearance? MutableAppearance;
+    private DreamObject? _loc;
+    private DreamList _overlays;
+    private DreamList _underlays;
 
     public DreamObjectImage(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
         if (objectDefinition.IsSubtypeOf(ObjectTree.MutableAppearance)) {
@@ -41,7 +41,9 @@ public sealed class DreamObjectImage : DreamObject {
             _visContents = new DreamVisContentsList(ObjectTree.List.ObjectDefinition, PvsOverrideSystem, this);
             _filters = new DreamFilterList(ObjectTree.List.ObjectDefinition, this);
             IsMutableAppearance = false;
-            Entity = EntityManager.SpawnEntity(null, new MapCoordinates(0, 0, MapId.Nullspace)); //spawning an entity in nullspace means it never actually gets sent to any clients until it's placed on the map, or it gets a PVS override
+            Entity = EntityManager.SpawnEntity(null,
+                new MapCoordinates(0, 0,
+                    MapId.Nullspace)); //spawning an entity in nullspace means it never actually gets sent to any clients until it's placed on the map, or it gets a PVS override
             SpriteComponent = EntityManager.AddComponent<DMISpriteComponent>(Entity);
         }
 
@@ -52,32 +54,35 @@ public sealed class DreamObjectImage : DreamObject {
         base.Initialize(args);
 
         DreamValue icon = args.GetArgument(0);
-        if (icon.IsNull || !AtomManager.TryCreateAppearanceFrom(icon, out var mutableAppearance)) {
+        if (icon.IsNull || !AtomManager.TryCreateAppearanceFrom(icon, out MutableAppearance? mutableAppearance)) {
             // Use a default appearance, but log a warning about it if icon wasn't null
-            mutableAppearance = IsMutableAppearance ? MutableAppearance! : AtomManager.MustGetAppearance(this).ToMutable(); //object def appearance is created in the constructor
+            mutableAppearance =
+                IsMutableAppearance
+                    ? MutableAppearance!
+                    : AtomManager.MustGetAppearance(this)
+                        .ToMutable(); //object def appearance is created in the constructor
             if (!icon.IsNull)
                 Logger.GetSawmill("opendream.image")
-                    .Warning($"Attempted to create an /image from {icon}. This is invalid and a default image was created instead.");
+                    .Warning(
+                        $"Attempted to create an /image from {icon}. This is invalid and a default image was created instead.");
         }
 
-        int argIndex = 1;
+        var argIndex = 1;
         DreamValue loc = args.GetArgument(1);
-        if (loc.TryGetValueAsDreamObject(out _loc)) { // If it's not a DreamObject, it's actually icon_state and not loc
+        if (loc.TryGetValueAsDreamObject(out _loc)) // If it's not a DreamObject, it's actually icon_state and not loc
             argIndex = 2;
-        }
 
         foreach (string argName in IconCreationArgs) {
-            var arg = args.GetArgument(argIndex++);
+            DreamValue arg = args.GetArgument(argIndex++);
             if (arg.IsNull)
                 continue;
 
             AtomManager.SetAppearanceVar(mutableAppearance, argName, arg);
-            if (argName == "dir" && arg.TryGetValueAsInteger(out var argDir) && argDir > 0) {
+            if (argName == "dir" && arg.TryGetValueAsInteger(out int argDir) && argDir > 0)
                 // If a dir is explicitly given in the constructor then overlays using this won't use their owner's dir
                 // Setting dir after construction does not affect this
                 // This is undocumented and I hate it
                 mutableAppearance.InheritsDirection = false;
-            }
         }
 
         AtomManager.SetAtomAppearance(this, mutableAppearance);
@@ -86,27 +91,27 @@ public sealed class DreamObjectImage : DreamObject {
 
     protected override bool TryGetVar(string varName, out DreamValue value) {
         // TODO: filters, transform
-        switch(varName) {
+        switch (varName) {
             case "loc": {
                 _loc?.IncRef();
-                value = new(_loc);
+                value = new DreamValue(_loc);
                 return true;
             }
             case "overlays":
                 _overlays.IncRef();
-                value = new(_overlays);
+                value = new DreamValue(_overlays);
                 return true;
             case "underlays":
                 _underlays.IncRef();
-                value = new(_underlays);
+                value = new DreamValue(_underlays);
                 return true;
             case "vis_contents":
                 _visContents.IncRef();
-                value = new(_visContents);
+                value = new DreamValue(_visContents);
                 return true;
             case "filters":
                 _filters.IncRef();
-                value = new(_filters);
+                value = new DreamValue(_filters);
                 return true;
             default: {
                 if (AtomManager.IsValidAppearanceVar(varName)) {
@@ -116,9 +121,9 @@ public sealed class DreamObjectImage : DreamObject {
                         value = AtomManager.GetAppearanceVar(AtomManager.MustGetAppearance(this), varName);
 
                     return true;
-                } else {
-                    return base.TryGetVar(varName, out value);
                 }
+
+                return base.TryGetVar(varName, out value);
             }
         }
     }
@@ -126,11 +131,11 @@ public sealed class DreamObjectImage : DreamObject {
     protected override void SetVar(string varName, DreamValue value) {
         switch (varName) {
             case "appearance": // Appearance var is mutable, don't use AtomManager.SetAppearanceVar()
-                if (!AtomManager.TryCreateAppearanceFrom(value, out var newAppearance))
+                if (!AtomManager.TryCreateAppearanceFrom(value, out MutableAppearance? newAppearance))
                     return; // Ignore attempts to set an invalid appearance
 
                 // The dir does not get changed
-                var originalAppearance = AtomManager.MustGetAppearance(this);
+                ImmutableAppearance originalAppearance = AtomManager.MustGetAppearance(this);
                 newAppearance.Direction = originalAppearance.Direction;
                 AtomManager.SetAtomAppearance(this, newAppearance);
                 newAppearance.Dispose();
@@ -140,7 +145,7 @@ public sealed class DreamObjectImage : DreamObject {
                 value.TryGetValueAsDreamObject(out _loc);
                 break;
             case "overlays": {
-                value.TryGetValueAsDreamList(out var valueList);
+                value.TryGetValueAsDreamList(out DreamList? valueList);
 
                 // /mutable_appearance has some special behavior for its overlays and underlays vars
                 // They're normal lists, not the special DreamOverlaysList.
@@ -151,12 +156,13 @@ public sealed class DreamObjectImage : DreamObject {
                         _overlays.DecRef();
                         _overlays = (DreamList)valueList.CreateCopy();
                     } else {
-                        var overlay = DreamOverlaysList.CreateOverlayAppearance(AtomManager, value, AtomManager.MustGetAppearance(this).Icon);
+                        MutableAppearance? overlay = DreamOverlaysList.CreateOverlayAppearance(AtomManager, value,
+                            AtomManager.MustGetAppearance(this).Icon);
                         if (overlay == null)
                             return;
 
                         _overlays.Cut();
-                        _overlays.AddValue(new(overlay));
+                        _overlays.AddValue(new DreamValue(overlay));
                         overlay.Dispose();
                     }
 
@@ -165,19 +171,16 @@ public sealed class DreamObjectImage : DreamObject {
 
                 _overlays.Cut();
 
-                if (valueList != null) {
+                if (valueList != null)
                     // TODO: This should postpone UpdateAppearance until after everything is added
-                    foreach (DreamValue overlayValue in valueList.EnumerateValues()) {
+                    foreach (DreamValue overlayValue in valueList.EnumerateValues())
                         _overlays.AddValue(overlayValue);
-                    }
-                } else if (!value.IsNull) {
-                    _overlays.AddValue(value);
-                }
+                else if (!value.IsNull) _overlays.AddValue(value);
 
                 break;
             }
             case "underlays": {
-                value.TryGetValueAsDreamList(out var valueList);
+                value.TryGetValueAsDreamList(out DreamList? valueList);
 
                 // See the comment in the overlays setter for info on this
                 if (ObjectDefinition.IsSubtypeOf(ObjectTree.MutableAppearance)) {
@@ -185,12 +188,13 @@ public sealed class DreamObjectImage : DreamObject {
                         _underlays.DecRef();
                         _underlays = (DreamList)valueList.CreateCopy();
                     } else {
-                        var underlay = DreamOverlaysList.CreateOverlayAppearance(AtomManager, value, AtomManager.MustGetAppearance(this).Icon);
+                        MutableAppearance? underlay = DreamOverlaysList.CreateOverlayAppearance(AtomManager, value,
+                            AtomManager.MustGetAppearance(this).Icon);
                         if (underlay == null)
                             return;
 
                         _underlays.Cut();
-                        _underlays.AddValue(new(underlay));
+                        _underlays.AddValue(new DreamValue(underlay));
                         underlay.Dispose();
                     }
 
@@ -199,53 +203,48 @@ public sealed class DreamObjectImage : DreamObject {
 
                 _underlays.Cut();
 
-                if (valueList != null) {
+                if (valueList != null)
                     // TODO: This should postpone UpdateAppearance until after everything is added
-                    foreach (DreamValue underlayValue in valueList.EnumerateValues()) {
+                    foreach (DreamValue underlayValue in valueList.EnumerateValues())
                         _underlays.AddValue(underlayValue);
-                    }
-                } else if (!value.IsNull) {
-                    _underlays.AddValue(value);
-                }
+                else if (!value.IsNull) _underlays.AddValue(value);
 
                 break;
             }
             case "vis_contents": {
-                value.TryGetValueAsDreamList(out var valueList);
+                value.TryGetValueAsDreamList(out DreamList? valueList);
 
                 _visContents.Cut();
 
-                if (valueList != null) {
+                if (valueList != null)
                     // TODO: This should postpone UpdateAppearance until after everything is added
-                    foreach (DreamValue visContentValue in valueList.EnumerateValues()) {
+                    foreach (DreamValue visContentValue in valueList.EnumerateValues())
                         _visContents.AddValue(visContentValue);
-                    }
-                } else if (!value.IsNull) {
-                    _visContents.AddValue(value);
-                }
+                else if (!value.IsNull) _visContents.AddValue(value);
 
                 break;
             }
             case "filters": {
-                value.TryGetValueAsDreamList(out var valueList);
+                value.TryGetValueAsDreamList(out DreamList? valueList);
 
                 _filters.Cut();
 
                 // filters = list("type"=...) or list(filter(...), filter(...))
                 if (valueList != null) { // filters = list("type"=...)
-                    using var typeArg = valueList.GetValue(new("type"));
+                    using DreamValue typeArg = valueList.GetValue(new DreamValue("type"));
 
                     if (typeArg != DreamValue.Null) { // It's a single filter
                         var filterObject = DreamObjectFilter.TryCreateFilter(ObjectTree, valueList);
                         if (filterObject == null) // list() with invalid "type" is ignored
                             break;
 
-                        _filters.AddValue(new(filterObject));
+                        _filters.AddValue(new DreamValue(filterObject));
                         filterObject.DecRef();
                     } else { // It's a list of filters
-                        foreach (var filter in valueList.EnumerateValues()) {
-                            if (!filter.TryGetValueAsDreamObject<DreamObjectFilter>(out var filterObject)) {
-                                if (!filter.TryGetValueAsDreamList(out var filterValues))
+                        foreach (DreamValue filter in valueList.EnumerateValues()) {
+                            if (!filter.TryGetValueAsDreamObject<DreamObjectFilter>(
+                                    out DreamObjectFilter? filterObject)) {
+                                if (!filter.TryGetValueAsDreamList(out DreamList? filterValues))
                                     continue;
 
                                 filterObject = DreamObjectFilter.TryCreateFilter(ObjectTree, filterValues);
@@ -253,7 +252,7 @@ public sealed class DreamObjectImage : DreamObject {
                                     continue;
                             }
 
-                            _filters.AddValue(new(filterObject));
+                            _filters.AddValue(new DreamValue(filterObject));
                             filterObject.DecRef();
                         }
                     }
@@ -264,14 +263,18 @@ public sealed class DreamObjectImage : DreamObject {
                 break;
             }
             case "override": {
-                using var mutableAppearance = IsMutableAppearance ? MutableAppearance! : AtomManager.MustGetAppearance(this).ToMutable();
+                using MutableAppearance mutableAppearance = IsMutableAppearance
+                    ? MutableAppearance!
+                    : AtomManager.MustGetAppearance(this).ToMutable();
                 mutableAppearance.Override = value.IsTruthy();
                 AtomManager.SetAtomAppearance(this, mutableAppearance);
                 break;
             }
             default:
                 if (AtomManager.IsValidAppearanceVar(varName)) {
-                    using var mutableAppearance = IsMutableAppearance ? MutableAppearance! : AtomManager.MustGetAppearance(this).ToMutable();
+                    using MutableAppearance mutableAppearance = IsMutableAppearance
+                        ? MutableAppearance!
+                        : AtomManager.MustGetAppearance(this).ToMutable();
                     AtomManager.SetAppearanceVar(mutableAppearance, varName, value);
                     AtomManager.SetAtomAppearance(this, mutableAppearance);
                     break;
@@ -287,9 +290,7 @@ public sealed class DreamObjectImage : DreamObject {
     }
 
     protected override void HandleDeletion() {
-        if (Entity != EntityUid.Invalid) {
-            EntityManager.DeleteEntity(Entity);
-        }
+        if (Entity != EntityUid.Invalid) EntityManager.DeleteEntity(Entity);
 
         MutableAppearance?.Dispose();
         _overlays.DecRef();

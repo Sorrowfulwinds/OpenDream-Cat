@@ -12,12 +12,12 @@ internal static class DreamProcNativeGenerator {
 
         switch (genObj.Generator) {
             case IGeneratorNum numGen: {
-                var result = numGen.Generate(IoCManager.Resolve<IRobustRandom>());
+                float result = numGen.Generate(IoCManager.Resolve<IRobustRandom>());
                 return new DreamValue(result);
             }
             case IGeneratorVector vecGen: {
                 var rand = IoCManager.Resolve<IRobustRandom>();
-                var resultObj = vecGen.PrefersVector3
+                DreamObjectVector resultObj = vecGen.PrefersVector3
                     ? DreamObjectVector.CreateFromValue(vecGen.GenerateVector3(rand), bundle.ObjectTree)
                     : DreamObjectVector.CreateFromValue(vecGen.GenerateVector2(rand), bundle.ObjectTree);
 

@@ -6,19 +6,21 @@ namespace OpenDreamRuntime.Procs;
 
 internal sealed class InitDreamObjectState(DreamManager dreamManager, DreamObjectTree objectTree) : ProcState {
     public static readonly Stack<InitDreamObjectState> Pool = new();
+    private readonly DreamValue[] _arguments = new DreamValue[256];
+    private int _argumentCount;
 
-    private enum Stage {
-        // Need to call the object's (init) proc
-        Init,
+    private DreamObject _dreamObject;
+    private Stage _stage = Stage.Init;
+    private DreamObject? _usr;
 
-        // Need to call IDreamMetaObject.OnObjectCreated & New
-        OnObjectCreated,
+    public override DreamProc? Proc => null;
 
-        // Time to return
-        Return,
-    }
+#if TOOLS
+    public override (string SourceFile, int Line) TracyLocationId => ($"new {_dreamObject.ObjectDefinition.Type}", 0);
+#endif
 
-    public void Initialize(DreamThread thread, DreamObject dreamObject, DreamObject? usr, [HandlesResourceDisposal] DreamProcArguments arguments) {
+    public void Initialize(DreamThread thread, DreamObject dreamObject, DreamObject? usr,
+        [HandlesResourceDisposal] DreamProcArguments arguments) {
         base.Initialize(thread, true);
 
         _dreamObject = dreamObject;
@@ -29,18 +31,6 @@ internal sealed class InitDreamObjectState(DreamManager dreamManager, DreamObjec
         _argumentCount = arguments.Count;
         _stage = Stage.Init;
     }
-
-    private DreamObject _dreamObject;
-    private DreamObject? _usr;
-    private readonly DreamValue[] _arguments = new DreamValue[256];
-    private int _argumentCount;
-    private Stage _stage = Stage.Init;
-
-    public override DreamProc? Proc => null;
-
-#if TOOLS
-        public override (string SourceFile, int Line) TracyLocationId => ($"new {_dreamObject.ObjectDefinition.Type}",0);
-#endif
 
     public override void AppendStackFrame(StringBuilder builder) {
         builder.AppendLine($"new {_dreamObject.ObjectDefinition.Type}");
@@ -62,9 +52,7 @@ internal sealed class InitDreamObjectState(DreamManager dreamManager, DreamObjec
     public override void Dispose() {
         base.Dispose();
 
-        for (int i = 0; i < _argumentCount; i++) {
-            _arguments[i].Dispose();
-        }
+        for (var i = 0; i < _argumentCount; i++) _arguments[i].Dispose();
 
         Array.Clear(_arguments, 0, _argumentCount);
         _dreamObject.DecRef();
@@ -77,19 +65,19 @@ internal sealed class InitDreamObjectState(DreamManager dreamManager, DreamObjec
     }
 
     public override ProcStatus Resume() {
-        var src = _dreamObject;
+        DreamObject src = _dreamObject;
 
         switch_start:
         switch (_stage) {
             case Stage.Init: {
                 _stage = Stage.OnObjectCreated;
 
-                if (src.ObjectDefinition.InitializationProc == null || objectTree.Procs[src.ObjectDefinition.InitializationProc.Value] is DMProc { IsNullProc: true }) {
+                if (src.ObjectDefinition.InitializationProc == null ||
+                    objectTree.Procs[src.ObjectDefinition.InitializationProc.Value] is DMProc {IsNullProc: true})
                     goto switch_start;
-                }
 
-                var proc = objectTree.Procs[src.ObjectDefinition.InitializationProc.Value];
-                var initProcState = proc.CreateState(Thread, src, _usr, new());
+                DreamProc proc = objectTree.Procs[src.ObjectDefinition.InitializationProc.Value];
+                ProcState initProcState = proc.CreateState(Thread, src, _usr, new DreamProcArguments());
                 Thread.PushProcState(initProcState);
                 return ProcStatus.Called;
             }
@@ -100,18 +88,17 @@ internal sealed class InitDreamObjectState(DreamManager dreamManager, DreamObjec
                 using var initArgs = new DreamProcArguments(_arguments.AsSpan(0, _argumentCount));
                 _dreamObject.Initialize(initArgs);
 
-                if (!dreamManager.Initialized) {
+                if (!dreamManager.Initialized)
                     // Suppress all New() calls during /world/<init>() and map loading.
                     goto switch_start;
-                }
 
                 if (src.ShouldCallNew) {
-                    var newProc = src.GetProc("New");
-                    if (newProc is DMProc { IsNullProc: true })
+                    DreamProc newProc = src.GetProc("New");
+                    if (newProc is DMProc {IsNullProc: true})
                         goto switch_start;
 
-                    var args = _arguments.AsSpan(0, _argumentCount);
-                    var newProcState = newProc.CreateState(Thread, src, _usr, new DreamProcArguments(args));
+                    Span<DreamValue> args = _arguments.AsSpan(0, _argumentCount);
+                    ProcState newProcState = newProc.CreateState(Thread, src, _usr, new DreamProcArguments(args));
                     Thread.PushProcState(newProcState);
                     return ProcStatus.Called;
                 }
@@ -126,5 +113,16 @@ internal sealed class InitDreamObjectState(DreamManager dreamManager, DreamObjec
         }
 
         throw new InvalidOperationException();
+    }
+
+    private enum Stage {
+        // Need to call the object's (init) proc
+        Init,
+
+        // Need to call IDreamMetaObject.OnObjectCreated & New
+        OnObjectCreated,
+
+        // Time to return
+        Return
     }
 }

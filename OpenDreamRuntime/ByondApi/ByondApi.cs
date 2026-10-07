@@ -23,14 +23,15 @@ public static partial class ByondApi {
     private static int _mainThreadId;
 
     /// <summary>
-    /// A failed ByondApi call will set this string. It can be retrieved with <see cref="Byond_LastError"/>.
+    ///     A failed ByondApi call will set this string. It can be retrieved with <see cref="Byond_LastError" />.
     /// </summary>
     private static string _lastError = string.Empty;
 
     private static IntPtr _lastErrorPtr = IntPtr.Zero;
 
-    public static void Initialize(DreamManager dreamManager, DreamRefManager dreamRefManager, AtomManager atomManager, IDreamMapManager dreamMapManager, DreamObjectTree objectTree) {
-        DebugTools.Assert(_dreamManager is null or { IsShutDown: true });
+    public static void Initialize(DreamManager dreamManager, DreamRefManager dreamRefManager, AtomManager atomManager,
+        IDreamMapManager dreamMapManager, DreamObjectTree objectTree) {
+        DebugTools.Assert(_dreamManager is null or {IsShutDown: true});
 
         _dreamManager = dreamManager;
         _refManager = dreamRefManager;
@@ -51,25 +52,25 @@ public static partial class ByondApi {
     }
 
     /// <summary>
-    /// Execute thread syncs and remove temporary references
+    ///     Execute thread syncs and remove temporary references
     /// </summary>
     public static void Update() {
-        while (ThreadSyncQueue.TryDequeue(out var task))
+        while (ThreadSyncQueue.TryDequeue(out Action? task))
             task.Invoke();
-        while (TemporaryReferences.TryDequeue(out var tempRef))
+        while (TemporaryReferences.TryDequeue(out DreamValue tempRef))
             tempRef.DecRef();
     }
 
     /// <summary>
-    /// Converts a CByondValue to a DreamValue
+    ///     Converts a CByondValue to a DreamValue
     /// </summary>
     /// <remarks>Must be run on the main thread</remarks>
     [MustDisposeResource]
     public static DreamValue ValueFromDreamApi(CByondValue value) {
         DebugTools.AssertEqual(Environment.CurrentManagedThreadId, _mainThreadId);
 
-        var cdata = value.data;
-        var ctype = value.type;
+        ByondValueData cdata = value.data;
+        ByondValueType ctype = value.type;
 
         switch (ctype) {
             default:
@@ -127,10 +128,10 @@ public static partial class ByondApi {
             case DreamValue.DreamValueType.DreamType:
             case DreamValue.DreamValueType.Appearance:
             case DreamValue.DreamValueType.DreamProc:
-                var @ref = _refManager!.GetRef(value);
+                uint @ref = _refManager!.GetRef(value);
                 var refType = (RefType)(@ref & DreamRefManager.RefTypeMask);
-                var data = new ByondValueData { @ref = @ref };
-                var type = refType switch {
+                var data = new ByondValueData {@ref = @ref};
+                ByondValueType type = refType switch {
                     RefType.Null => ByondValueType.Null,
                     RefType.DreamObjectTurf => ByondValueType.Turf,
                     RefType.DreamObjectMovable => ByondValueType.Obj,
@@ -165,14 +166,16 @@ public static partial class ByondApi {
     }
 
     /// <summary>
-    /// Helper method that sets <see cref="_lastError"/> and returns an error code (false)
+    ///     Helper method that sets <see cref="_lastError" /> and returns an error code (false)
     /// </summary>
     private static byte SetLastError(string lastError) {
         _lastError = lastError;
         return 0;
     }
 
-    private static bool OnMainThread() => Environment.CurrentManagedThreadId == _mainThreadId;
+    private static bool OnMainThread() {
+        return Environment.CurrentManagedThreadId == _mainThreadId;
+    }
 
     [SuppressMessage("Usage", "RA0004:Risk of deadlock from accessing Task<T>.Result")]
     private static T RunOnMainThread<T>(Func<bool, T> task) {
@@ -181,9 +184,7 @@ public static partial class ByondApi {
 
         var tcs = new TaskCompletionSource<T>();
 
-        ThreadSyncQueue.Enqueue(() => {
-            tcs.SetResult(task.Invoke(false));
-        });
+        ThreadSyncQueue.Enqueue(() => { tcs.SetResult(task.Invoke(false)); });
 
         return tcs.Task.Result;
     }

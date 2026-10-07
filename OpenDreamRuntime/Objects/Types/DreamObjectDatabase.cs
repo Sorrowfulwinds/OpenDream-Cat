@@ -7,18 +7,16 @@ namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectDatabase(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
     private SqliteConnection? _connection;
+    private int? _errorCode;
 
     private string? _errorMessage;
-    private int? _errorCode;
 
     public override void Initialize(DreamProcArguments args) {
         base.Initialize(args);
 
-        if (!args.GetArgument(0).TryGetValueAsString(out var filename)) {
-            return;
-        }
+        if (!args.GetArgument(0).TryGetValueAsString(out string? filename)) return;
 
-        if(Open(filename)) return;
+        if (Open(filename)) return;
 
         throw new DMCrashRuntime("Unable to open database.");
     }
@@ -29,13 +27,11 @@ public sealed class DreamObjectDatabase(DreamObjectDefinition objectDefinition) 
     }
 
     /// <summary>
-    /// Establish the connection to our SQLite database
+    ///     Establish the connection to our SQLite database
     /// </summary>
     /// <param name="filename">The path to the SQLite file</param>
     public bool Open(string filename) {
-        if (_connection?.State == ConnectionState.Open) {
-            Close();
-        }
+        if (_connection?.State == ConnectionState.Open) Close();
 
         filename = SanitizeFilename(filename);
 
@@ -51,15 +47,14 @@ public sealed class DreamObjectDatabase(DreamObjectDefinition objectDefinition) 
     }
 
     private static string SanitizeFilename(string filename) {
-        foreach (var character in Path.GetInvalidFileNameChars()) {
+        foreach (char character in Path.GetInvalidFileNameChars())
             filename = filename.Replace(character.ToString(), "");
-        }
 
         return filename.Replace("=", "").Replace(";", "");
     }
 
     /// <summary>
-    /// Attempts to get the current connection to the SQLite database, if it is open
+    ///     Attempts to get the current connection to the SQLite database, if it is open
     /// </summary>
     /// <param name="connection">Variable to be populated with the connection.</param>
     /// <returns>Boolean of the success of the operation.</returns>
@@ -87,7 +82,7 @@ public sealed class DreamObjectDatabase(DreamObjectDefinition objectDefinition) 
     }
 
     /// <summary>
-    /// Closes the current SQLite connection, if it is established.
+    ///     Closes the current SQLite connection, if it is established.
     /// </summary>
     public void Close() {
         _connection?.Close();

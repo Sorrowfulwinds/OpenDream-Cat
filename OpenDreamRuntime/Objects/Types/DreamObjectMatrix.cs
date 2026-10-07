@@ -5,14 +5,55 @@ using OpenDreamShared.Dream;
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : DreamObject(objectDefinition) {
-    public float A { get=> _aInner.UnsafeGetValueAsFloat(); set { _aInner.DecRef(); _aInner = new(value); } }
-    public float B { get=> _bInner.UnsafeGetValueAsFloat(); set { _bInner.DecRef(); _bInner = new(value); } }
-    public float C { get=> _cInner.UnsafeGetValueAsFloat(); set { _cInner.DecRef(); _cInner = new(value); } }
-    public float D { get=> _dInner.UnsafeGetValueAsFloat(); set { _dInner.DecRef(); _dInner = new(value); } }
-    public float E { get=> _eInner.UnsafeGetValueAsFloat(); set { _eInner.DecRef(); _eInner = new(value); } }
-    public float F { get=> _fInner.UnsafeGetValueAsFloat(); set { _fInner.DecRef(); _fInner = new(value); } }
-
     private DreamValue _aInner, _bInner, _cInner, _dInner, _eInner, _fInner;
+
+    public float A {
+        get => _aInner.UnsafeGetValueAsFloat();
+        set {
+            _aInner.DecRef();
+            _aInner = new DreamValue(value);
+        }
+    }
+
+    public float B {
+        get => _bInner.UnsafeGetValueAsFloat();
+        set {
+            _bInner.DecRef();
+            _bInner = new DreamValue(value);
+        }
+    }
+
+    public float C {
+        get => _cInner.UnsafeGetValueAsFloat();
+        set {
+            _cInner.DecRef();
+            _cInner = new DreamValue(value);
+        }
+    }
+
+    public float D {
+        get => _dInner.UnsafeGetValueAsFloat();
+        set {
+            _dInner.DecRef();
+            _dInner = new DreamValue(value);
+        }
+    }
+
+    public float E {
+        get => _eInner.UnsafeGetValueAsFloat();
+        set {
+            _eInner.DecRef();
+            _eInner = new DreamValue(value);
+        }
+    }
+
+    public float F {
+        get => _fInner.UnsafeGetValueAsFloat();
+        set {
+            _fInner.DecRef();
+            _fInner = new DreamValue(value);
+        }
+    }
 
     public override void Initialize(DreamProcArguments args) {
         if (args.Count == 0) {
@@ -24,7 +65,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             F = 0f;
         } else {
             DreamValue copyMatrixOrA = args.GetArgument(0);
-            if (copyMatrixOrA.TryGetValueAsDreamObject<DreamObjectMatrix>(out var matrixToCopy)) {
+            if (copyMatrixOrA.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? matrixToCopy)) {
                 A = matrixToCopy.A;
                 B = matrixToCopy.B;
                 C = matrixToCopy.C;
@@ -45,7 +86,8 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
                     E = e.MustGetValueAsFloat();
                     F = f.MustGetValueAsFloat();
                 } catch (InvalidCastException) {
-                    throw new ArgumentException($"Invalid arguments used to create matrix {copyMatrixOrA} {b} {c} {d} {e} {f}");
+                    throw new ArgumentException(
+                        $"Invalid arguments used to create matrix {copyMatrixOrA} {b} {c} {d} {e} {f}");
                 }
             }
         }
@@ -55,24 +97,60 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
 
     protected override bool TryGetVar(string varName, out DreamValue value) {
         switch (varName) {
-            case "a": value = _aInner; return true;
-            case "b": value = _bInner; return true;
-            case "c": value = _cInner; return true;
-            case "d": value = _dInner; return true;
-            case "e": value = _eInner; return true;
-            case "f": value = _fInner; return true;
+            case "a":
+                value = _aInner;
+                return true;
+            case "b":
+                value = _bInner;
+                return true;
+            case "c":
+                value = _cInner;
+                return true;
+            case "d":
+                value = _dInner;
+                return true;
+            case "e":
+                value = _eInner;
+                return true;
+            case "f":
+                value = _fInner;
+                return true;
             default: return base.TryGetVar(varName, out value);
         }
     }
 
     protected override void SetVar(string varName, DreamValue value) {
         switch (varName) {
-            case "a": _aInner.DecRef(); _aInner = value; _aInner.IncRef(); break;
-            case "b": _bInner.DecRef(); _bInner = value; _bInner.IncRef(); break;
-            case "c": _cInner.DecRef(); _cInner = value; _cInner.IncRef(); break;
-            case "d": _dInner.DecRef(); _dInner = value; _dInner.IncRef(); break;
-            case "e": _eInner.DecRef(); _eInner = value; _eInner.IncRef(); break;
-            case "f": _fInner.DecRef(); _fInner = value; _fInner.IncRef(); break;
+            case "a":
+                _aInner.DecRef();
+                _aInner = value;
+                _aInner.IncRef();
+                break;
+            case "b":
+                _bInner.DecRef();
+                _bInner = value;
+                _bInner.IncRef();
+                break;
+            case "c":
+                _cInner.DecRef();
+                _cInner = value;
+                _cInner.IncRef();
+                break;
+            case "d":
+                _dInner.DecRef();
+                _dInner = value;
+                _dInner.IncRef();
+                break;
+            case "e":
+                _eInner.DecRef();
+                _eInner = value;
+                _eInner.IncRef();
+                break;
+            case "f":
+                _fInner.DecRef();
+                _fInner = value;
+                _fInner.IncRef();
+                break;
             default:
                 base.SetVar(varName, value);
                 break;
@@ -82,14 +160,14 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     #region Operators
 
     public override DreamValue OperatorAdd(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
             DreamObject output = MakeMatrix(ObjectTree,
                 A + right.A, // a
                 B + right.B, // b
                 C + right.C, // c
                 D + right.D, // d
                 E + right.E, // e
-                F + right.F  // f
+                F + right.F // f
             );
 
             return new DreamValue(output);
@@ -99,14 +177,14 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorSubtract(DreamValue b, DMProcState state) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
             DreamObject output = MakeMatrix(ObjectTree,
                 A - right.A, // a
                 B - right.B, // b
                 C - right.C, // c
                 D - right.D, // d
                 E - right.E, // e
-                F - right.F  // f
+                F - right.F // f
             );
 
             return new DreamValue(output);
@@ -123,7 +201,9 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             );
 
             return new DreamValue(output);
-        } else if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right)) {
+        }
+
+        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
             DreamObjectMatrix output = MakeMatrix(ObjectTree,
                 right.A * A + right.D * B, // a
                 right.B * A + right.E * B, // b
@@ -146,12 +226,15 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     public override DreamValue OperatorDivide(DreamValue b, DMProcState state) {
         if (b.TryGetValueAsFloat(out float bFloat)) {
             DreamObjectMatrix output = MakeMatrix(ObjectTree,
-                    A / bFloat, B / bFloat, C / bFloat,
-                    D / bFloat, E / bFloat, F / bFloat
-                );
+                A / bFloat, B / bFloat, C / bFloat,
+                D / bFloat, E / bFloat, F / bFloat
+            );
             return new DreamValue(output);
-        } else if(b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right)) { //matrix divided by matrix isn't a thing, but in BYOND it's apparently multiplication by the inverse, because of course it is
-            var rightCopy = MatrixClone(ObjectTree, right);
+        }
+
+        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
+            //matrix divided by matrix isn't a thing, but in BYOND it's apparently multiplication by the inverse, because of course it is
+            DreamObjectMatrix rightCopy = MatrixClone(ObjectTree, right);
             using var rightCopyDreamValue = new DreamValue(rightCopy);
             if (!TryInvert(rightCopy))
                 throw new ArgumentException("Matrix does not have a valid inversion for Invert()");
@@ -167,7 +250,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorEquivalent(DreamValue b) {
-        if (!b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right))
+        if (!b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right))
             return DreamValue.False;
 
         return A.Equals(right.A) && B.Equals(right.B) &&
@@ -178,7 +261,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     public override DreamValue OperatorAppend(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
             A += right.A;
             B += right.B;
             C += right.C;
@@ -186,14 +269,14 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             E += right.E;
             F += right.F;
             IncRef();
-            return new(this);
+            return new DreamValue(this);
         }
 
         return base.OperatorAppend(b);
     }
 
     public override DreamValue OperatorRemove(DreamValue b) {
-        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out var right)) {
+        if (b.TryGetValueAsDreamObject<DreamObjectMatrix>(out DreamObjectMatrix? right)) {
             A -= right.A;
             B -= right.B;
             C -= right.C;
@@ -201,19 +284,20 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
             E -= right.E;
             F -= right.F;
             IncRef();
-            return new(this);
+            return new DreamValue(this);
         }
 
         return base.OperatorRemove(b);
     }
+
     #endregion Operators
 
     #region Helpers
 
-    /// <summary> Used to create a float array understandable by <see cref="MutableAppearance.Transform"/> to be a transform. </summary>
+    /// <summary> Used to create a float array understandable by <see cref="MutableAppearance.Transform" /> to be a transform. </summary>
     /// <returns>The matrix's values in an array, in [a,d,b,e,c,f] order.</returns>
     public static float[] MatrixToTransformFloatArray(DreamObjectMatrix matrix) {
-        float[] array = new float[6];
+        var array = new float[6];
         array[0] = matrix.A;
         array[1] = matrix.D;
         array[2] = matrix.B;
@@ -224,8 +308,8 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     /// <remarks>
-    /// This does elect to actually call /matrix/New() with the old matrix's values, <br/>
-    /// if anything, for the sake of support for having derived classes of /matrix.
+    ///     This does elect to actually call /matrix/New() with the old matrix's values, <br />
+    ///     if anything, for the sake of support for having derived classes of /matrix.
     /// </remarks>
     /// <param name="objectTree">The DM object tree, used to create a new matrix object.</param>
     /// <param name="matrix">The matrix to clone.</param>
@@ -234,24 +318,24 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
         var newMatrix = objectTree.CreateObject<DreamObjectMatrix>(matrix.ObjectDefinition.TreeEntry);
         var args = new DreamValue[6];
 
-        int i = 0;
-        foreach(float f in EnumerateMatrix(matrix)) {
-            args[i++] = new DreamValue(f);
-        }
+        var i = 0;
+        foreach (float f in EnumerateMatrix(matrix)) args[i++] = new DreamValue(f);
 
-        newMatrix.InitSpawn(new(args));
+        newMatrix.InitSpawn(new DreamProcArguments(args));
         return newMatrix;
     }
 
     /// <summary>
-    /// Simple helper for quickly making a basic matrix given its six values, in a-to-f order.
+    ///     Simple helper for quickly making a basic matrix given its six values, in a-to-f order.
     /// </summary>
     /// <remarks>
-    /// Note that this skips over making a New() call, so hopefully you're not doing anything meaningful in there, DM-side. <br/>
-    /// <see langword="FIXME:"/> actually call /New(), if necessary, when creating a matrix in this way.
+    ///     Note that this skips over making a New() call, so hopefully you're not doing anything meaningful in there, DM-side.
+    ///     <br />
+    ///     <see langword="FIXME:" /> actually call /New(), if necessary, when creating a matrix in this way.
     /// </remarks>
     /// <returns>A matrix created with a to f manually set to the floats given.</returns>
-    public static DreamObjectMatrix MakeMatrix(DreamObjectTree objectTree, float a, float b, float c, float d, float e, float f) {
+    public static DreamObjectMatrix MakeMatrix(DreamObjectTree objectTree, float a, float b, float c, float d, float e,
+        float f) {
         var newMatrix = objectTree.CreateObject<DreamObjectMatrix>(objectTree.Matrix);
         newMatrix.A = a;
         newMatrix.B = b;
@@ -264,11 +348,12 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
 
     /// <summary> Helper for the normal MakeMatrix that accepts a list of matrix values. </summary>
     /// <remarks> Be sure that all of the float array are valid values. </remarks>
-    /// <seealso cref="MakeMatrix(DreamObjectTree,float,float,float,float,float,float)"/>
+    /// <seealso cref="MakeMatrix(DreamObjectTree,float,float,float,float,float,float)" />
     public static DreamObjectMatrix MakeMatrix(DreamObjectTree objectTree, float[] matrixValues) {
         return MakeMatrix(objectTree,
-                          matrixValues[0], matrixValues[2], matrixValues[4], //order on these matches the output of MatrixToTransformFloatArray
-                          matrixValues[1], matrixValues[3], matrixValues[5]);
+            matrixValues[0], matrixValues[2],
+            matrixValues[4], //order on these matches the output of MatrixToTransformFloatArray
+            matrixValues[1], matrixValues[3], matrixValues[5]);
     }
 
     public static float Determinant(DreamObjectMatrix matrix) {
@@ -279,11 +364,11 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     /// <summary>Inverts the given matrix, in-place.</summary>
     /// <returns>true if inversion was possible, false if not.</returns>
     public static bool TryInvert(DreamObjectMatrix matrix) {
-        var determinant = Determinant(matrix);
+        float determinant = Determinant(matrix);
         if (determinant == 0f)
             return false;
 
-        var oldValues = EnumerateMatrix(matrix).ToImmutableArray();
+        ImmutableArray<float> oldValues = EnumerateMatrix(matrix).ToImmutableArray();
 
         //Just going by what we used to have as DM code within DMStandard. No clue if the math is right, here
         matrix.A = oldValues[4] / determinant; // a = e
@@ -296,7 +381,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     /// <summary>
-    /// Used when printing this matrix to enumerate its values in order.
+    ///     Used when printing this matrix to enumerate its values in order.
     /// </summary>
     /// <returns>The matrix's values in [a,b,c,d,e,f] order.</returns>
     public static IEnumerable<float> EnumerateMatrix(DreamObjectMatrix matrix) {
@@ -309,7 +394,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     /// <summary> Translates a given matrix by the two translation factors given.</summary>
-    /// <remarks> Note that this does use <see cref="DreamObject.SetVariableValue"/>.</remarks>
+    /// <remarks> Note that this does use <see cref="DreamObject.SetVariableValue" />.</remarks>
     /// <exception cref="InvalidOperationException">Thrown if the matrix has non-float members.</exception>
     public static void TranslateMatrix(DreamObjectMatrix matrix, float x, float y) {
         matrix.C += x;
@@ -317,7 +402,7 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
     }
 
     /// <summary> Scales a given matrix by the two scaling factors given.</summary>
-    /// <remarks> Note that this does use <see cref="DreamObject.SetVariableValue"/>.</remarks>
+    /// <remarks> Note that this does use <see cref="DreamObject.SetVariableValue" />.</remarks>
     /// <exception cref="InvalidOperationException">Thrown if the matrix has non-float members.</exception>
     public static void ScaleMatrix(DreamObjectMatrix matrix, float x, float y) {
         matrix.A *= x;
@@ -361,5 +446,6 @@ public sealed class DreamObjectMatrix(DreamObjectDefinition objectDefinition) : 
         lMatrix.E = lB * rD + lE * rE;
         lMatrix.F = lC * rD + lF * rE + rF;
     }
+
     #endregion Helpers
 }

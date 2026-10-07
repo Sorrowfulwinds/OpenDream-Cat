@@ -7,15 +7,16 @@ namespace OpenDreamRuntime.Procs.DebugAdapter.Protocol;
 public sealed class RequestPause : Request {
     [JsonPropertyName("arguments")] public required RequestPauseArguments Arguments { get; set; }
 
+    public void Respond(DebugAdapterClient client) {
+        client.SendMessage(Response.NewSuccess(this));
+    }
+
     [UsedImplicitly]
     public sealed class RequestPauseArguments {
         /**
          * Pause execution for this thread.
          */
-        [JsonPropertyName("threadId")] public int ThreadId { get; set; }
-    }
-
-    public void Respond(DebugAdapterClient client) {
-        client.SendMessage(Response.NewSuccess(this));
+        [JsonPropertyName("threadId")]
+        public int ThreadId { get; set; }
     }
 }

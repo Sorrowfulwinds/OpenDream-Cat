@@ -4,11 +4,12 @@ using OpenDreamShared.Dream;
 namespace OpenDreamRuntime.Resources;
 
 /// <summary>
-/// A special resource that outputs to the console
-/// <c>world.log</c> defaults to this
+///     A special resource that outputs to the console
+///     <c>world.log</c> defaults to this
 /// </summary>
-sealed class ConsoleOutputResource : DreamResource {
-    public ConsoleOutputResource() : base(0, null, null) { }
+internal sealed class ConsoleOutputResource : DreamResource {
+    public ConsoleOutputResource() : base(0, null, null) {
+    }
 
     public override string ReadAsString() {
         return null;
@@ -21,7 +22,7 @@ sealed class ConsoleOutputResource : DreamResource {
 
     public override void Output(DreamValue value) {
         // Prune any remaining formatting
-        var message = value.Stringify();
+        string message = value.Stringify();
         message = StringFormatDecoder.RemoveFormatting(message);
 
         WriteConsole(LogLevel.Info, "world.log", message);

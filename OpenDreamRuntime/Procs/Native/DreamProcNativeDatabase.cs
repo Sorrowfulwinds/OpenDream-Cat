@@ -25,7 +25,7 @@ internal static class DreamProcNativeDatabase {
     public static DreamValue NativeProc_ErrorMsg(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
         var database = (DreamObjectDatabase)src!;
 
-        var message = database.GetErrorMessage();
+        string? message = database.GetErrorMessage();
         return message == null ? DreamValue.Null : new DreamValue(message);
     }
 
@@ -36,7 +36,7 @@ internal static class DreamProcNativeDatabase {
 
         DreamValue fileValue = bundle.GetArgument(0, "filename");
 
-        if (!fileValue.TryGetValueAsString(out var filename)) return DreamValue.Null;
+        if (!fileValue.TryGetValueAsString(out string? filename)) return DreamValue.Null;
 
         if (!database.Open(filename)) throw new DMCrashRuntime("Could not open database.");
 

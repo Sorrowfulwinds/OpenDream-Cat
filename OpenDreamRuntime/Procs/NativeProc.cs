@@ -2,34 +2,63 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using DMCompiler.DM;
 using JetBrains.Annotations;
+using OpenDreamRuntime.Map;
 using OpenDreamRuntime.Objects;
 using OpenDreamRuntime.Resources;
-using OpenDreamRuntime.Map;
 
 namespace OpenDreamRuntime.Procs;
 
 public sealed unsafe class NativeProc : DreamProc {
     public delegate DreamValue HandlerFn(Bundle bundle, DreamObject? src, DreamObject? usr);
+    private readonly AtomManager _atomManager;
+
+    private readonly Dictionary<string, DreamValue>? _defaultArgumentValues;
+
+    private readonly DreamManager _dreamManager;
+    private readonly delegate*<Bundle, DreamObject?, DreamObject?, DreamValue> _handler;
+    private readonly IDreamMapManager _mapManager;
+    private readonly DreamObjectTree _objectTree;
+    private readonly DreamRefManager _refManager;
+    private readonly DreamResourceManager _resourceManager;
+    private readonly WalkManager _walkManager;
+
+    public NativeProc(int id, TreeEntry owningType, string name, List<string> argumentNames,
+        Dictionary<string, DreamValue> defaultArgumentValues, HandlerFn handler, DreamManager dreamManager,
+        DreamRefManager refManager, AtomManager atomManager, IDreamMapManager mapManager,
+        DreamResourceManager resourceManager, WalkManager walkManager, DreamObjectTree objectTree)
+        : base(id, owningType, name, null, ProcAttributes.None, argumentNames, null, null, null, null, null, null, 0) {
+        _defaultArgumentValues = defaultArgumentValues;
+        _handler = (delegate*<Bundle, DreamObject?, DreamObject?, DreamValue>)handler.Method.MethodHandle
+            .GetFunctionPointer();
+
+        _dreamManager = dreamManager;
+        _refManager = refManager;
+        _atomManager = atomManager;
+        _mapManager = mapManager;
+        _resourceManager = resourceManager;
+        _walkManager = walkManager;
+        _objectTree = objectTree;
+    }
 
     public static (string, Dictionary<string, DreamValue>?, List<string>) GetNativeInfo(Delegate func) {
         List<Attribute> attributes = new(func.GetInvocationList()[0].Method.GetCustomAttributes());
-        DreamProcAttribute? procAttribute = (DreamProcAttribute?)attributes.Find(attribute => attribute is DreamProcAttribute);
+        var procAttribute = (DreamProcAttribute?)attributes.Find(attribute => attribute is DreamProcAttribute);
         if (procAttribute == null) throw new ArgumentException();
 
         Dictionary<string, DreamValue>? defaultArgumentValues = null;
         var argumentNames = new List<string>();
         List<Attribute> parameterAttributes = attributes.FindAll(attribute => attribute is DreamProcParameterAttribute);
         foreach (Attribute attribute in parameterAttributes) {
-            DreamProcParameterAttribute parameterAttribute = (DreamProcParameterAttribute)attribute;
+            var parameterAttribute = (DreamProcParameterAttribute)attribute;
 
             argumentNames.Add(parameterAttribute.Name);
             if (parameterAttribute.DefaultValue != default) {
                 defaultArgumentValues ??= new Dictionary<string, DreamValue>(1);
                 DreamValue defaultValue = parameterAttribute.DefaultValue switch {
                     // These are the only types you should be able to set in an attribute
-                    int intValue => new(intValue),
-                    float floatValue => new(floatValue),
-                    string stringValue => new(stringValue),
+                    int intValue => new DreamValue(intValue),
+                    float floatValue => new DreamValue(floatValue),
+                    string stringValue => new DreamValue(stringValue),
                     _ => throw new Exception($"Invalid default value {parameterAttribute.DefaultValue}")
                 };
 
@@ -40,13 +69,20 @@ public sealed unsafe class NativeProc : DreamProc {
         return (procAttribute.Name, defaultArgumentValues, argumentNames);
     }
 
-    private readonly DreamManager _dreamManager;
-    private readonly DreamRefManager _refManager;
-    private readonly AtomManager _atomManager;
-    private readonly IDreamMapManager _mapManager;
-    private readonly DreamResourceManager _resourceManager;
-    private readonly WalkManager _walkManager;
-    private readonly DreamObjectTree _objectTree;
+    public override ProcState CreateState(DreamThread thread, DreamObject? src, DreamObject? usr,
+        DreamProcArguments arguments) {
+        throw new InvalidOperationException("Synchronous native procs cannot create a state. Use Call() instead.");
+    }
+
+    [MustDisposeResource]
+    public DreamValue Call(DreamThread thread, DreamObject? src, DreamObject? usr,
+        [HandlesResourceDisposal] DreamProcArguments arguments) {
+        var bundle = new Bundle(this, arguments);
+        DreamValue result = _handler(bundle, src, usr); // TODO: Include this call in the thread's stack in error traces
+
+        arguments.Dispose();
+        return result;
+    }
 
     public readonly ref struct Bundle(NativeProc proc, DreamProcArguments arguments) {
         public readonly NativeProc Proc = proc;
@@ -64,47 +100,17 @@ public sealed unsafe class NativeProc : DreamProc {
 
         [System.Diagnostics.Contracts.Pure]
         public DreamValue GetArgument(int argumentPosition, string argumentName) {
-            if (Arguments.Length > argumentPosition && !Arguments[argumentPosition].IsNull) {
+            if (Arguments.Length > argumentPosition && !Arguments[argumentPosition].IsNull)
                 return Arguments[argumentPosition];
-            }
 
             return GetArgumentFallback(argumentName);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private DreamValue GetArgumentFallback(string argumentName) {
-            return Proc._defaultArgumentValues?.TryGetValue(argumentName, out var argValue) == true ? argValue : DreamValue.Null;
+            return Proc._defaultArgumentValues?.TryGetValue(argumentName, out DreamValue argValue) == true
+                ? argValue
+                : DreamValue.Null;
         }
-    }
-
-    private readonly Dictionary<string, DreamValue>? _defaultArgumentValues;
-    private readonly delegate*<Bundle, DreamObject?, DreamObject?, DreamValue> _handler;
-
-    public NativeProc(int id, TreeEntry owningType, string name, List<string> argumentNames, Dictionary<string, DreamValue> defaultArgumentValues, HandlerFn handler, DreamManager dreamManager, DreamRefManager refManager, AtomManager atomManager, IDreamMapManager mapManager, DreamResourceManager resourceManager, WalkManager walkManager, DreamObjectTree objectTree)
-        : base(id, owningType, name, null, ProcAttributes.None, argumentNames, null, null, null, null, null, null, 0) {
-        _defaultArgumentValues = defaultArgumentValues;
-        _handler = (delegate*<Bundle, DreamObject?, DreamObject?, DreamValue>)handler.Method.MethodHandle.GetFunctionPointer();
-
-        _dreamManager = dreamManager;
-        _refManager = refManager;
-        _atomManager = atomManager;
-        _mapManager = mapManager;
-        _resourceManager = resourceManager;
-        _walkManager = walkManager;
-        _objectTree = objectTree;
-    }
-
-    public override ProcState CreateState(DreamThread thread, DreamObject? src, DreamObject? usr,
-        DreamProcArguments arguments) {
-        throw new InvalidOperationException("Synchronous native procs cannot create a state. Use Call() instead.");
-    }
-
-    [MustDisposeResource]
-    public DreamValue Call(DreamThread thread, DreamObject? src, DreamObject? usr, [HandlesResourceDisposal] DreamProcArguments arguments) {
-        var bundle = new Bundle(this, arguments);
-        var result = _handler(bundle, src, usr); // TODO: Include this call in the thread's stack in error traces
-
-        arguments.Dispose();
-        return result;
     }
 }

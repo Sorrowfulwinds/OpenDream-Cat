@@ -1,51 +1,55 @@
 using System.IO;
-// ReSharper disable once RedundantUsingDirective
-using System.Runtime.CompilerServices;
 using System.Text;
 using OpenDreamShared.Dream;
+// ReSharper disable once RedundantUsingDirective
+using System.Runtime.CompilerServices;
+
 namespace OpenDreamRuntime.Resources;
 
 [Virtual]
 public class DreamResource(int id, string? filePath, string? resourcePath) {
-    public readonly string? ResourcePath = resourcePath;
     public readonly int Id = id;
+    public readonly string? ResourcePath = resourcePath;
+
+    private byte[]? _resourceDataBacking;
+
+#if TOOLS
+    private ProfilerMemory? _tracyMemoryId;
+#endif
+
+    public DreamResource(int id, byte[] data) : this(id, null, null) {
+        ResourceData = data;
+    }
 
     public byte[]? ResourceData {
         get {
             if (_resourceDataBacking == null && File.Exists(filePath)) {
                 _resourceDataBacking = File.ReadAllBytes(filePath);
 
-                #if TOOLS
+#if TOOLS
                 _tracyMemoryId?.ReleaseMemory();
-                _tracyMemoryId = Profiler.BeginMemoryZone((ulong)(Unsafe.SizeOf<DreamResource>() + (_resourceDataBacking?.Length ?? 0)), "resource");
-                #endif
+                _tracyMemoryId =
+                    Profiler.BeginMemoryZone(
+                        (ulong)(Unsafe.SizeOf<DreamResource>() + (_resourceDataBacking?.Length ?? 0)), "resource");
+#endif
             }
 
             return _resourceDataBacking;
         }
         private set {
-            #if TOOLS
+#if TOOLS
             _tracyMemoryId?.ReleaseMemory();
-            _tracyMemoryId = Profiler.BeginMemoryZone((ulong)(Unsafe.SizeOf<DreamResource>() + (value?.Length ?? 0)), "resource");
-            #endif
+            _tracyMemoryId = Profiler.BeginMemoryZone((ulong)(Unsafe.SizeOf<DreamResource>() + (value?.Length ?? 0)),
+                "resource");
+#endif
 
             _resourceDataBacking = value;
         }
     }
 
-    private byte[]? _resourceDataBacking;
-
-    #if TOOLS
-    private ProfilerMemory? _tracyMemoryId;
-    #endif
-
-    public DreamResource(int id, byte[] data) : this(id, null, null) {
-        ResourceData = data;
-    }
-
     /// <summary>
-    /// Invalidates any caching this resource may have, causing it to be re-read from disk.
-    /// Calling this alone will not update what clients are holding.
+    ///     Invalidates any caching this resource may have, causing it to be re-read from disk.
+    ///     Calling this alone will not update what clients are holding.
     /// </summary>
     public void ReloadFromDisk() {
         _resourceDataBacking = null;
@@ -73,11 +77,10 @@ public class DreamResource(int id, string? filePath, string? resourcePath) {
             throw new Exception("Cannot write to resource without a path");
 
         string? text;
-        if (value.IsNull) {
+        if (value.IsNull)
             text = string.Empty;
-        } else if (!value.TryGetValueAsString(out text)) {
+        else if (!value.TryGetValueAsString(out text))
             throw new DMException($"Invalid output operation '{ResourcePath}' << {value}");
-        }
 
         // Prune any remaining formatting
         text = StringFormatDecoder.RemoveFormatting(text);

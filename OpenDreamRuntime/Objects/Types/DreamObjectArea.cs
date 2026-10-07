@@ -1,8 +1,25 @@
+using OpenDreamRuntime.Map;
 using OpenDreamShared.Dream;
 
 namespace OpenDreamRuntime.Objects.Types;
 
 public sealed class DreamObjectArea : DreamObjectAtom {
+    public readonly HashSet<DreamObjectTurf> Turfs;
+
+    private readonly AreaContentsList _contents;
+
+    public ImmutableAppearance Appearance;
+
+    // Iterating all our turfs to find the one with the lowest coordinates is slow business
+    private int? _cachedX, _cachedY, _cachedZ;
+
+    public DreamObjectArea(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
+        Appearance = AppearanceSystem!.DefaultAppearance;
+        Turfs = new HashSet<DreamObjectTurf>();
+        _contents = new AreaContentsList(ObjectTree.List.ObjectDefinition, this);
+        AtomManager.SetAtomAppearance(this, AtomManager.GetAppearanceFromDefinition(ObjectDefinition));
+    }
+
     // Areas are reference counted, but BYOND never garbage collects them
     public override bool ShouldGarbageCollect => false;
 
@@ -27,21 +44,6 @@ public sealed class DreamObjectArea : DreamObjectAtom {
         }
     }
 
-    public ImmutableAppearance Appearance;
-    public readonly HashSet<DreamObjectTurf> Turfs;
-
-    private readonly AreaContentsList _contents;
-
-    // Iterating all our turfs to find the one with the lowest coordinates is slow business
-    private int? _cachedX, _cachedY, _cachedZ;
-
-    public DreamObjectArea(DreamObjectDefinition objectDefinition) : base(objectDefinition) {
-        Appearance = AppearanceSystem!.DefaultAppearance;
-        Turfs = new();
-        _contents = new(ObjectTree.List.ObjectDefinition, this);
-        AtomManager.SetAtomAppearance(this, AtomManager.GetAppearanceFromDefinition(ObjectDefinition));
-    }
-
     protected override void HandleDeletion() {
         _contents.DecRef();
         _contents.Delete();
@@ -49,7 +51,7 @@ public sealed class DreamObjectArea : DreamObjectAtom {
     }
 
     /// <summary>
-    /// Forces us to find the up-to-date "lowest" turf on next coordinate var access
+    ///     Forces us to find the up-to-date "lowest" turf on next coordinate var access
     /// </summary>
     public void ResetCoordinateCache() {
         _cachedX = _cachedY = _cachedZ = null;
@@ -58,17 +60,17 @@ public sealed class DreamObjectArea : DreamObjectAtom {
     protected override bool TryGetVar(string varName, out DreamValue value) {
         switch (varName) {
             case "x":
-                value = new(X);
+                value = new DreamValue(X);
                 return true;
             case "y":
-                value = new(Y);
+                value = new DreamValue(Y);
                 return true;
             case "z":
-                value = new(Z);
+                value = new DreamValue(Z);
                 return true;
             case "contents":
                 _contents.IncRef();
-                value = new(_contents);
+                value = new DreamValue(_contents);
                 return true;
             default:
                 return base.TryGetVar(varName, out value);
@@ -93,12 +95,12 @@ public sealed class DreamObjectArea : DreamObjectAtom {
     public override void OperatorOutput(DreamValue b) {
         if (b.TryGetValueAsDreamObject<DreamObjectSound>(out _)) {
             // Output the sound to every connection with a mob inside this area
-            foreach (var connection in DreamManager.Connections) {
-                var mob = connection.Mob;
+            foreach (DreamConnection connection in DreamManager.Connections) {
+                DreamObjectMob? mob = connection.Mob;
                 if (mob == null)
                     continue;
 
-                if (!DreamMapManager.TryGetCellAt(mob.Position, mob.Z, out var cell))
+                if (!DreamMapManager.TryGetCellAt(mob.Position, mob.Z, out IDreamMapManager.Cell? cell))
                     continue;
 
                 if (cell.Area != this)
@@ -114,15 +116,15 @@ public sealed class DreamObjectArea : DreamObjectAtom {
     }
 
     /// <summary>
-    /// Updates our cached coordinates with the location of the "lowest" turf, if we don't already have them cached.
-    /// <br/>
-    /// The "lowest" turf is the turf with the lowest z, y, then x.
+    ///     Updates our cached coordinates with the location of the "lowest" turf, if we don't already have them cached.
+    ///     <br />
+    ///     The "lowest" turf is the turf with the lowest z, y, then x.
     /// </summary>
     private void UpdateCoordinateCache() {
         if (_cachedX != null)
             return;
 
-        foreach (var turf in Turfs) {
+        foreach (DreamObjectTurf turf in Turfs) {
             if (_cachedX != null) {
                 if (turf.Z > _cachedZ)
                     continue;
