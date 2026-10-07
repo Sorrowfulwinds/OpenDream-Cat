@@ -1,54 +1,47 @@
-﻿using OpenDreamRuntime.Procs;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text;
 using DMCompiler.DM;
 using DMCompiler.Json;
-using JetBrains.Annotations;
+using OpenDreamRuntime.Procs;
 
 namespace DMDisassembler;
 
 internal class DMProc(ProcDefinitionJson json) {
-    internal struct DecompiledOpcode(int position, string text) {
-        public readonly int Position = position;
-        public readonly string Text = text;
-    }
+    public List<ProcArgumentJson>? Arguments = json.Arguments;
+    public byte[] Bytecode = json.Bytecode ?? Array.Empty<byte>();
+    public Exception? Exception;
+    public sbyte Invisibility = json.Invisibility;
+    public bool IsOverride = (json.Attributes & ProcAttributes.IsOverride) != 0;
+    public bool IsVerb = json.IsVerb;
+    public List<LocalVariableJson>? Locals = json.Locals;
+    public int MaxStackSize = json.MaxStackSize;
 
     public int MaxVariableId = json.MaxVariableId;
-    public int MaxStackSize = json.MaxStackSize;
-    public List<ProcArgumentJson>? Arguments = json.Arguments;
-    public List<LocalVariableJson>? Locals = json.Locals;
-    public bool IsVerb = json.IsVerb;
-    public string? VerbName = json.VerbName;
-    public string? VerbCategory = json.VerbCategory;
-    public string? VerbDesc = json.VerbDesc;
-    public sbyte Invisibility = json.Invisibility;
     public string Name = json.Name;
     public int OwningTypeId = json.OwningTypeId;
-    public byte[] Bytecode = json.Bytecode ?? Array.Empty<byte>();
-    public bool IsOverride = (json.Attributes & ProcAttributes.IsOverride) != 0;
-    public Exception? Exception;
+    public string? VerbCategory = json.VerbCategory;
+    public string? VerbDesc = json.VerbDesc;
+    public string? VerbName = json.VerbName;
 
     public string Decompile() {
-        List<DecompiledOpcode> decompiled = GetDecompiledOpcodes(out var labeledPositions);
+        List<DecompiledOpcode> decompiled = GetDecompiledOpcodes(out HashSet<int> labeledPositions);
 
-        StringBuilder result = new StringBuilder();
+        var result = new StringBuilder();
 
         result.AppendLine($"Max stack size: {MaxStackSize}");
         result.AppendLine($"Max variable ID: {MaxVariableId}");
 
-        if (Arguments is { Count: > 0 }) {
+        if (Arguments is {Count: > 0}) {
             result.AppendLine("Arguments:");
-            foreach (var argument in Arguments) {
-                result.AppendLine($"\t{argument.Name}: {argument.Type}");
-            }
+            foreach (ProcArgumentJson argument in Arguments) result.AppendLine($"\t{argument.Name}: {argument.Type}");
         }
 
-        if (Locals is { Count: > 0 }) {
+        if (Locals is {Count: > 0}) {
             result.AppendLine("Locals:");
-            foreach (var local in Locals) {
+            foreach (LocalVariableJson local in Locals)
                 result.AppendLine($"\tOffset: {local.Offset}, Remove: {local.Remove}, Add: {local.Add}");
-            }
         }
 
         if (IsVerb) {
@@ -76,23 +69,21 @@ internal class DMProc(ProcDefinitionJson json) {
             result.AppendLine();
         }
 
-        if (Exception != null) {
-            result.Append(Exception);
-        }
+        if (Exception != null) result.Append(Exception);
 
         return result.ToString();
     }
 
     public List<DecompiledOpcode> GetDecompiledOpcodes(out HashSet<int> labeledPositions) {
         List<DecompiledOpcode> decompiled = new();
-        labeledPositions = new();
+        labeledPositions = new HashSet<int>();
 
         try {
-            foreach (var (position, instruction) in new ProcDecoder(Program.CompiledJson.Strings, Bytecode).Disassemble()) {
-                decompiled.Add(new DecompiledOpcode(position, ProcDecoder.Format(instruction, type => Program.CompiledJson.Types[type].Path)));
-                if (ProcDecoder.GetJumpDestination(instruction) is int jumpPosition) {
-                    labeledPositions.Add(jumpPosition);
-                }
+            foreach ((int position, ITuple instruction) in new ProcDecoder(Program.CompiledJson.Strings, Bytecode)
+                         .Disassemble()) {
+                decompiled.Add(new DecompiledOpcode(position,
+                    ProcDecoder.Format(instruction, type => Program.CompiledJson.Types[type].Path)));
+                if (ProcDecoder.GetJumpDestination(instruction) is int jumpPosition) labeledPositions.Add(jumpPosition);
             }
         } catch (Exception ex) {
             Exception = ex;
@@ -104,11 +95,14 @@ internal class DMProc(ProcDefinitionJson json) {
     public string[]? GetArguments() {
         if (json.Arguments is null || json.Arguments.Count == 0) return null;
 
-        string[] argNames = new string[json.Arguments.Count];
-        for (var index = 0; index < json.Arguments.Count; index++) {
-            argNames[index] = json.Arguments[index].Name;
-        }
+        var argNames = new string[json.Arguments.Count];
+        for (var index = 0; index < json.Arguments.Count; index++) argNames[index] = json.Arguments[index].Name;
 
         return argNames;
+    }
+
+    internal struct DecompiledOpcode(int position, string text) {
+        public readonly int Position = position;
+        public readonly string Text = text;
     }
 }

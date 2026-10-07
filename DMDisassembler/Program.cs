@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.Json;
 using DMCompiler.Bytecode;
 using DMCompiler.Json;
-using JetBrains.Annotations;
 
 namespace DMDisassembler;
 
@@ -22,7 +21,7 @@ internal class Program {
 
     private static DMType? _selectedType;
 
-    static void Main(string[] args) {
+    private static void Main(string[] args) {
         if (args.Length == 0 || Path.GetExtension(args[0]) != ".json") {
             Console.WriteLine("The json output of DMCompiler must be provided as an argument");
             Environment.Exit(1);
@@ -65,19 +64,16 @@ internal class Program {
 
         Console.WriteLine("DM Disassembler for OpenDream. Enter a command or \"help\" for more information.");
 
-        bool acceptingCommands = true;
+        var acceptingCommands = true;
         while (acceptingCommands) {
-            if (_selectedType != null) {
-                Console.Write(_selectedType.Path);
-            }
+            if (_selectedType != null) Console.Write(_selectedType.Path);
 
             Console.Write("> ");
 
             string? input = Console.ReadLine();
-            if (input == null) {
+            if (input == null)
                 // EOF
                 break;
-            }
 
             string[] split = input.Split(" ");
             string command = split[0].ToLower();
@@ -104,9 +100,8 @@ internal class Program {
             }
 
             string? GetArg() {
-                if (split.Length > 2) {
+                if (split.Length > 2)
                     Console.WriteLine($"Command \"{command}\" takes 0 or 1 arguments. Ignoring extra arguments.");
-                }
 
                 return split.Length > 1 ? split[1] : null;
             }
@@ -125,9 +120,12 @@ internal class Program {
             case "stats": {
                 Console.WriteLine("Prints various statistics. Usage: stats [type]");
                 Console.WriteLine("Options for [type]:");
-                Console.WriteLine("procs-by-type         : Prints the number of proc declarations (not overrides) on each type in descending order");
-                Console.WriteLine("subtypes-by-type      : Prints the number of direct-descendant subtypes on each type in descending order");
-                Console.WriteLine("opcode-count          : Prints the number of occurrences for each opcode in descending order");
+                Console.WriteLine(
+                    "procs-by-type         : Prints the number of proc declarations (not overrides) on each type in descending order");
+                Console.WriteLine(
+                    "subtypes-by-type      : Prints the number of direct-descendant subtypes on each type in descending order");
+                Console.WriteLine(
+                    "opcode-count          : Prints the number of occurrences for each opcode in descending order");
                 break;
             }
             default: {
@@ -142,14 +140,17 @@ internal class Program {
             Console.WriteLine("Commands and arguments:");
             Console.WriteLine("help [command]            : Show additional help for [command] if applicable");
             Console.WriteLine("exit|quit|q               : Exits the disassembler");
-            Console.WriteLine("search type|proc [name]   : Search for a particular typepath or a proc on a selected type");
+            Console.WriteLine(
+                "search type|proc [name]   : Search for a particular typepath or a proc on a selected type");
             Console.WriteLine("select|sel                : Select a typepath to run further commands on");
             Console.WriteLine("list procs|globals        : List all globals, or all procs on a selected type");
             Console.WriteLine("decompile|d [name]        : Decompiles the proc on the selected type");
-            Console.WriteLine("stats [type]              : Prints various stats about the game. Use \"help stats\" for more info");
+            Console.WriteLine(
+                "stats [type]              : Prints various stats about the game. Use \"help stats\" for more info");
             Console.WriteLine("dump-types                : Writes a list of every type to a file");
             Console.WriteLine("dump-all                  : Decompiles every proc and writes the output to a file");
-            Console.WriteLine("test-all                  : Tries to decompile every single proc to check for issues with this disassembler; not for production use");
+            Console.WriteLine(
+                "test-all                  : Tries to decompile every single proc to check for issues with this disassembler; not for production use");
         }
     }
 
@@ -181,56 +182,52 @@ internal class Program {
 
         void ProcsByType() {
             Console.WriteLine("Counting all proc declarations (no overrides) by type. This may take a moment.");
-            Dictionary<int, int> typeIdToProcCount = new Dictionary<int, int>();
+            var typeIdToProcCount = new Dictionary<int, int>();
             foreach (DMProc proc in Procs) {
-                if(proc.IsOverride || proc.Name == "<init>") continue; // Don't count overrides or <init> procs
-                if (typeIdToProcCount.TryGetValue(proc.OwningTypeId, out var count)) {
+                if (proc.IsOverride || proc.Name == "<init>") continue; // Don't count overrides or <init> procs
+                if (typeIdToProcCount.TryGetValue(proc.OwningTypeId, out int count))
                     typeIdToProcCount[proc.OwningTypeId] = count + 1;
-                } else {
+                else
                     typeIdToProcCount[proc.OwningTypeId] = 1;
-                }
             }
 
             Console.WriteLine("Type: Proc Declarations");
-            foreach (var pair in typeIdToProcCount.OrderByDescending(kvp => kvp.Value)) {
-                var type = TypesById[pair.Key];
-                if (pair.Key == 0) {
+            foreach (KeyValuePair<int, int> pair in typeIdToProcCount.OrderByDescending(kvp => kvp.Value)) {
+                DMType type = TypesById[pair.Key];
+                if (pair.Key == 0)
                     Console.WriteLine($"<global>: {pair.Value:n0}");
-                } else {
+                else
                     Console.WriteLine($"{type.Path}: {pair.Value:n0}");
-                }
             }
         }
 
         void SubtypesByType() {
             Console.WriteLine("Counting all subtypes by type. This may take a moment.");
-            Dictionary<int, int> typeIdToSubtypeCount = new Dictionary<int, int>(TypesById.Length);
+            var typeIdToSubtypeCount = new Dictionary<int, int>(TypesById.Length);
 
             foreach (DMType type in TypesById) {
-                var parent = type.Json.Parent;
+                int? parent = type.Json.Parent;
                 if (parent is null) continue;
 
-                if (typeIdToSubtypeCount.TryGetValue(parent.Value, out var count)) {
+                if (typeIdToSubtypeCount.TryGetValue(parent.Value, out int count))
                     typeIdToSubtypeCount[parent.Value] = count + 1;
-                } else {
+                else
                     typeIdToSubtypeCount[parent.Value] = 1;
-                }
             }
 
-            var outputFile = Path.ChangeExtension(JsonFile, ".txt")!;
-            var name = Path.GetFileName(outputFile);
-            var path = Path.GetDirectoryName(outputFile)!;
+            string outputFile = Path.ChangeExtension(JsonFile, ".txt")!;
+            string name = Path.GetFileName(outputFile);
+            string path = Path.GetDirectoryName(outputFile)!;
             outputFile = Path.Combine(path, $"__od_subtypes-by-type_{name}");
-            using StreamWriter writer = new StreamWriter(outputFile, append: false, encoding: Encoding.UTF8, bufferSize: 65536);
+            using var writer = new StreamWriter(outputFile, false, Encoding.UTF8, 65536);
 
             writer.WriteLine("Type: Subtype Count");
-            foreach (var pair in typeIdToSubtypeCount.OrderByDescending(kvp => kvp.Value)) {
-                var type = TypesById[pair.Key];
-                if (pair.Key == 0) {
+            foreach (KeyValuePair<int, int> pair in typeIdToSubtypeCount.OrderByDescending(kvp => kvp.Value)) {
+                DMType type = TypesById[pair.Key];
+                if (pair.Key == 0)
                     writer.WriteLine($"<global>: {pair.Value:n0}");
-                } else {
+                else
                     writer.WriteLine($"{type.Path}: {pair.Value:n0}");
-                }
             }
 
             Console.WriteLine($"Successfully dumped subtypes-by-type to {outputFile}");
@@ -238,25 +235,22 @@ internal class Program {
 
         void OpcodeCount() {
             Console.WriteLine("Counting all opcode occurrences. This may take a moment.");
-            Dictionary<string, int> opcodeToCount = new Dictionary<string, int>();
+            var opcodeToCount = new Dictionary<string, int>();
 
             // We need to fill the dict first in case there's any opcodes with 0 occurrences in the bytecode
-            foreach (string opcodeName in Enum.GetNames(typeof(DreamProcOpcode))) {
-                opcodeToCount.Add(opcodeName, 0);
-            }
+            foreach (string opcodeName in Enum.GetNames(typeof(DreamProcOpcode))) opcodeToCount.Add(opcodeName, 0);
 
             foreach (DMProc proc in Procs) {
-                var decompiledOpcodes = proc.GetDecompiledOpcodes(out _);
-                foreach (var opcode in decompiledOpcodes) {
-                    var name = opcode.Text.Split(' ')[0];
+                List<DMProc.DecompiledOpcode> decompiledOpcodes = proc.GetDecompiledOpcodes(out _);
+                foreach (DMProc.DecompiledOpcode opcode in decompiledOpcodes) {
+                    string name = opcode.Text.Split(' ')[0];
                     opcodeToCount[name] += 1;
                 }
             }
 
             Console.WriteLine("Opcode: Count");
-            foreach (var pair in opcodeToCount.OrderByDescending(kvp => kvp.Value)) {
+            foreach (KeyValuePair<string, int> pair in opcodeToCount.OrderByDescending(kvp => kvp.Value))
                 Console.WriteLine($"{pair.Key}: {pair.Value:n0}");
-            }
         }
     }
 
@@ -270,9 +264,9 @@ internal class Program {
         string type = args[1];
         string name = args[2];
         if (type == "type") {
-            foreach (string typePath in AllTypes.Keys) {
-                if (typePath.Contains(name)) Console.WriteLine(typePath);
-            }
+            foreach (string typePath in AllTypes.Keys)
+                if (typePath.Contains(name))
+                    Console.WriteLine(typePath);
         } else if (type == "proc") {
             if (_selectedType == null) {
                 Console.WriteLine(NoTypeSelectedMessage);
@@ -280,9 +274,9 @@ internal class Program {
                 return;
             }
 
-            foreach (string procName in _selectedType.Procs.Keys) {
-                if (procName.Contains(name)) Console.WriteLine(procName);
-            }
+            foreach (string procName in _selectedType.Procs.Keys)
+                if (procName.Contains(name))
+                    Console.WriteLine(procName);
         } else {
             Console.WriteLine("Invalid search type \"" + type + "\"");
         }
@@ -296,11 +290,10 @@ internal class Program {
         }
 
         string type = args[1];
-        if (AllTypes.TryGetValue(type, out DMType? dmType)) {
+        if (AllTypes.TryGetValue(type, out DMType? dmType))
             _selectedType = dmType;
-        } else {
+        else
             Console.WriteLine("Invalid type \"" + type + "\"");
-        }
     }
 
     private static void List(string[] args) {
@@ -318,9 +311,7 @@ internal class Program {
                     break;
                 }
 
-                foreach (string procName in _selectedType.Procs.Keys) {
-                    Console.WriteLine(procName);
-                }
+                foreach (string procName in _selectedType.Procs.Keys) Console.WriteLine(procName);
 
                 break;
             case "globals":
@@ -329,7 +320,7 @@ internal class Program {
                     break;
                 }
 
-                for (int i = 0; i < CompiledJson.Globals.GlobalCount; i++) {
+                for (var i = 0; i < CompiledJson.Globals.GlobalCount; i++) {
                     Console.Write(i);
                     Console.Write(": ");
                     Console.WriteLine(CompiledJson.Globals.Names[i]);
@@ -348,11 +339,10 @@ internal class Program {
 
         string name = args[1];
         if (name == "<global_init>" || (name == "<init>" && (_selectedType == null || _selectedType.Path == "/"))) {
-            if (GlobalInitProc != null) {
+            if (GlobalInitProc != null)
                 Console.WriteLine(GlobalInitProc.Decompile());
-            } else {
+            else
                 Console.WriteLine("There is no global init proc");
-            }
 
             return;
         }
@@ -363,23 +353,19 @@ internal class Program {
         }
 
         if (name == "<init>") {
-            if (_selectedType.InitProc != null) {
+            if (_selectedType.InitProc != null)
                 Console.WriteLine(_selectedType.InitProc.Decompile());
-            } else {
+            else
                 Console.WriteLine("Selected type does not have an init proc");
-            }
         } else if (_selectedType.Procs.TryGetValue(name, out DMProc[]? procs)) {
-            if (procs.Length > 1) {
-                Console.WriteLine($"Notice: Found {procs.Length} definitions of {name}(); decompiling all in source order.");
-            }
+            if (procs.Length > 1)
+                Console.WriteLine(
+                    $"Notice: Found {procs.Length} definitions of {name}(); decompiling all in source order.");
 
-            foreach (DMProc proc in procs) {
-                Console.WriteLine(proc.Decompile());
-            }
+            foreach (DMProc proc in procs) Console.WriteLine(proc.Decompile());
 
-            if (procs.Length > 1) {
+            if (procs.Length > 1)
                 Console.WriteLine($"Finished decompiling all {procs.Length} definitions of {name}().");
-            }
         } else {
             Console.WriteLine("No procs named \"" + name + "\"");
         }
@@ -389,7 +375,7 @@ internal class Program {
         Procs = new DMProc[CompiledJson.Procs.Length];
 
         for (var index = 0; index < CompiledJson.Procs.Length; index++) {
-            var procDef = CompiledJson.Procs[index];
+            ProcDefinitionJson procDef = CompiledJson.Procs[index];
             Procs[index] = new DMProc(procDef);
         }
     }
@@ -399,7 +385,7 @@ internal class Program {
         TypesById = new DMType[CompiledJson.Types.Length];
 
         for (var index = 0; index < CompiledJson.Types.Length; index++) {
-            var json = CompiledJson.Types[index];
+            DreamTypeJson json = CompiledJson.Types[index];
             var dmType = new DMType(json);
             AllTypes.Add(json.Path, dmType);
             TypesById[index] = dmType;
@@ -409,7 +395,7 @@ internal class Program {
         if (CompiledJson.GlobalProcs != null) {
             DMType globalType = AllTypes["/"];
             foreach (int procId in CompiledJson.GlobalProcs) {
-                var proc = Procs[procId];
+                DMProc proc = Procs[procId];
 
                 globalType.Procs.Add(proc.Name, [proc]);
             }
@@ -436,15 +422,13 @@ internal class Program {
     private static void DumpTypes() {
         Console.WriteLine("Dumping all types. This may take a moment.");
 
-        var outputFile = Path.ChangeExtension(JsonFile, ".txt")!;
-        var name = Path.GetFileName(outputFile);
-        var path = Path.GetDirectoryName(outputFile)!;
+        string outputFile = Path.ChangeExtension(JsonFile, ".txt")!;
+        string name = Path.GetFileName(outputFile);
+        string path = Path.GetDirectoryName(outputFile)!;
         outputFile = Path.Combine(path, $"__od_types_{name}");
-        using StreamWriter writer = new StreamWriter(outputFile, append: false, encoding: Encoding.UTF8, bufferSize: 65536);
+        using var writer = new StreamWriter(outputFile, false, Encoding.UTF8, 65536);
 
-        foreach (DMType type in TypesById) {
-                writer.WriteLine(type.Path);
-        }
+        foreach (DMType type in TypesById) writer.WriteLine(type.Path);
 
         Console.WriteLine($"Successfully dumped {TypesById.Length:n0} types to {outputFile}");
     }
@@ -453,8 +437,8 @@ internal class Program {
         Console.WriteLine("Dumping all procs. This may take a moment.");
         int errored = 0, all = 0;
         // ".dmd" for "dm disassembly"
-        var outputFile = Path.ChangeExtension(JsonFile, ".dmd")!;
-        using StreamWriter writer = new StreamWriter(outputFile, append: false, encoding: Encoding.UTF8, bufferSize: 65536);
+        string outputFile = Path.ChangeExtension(JsonFile, ".dmd")!;
+        using var writer = new StreamWriter(outputFile, false, Encoding.UTF8, 65536);
 
         foreach (DMProc proc in Procs) {
             string value = proc.Decompile();
@@ -469,16 +453,17 @@ internal class Program {
             ++all;
         }
 
-        var procCount = errored > 0 ? $"{(all - errored):n0}/{all:n0} ({errored:n0} failed procs)" : $"all {all:n0}";
+        string procCount = errored > 0 ? $"{all - errored:n0}/{all:n0} ({errored:n0} failed procs)" : $"all {all:n0}";
         Console.WriteLine($"Successfully dumped {procCount} procs to {outputFile}");
     }
 
     private static string PrettyPrintPath(DMProc proc) {
-        var path = CompiledJson.Types[proc.OwningTypeId].Path;
-        var args = proc.GetArguments();
+        string path = CompiledJson.Types[proc.OwningTypeId].Path;
+        string[]? args = proc.GetArguments();
 
-        if(args is null)
+        if (args is null)
             return path + (path[^1] == '/' ? "" : "/") + (proc.IsOverride ? "" : "proc/") + proc.Name + "()";
-        return path + (path[^1] == '/' ? "" : "/") + (proc.IsOverride ? "" : "proc/") + proc.Name + $"({string.Join(", ", args)})";
+        return path + (path[^1] == '/' ? "" : "/") + (proc.IsOverride ? "" : "proc/") + proc.Name +
+               $"({string.Join(", ", args)})";
     }
 }
