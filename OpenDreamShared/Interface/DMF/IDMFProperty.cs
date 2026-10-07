@@ -57,7 +57,7 @@ public struct DMFPropertyString(string? value) : IDMFProperty {
 
     public string AsEscaped() {
         return Value
-            .Replace("\\", "\\\\")
+            .Replace("\\", @"\\")
             .Replace("\"", "\\\"");
     }
 

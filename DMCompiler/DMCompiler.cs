@@ -270,7 +270,7 @@ public class DMCompiler {
         if (!Settings.Verbose) return;
 
         TimeSpan duration = DateTime.Now - _compileStartTime;
-        Console.WriteLine($"{duration:mm\\:ss\\.fffffff}: {message}");
+        Console.WriteLine($@"{duration:mm\:ss\.fffffff}: {message}");
     }
 
     private List<DreamMapJson> ConvertMaps(DMCompiler compiler, List<string> mapPaths) {
