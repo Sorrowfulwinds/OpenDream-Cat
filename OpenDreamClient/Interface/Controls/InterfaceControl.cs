@@ -9,21 +9,14 @@ namespace OpenDreamClient.Interface.Controls;
 
 public abstract class InterfaceControl : InterfaceElement {
     public readonly Control UIElement;
-    public bool IsDefault => ControlDescriptor.IsDefault.Value;
-    public DMFPropertySize Size => ControlDescriptor.Size;
-    public DMFPropertyPos Pos => ControlDescriptor.Pos;
-    public DMFPropertyPos? Anchor1 => ControlDescriptor.Anchor1;
-    public DMFPropertyPos? Anchor2 => ControlDescriptor.Anchor2;
+    protected readonly ControlWindow? Window;
 
     /// <summary>
-    /// The position that anchor1 and anchor2 anchor themselves to.
-    /// Updates when this control's size/pos is winset,
-    /// or when this control's size is 0 and a sibling control's size/pos is winset
+    ///     The position that anchor1 and anchor2 anchor themselves to.
+    ///     Updates when this control's size/pos is winset,
+    ///     or when this control's size is 0 and a sibling control's size/pos is winset
     /// </summary>
     public Vector2i AnchorPosition = Vector2i.Zero;
-
-    protected ControlDescriptor ControlDescriptor => (ControlDescriptor) ElementDescriptor;
-    protected readonly ControlWindow? Window;
 
     [SuppressMessage("ReSharper", "VirtualMemberCallInConstructor")]
     protected InterfaceControl(ControlDescriptor controlDescriptor, ControlWindow? window) : base(controlDescriptor) {
@@ -39,13 +32,21 @@ public abstract class InterfaceControl : InterfaceElement {
         UpdateElementDescriptor();
     }
 
+    public bool IsDefault => ControlDescriptor.IsDefault.Value;
+    public DMFPropertySize Size => ControlDescriptor.Size;
+    public DMFPropertyPos Pos => ControlDescriptor.Pos;
+    public DMFPropertyPos? Anchor1 => ControlDescriptor.Anchor1;
+    public DMFPropertyPos? Anchor2 => ControlDescriptor.Anchor2;
+
+    protected ControlDescriptor ControlDescriptor => (ControlDescriptor)ElementDescriptor;
+
     protected abstract Control CreateUIElement();
 
     protected override void UpdateElementDescriptor() {
         UIElement.Name = ControlDescriptor.Id.Value;
 
         //transparent is default because it's white with 0 alpha, and DMF color can't have none-255 alpha
-        StyleBox? styleBox = (ControlDescriptor.BackgroundColor.Value != Color.Transparent)
+        StyleBox? styleBox = ControlDescriptor.BackgroundColor.Value != Color.Transparent
             ? new StyleBoxFlat {BackgroundColor = ControlDescriptor.BackgroundColor.Value}
             : null;
 
@@ -61,7 +62,7 @@ public abstract class InterfaceControl : InterfaceElement {
                 break;
         }
 
-        Color? textColor = (ControlDescriptor.TextColor.Value != Color.Transparent)
+        Color? textColor = ControlDescriptor.TextColor.Value != Color.Transparent
             ? ControlDescriptor.TextColor.Value
             : null;
 

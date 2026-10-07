@@ -7,12 +7,26 @@ using Robust.Shared.Input;
 namespace OpenDreamClient.Interface.Controls.UI;
 
 /// <summary>
-/// A splitter control that gives 2 children a resizable amount of space.
-/// Equivalent to BYOND's CHILD control.
+///     A splitter control that gives 2 children a resizable amount of space.
+///     Equivalent to BYOND's CHILD control.
 /// </summary>
-/// <remarks>Do not add children directly! Use <see cref="Left"/> and <see cref="Right"/>.</remarks>
+/// <remarks>Do not add children directly! Use <see cref="Left" /> and <see cref="Right" />.</remarks>
 [UsedImplicitly(ImplicitUseTargetFlags.WithMembers)]
 public sealed class Splitter : Container {
+    private readonly DragControl _drag = new();
+
+    private bool _dragging;
+    private Control? _left, _right;
+
+    public Splitter() {
+        MouseFilter = MouseFilterMode.Stop;
+
+        _drag.OnMouseMove += MouseMove;
+        _drag.OnMouseDown += StartDragging;
+        _drag.OnMouseUp += StopDragging;
+        AddChild(_drag);
+    }
+
     public bool ShowSplitter {
         get;
         set {
@@ -86,22 +100,8 @@ public sealed class Splitter : Container {
         set => _drag.StyleBoxOverride = value;
     }
 
-    private readonly DragControl _drag = new();
-
-    private bool _dragging;
-    private Control? _left, _right;
-
-    public Splitter() {
-        MouseFilter = MouseFilterMode.Stop;
-
-        _drag.OnMouseMove += MouseMove;
-        _drag.OnMouseDown += StartDragging;
-        _drag.OnMouseUp += StopDragging;
-        AddChild(_drag);
-    }
-
     protected override Vector2 MeasureOverride(Vector2 availableSize) {
-        var space = CalculateSpace(availableSize);
+        (UIBox2 LeftBox, UIBox2 DragBox, UIBox2 RightBox) space = CalculateSpace(availableSize);
 
         _left?.Measure(space.LeftBox.Size);
         _drag.Measure(space.DragBox.Size);
@@ -112,7 +112,7 @@ public sealed class Splitter : Container {
     }
 
     protected override Vector2 ArrangeOverride(Vector2 finalSize) {
-        var space = CalculateSpace(finalSize);
+        (UIBox2 LeftBox, UIBox2 DragBox, UIBox2 RightBox) space = CalculateSpace(finalSize);
 
         _left?.Arrange(space.LeftBox);
         _drag.Arrange(space.DragBox);
@@ -126,13 +126,12 @@ public sealed class Splitter : Container {
         if (!_dragging)
             return;
 
-        var relative = args.GlobalPosition - GlobalPosition;
+        Vector2 relative = args.GlobalPosition - GlobalPosition;
 
-        if (Vertical) {
+        if (Vertical)
             SplitterPercentage = relative.X / Size.X;
-        } else {
+        else
             SplitterPercentage = relative.Y / Size.Y;
-        }
     }
 
     private void StartDragging(GUIBoundKeyEventArgs args) {
@@ -149,7 +148,7 @@ public sealed class Splitter : Container {
     }
 
     private (UIBox2 LeftBox, UIBox2 DragBox, UIBox2 RightBox) CalculateSpace(Vector2 available) {
-        var splitterWidth = ShowSplitter ? SplitterWidth : 0f;
+        float splitterWidth = ShowSplitter ? SplitterWidth : 0f;
 
         if (_left != null && _right == null)
             return (UIBox2.FromDimensions(Vector2.Zero, available), default, default);
@@ -158,21 +157,21 @@ public sealed class Splitter : Container {
         if (_left == null && _right == null)
             return (default, default, default);
 
-        var leftSize = Vertical
-            ? available with { X = available.X * SplitterPercentage - splitterWidth/2 }
-            : available with { Y = available.Y * SplitterPercentage - splitterWidth/2 };
-        var rightSize = Vertical
-            ? available with { X = available.X * (1f - SplitterPercentage) - splitterWidth/2 }
-            : available with { Y = available.Y * (1f - SplitterPercentage) - splitterWidth/2 };
-        var dragSize = ShowSplitter
+        Vector2 leftSize = Vertical
+            ? available with {X = available.X * SplitterPercentage - splitterWidth / 2}
+            : available with {Y = available.Y * SplitterPercentage - splitterWidth / 2};
+        Vector2 rightSize = Vertical
+            ? available with {X = available.X * (1f - SplitterPercentage) - splitterWidth / 2}
+            : available with {Y = available.Y * (1f - SplitterPercentage) - splitterWidth / 2};
+        Vector2 dragSize = ShowSplitter
             ? Vertical
-                ? available with { X = splitterWidth }
-                : available with { Y = splitterWidth }
+                ? available with {X = splitterWidth}
+                : available with {Y = splitterWidth}
             : Vector2.Zero;
-        var dragPos = Vertical
-            ? leftSize with { Y = 0f }
-            : leftSize with { X = 0f };
-        var rightPos = Vertical
+        Vector2 dragPos = Vertical
+            ? leftSize with {Y = 0f}
+            : leftSize with {X = 0f};
+        Vector2 rightPos = Vertical
             ? new Vector2(leftSize.X + splitterWidth, 0f)
             : new Vector2(0f, leftSize.Y + splitterWidth);
 
@@ -186,18 +185,18 @@ public sealed class Splitter : Container {
     private sealed class DragControl : Control {
         private static readonly StyleBox DragControlStyleBoxDefault = new StyleBoxFlat(Color.DarkGray) {
             BorderColor = Color.Gray,
-            BorderThickness = new(1)
+            BorderThickness = new Thickness(1)
         };
-
-        public event Action<GUIBoundKeyEventArgs>? OnMouseDown;
-        public event Action<GUIBoundKeyEventArgs>? OnMouseUp;
-        public event Action<GUIMouseMoveEventArgs>? OnMouseMove;
 
         public StyleBox? StyleBoxOverride;
 
         public DragControl() {
             MouseFilter = MouseFilterMode.Stop;
         }
+
+        public event Action<GUIBoundKeyEventArgs>? OnMouseDown;
+        public event Action<GUIBoundKeyEventArgs>? OnMouseUp;
+        public event Action<GUIMouseMoveEventArgs>? OnMouseMove;
 
         protected override void MouseMove(GUIMouseMoveEventArgs args) {
             base.MouseMove(args);
@@ -217,7 +216,7 @@ public sealed class Splitter : Container {
         }
 
         protected override void Draw(DrawingHandleScreen handle) {
-            var styleBox = StyleBoxOverride ?? DragControlStyleBoxDefault;
+            StyleBox styleBox = StyleBoxOverride ?? DragControlStyleBoxDefault;
 
             styleBox.Draw(handle, UIBox2.FromDimensions(Vector2.Zero, PixelSize), UIScale);
         }

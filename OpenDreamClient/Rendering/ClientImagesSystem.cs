@@ -4,10 +4,10 @@ using OpenDreamShared.Rendering;
 namespace OpenDreamClient.Rendering;
 
 internal sealed partial class ClientImagesSystem : SharedClientImagesSystem {
-    [Dependency] private IEntityManager _entityManager = default!;
+    private readonly Dictionary<EntityUid, List<NetEntity>> _amClientImages = new();
 
     private readonly Dictionary<Vector3, List<NetEntity>> _turfClientImages = new();
-    private readonly Dictionary<EntityUid, List<NetEntity>> _amClientImages = new();
+    [Dependency] private IEntityManager _entityManager = default!;
 
     public override void Initialize() {
         SubscribeNetworkEvent<AddClientImageEvent>(OnAddClientImage);
@@ -19,8 +19,9 @@ internal sealed partial class ClientImagesSystem : SharedClientImagesSystem {
         _amClientImages.Clear();
     }
 
-    public bool TryGetClientImages(EntityUid entity, Vector3? tileCoords, [NotNullWhen(true)] out List<NetEntity>? result) {
-        if(entity == EntityUid.Invalid && tileCoords is not null) {
+    public bool TryGetClientImages(EntityUid entity, Vector3? tileCoords,
+        [NotNullWhen(true)] out List<NetEntity>? result) {
+        if (entity == EntityUid.Invalid && tileCoords is not null) {
             if (!_turfClientImages.TryGetValue(tileCoords.Value, out result))
                 return false;
         } else {
@@ -34,12 +35,12 @@ internal sealed partial class ClientImagesSystem : SharedClientImagesSystem {
     private void OnAddClientImage(AddClientImageEvent e) {
         EntityUid ent = _entityManager.GetEntity(e.AttachedEntity);
         if (ent == EntityUid.Invalid) {
-            if (!_turfClientImages.TryGetValue(e.TurfCoords, out var iconList))
+            if (!_turfClientImages.TryGetValue(e.TurfCoords, out List<NetEntity>? iconList))
                 iconList = new List<NetEntity>();
             iconList.Add(e.ImageEntity);
             _turfClientImages[e.TurfCoords] = iconList;
         } else {
-            if (!_amClientImages.TryGetValue(ent, out var iconList))
+            if (!_amClientImages.TryGetValue(ent, out List<NetEntity>? iconList))
                 iconList = new List<NetEntity>();
             iconList.Add(e.ImageEntity);
             _amClientImages[ent] = iconList;
@@ -49,13 +50,13 @@ internal sealed partial class ClientImagesSystem : SharedClientImagesSystem {
     private void OnRemoveClientImage(RemoveClientImageEvent e) {
         EntityUid ent = _entityManager.GetEntity(e.AttachedEntity);
         if (ent == EntityUid.Invalid) {
-            if (!_turfClientImages.TryGetValue(e.TurfCoords, out var iconList))
+            if (!_turfClientImages.TryGetValue(e.TurfCoords, out List<NetEntity>? iconList))
                 return;
             iconList.Remove(e.ImageEntity);
             if (iconList.Count == 0)
                 _turfClientImages.Remove(e.TurfCoords);
         } else {
-            if (!_amClientImages.TryGetValue(ent, out var iconList))
+            if (!_amClientImages.TryGetValue(ent, out List<NetEntity>? iconList))
                 return;
             iconList.Remove(e.ImageEntity);
             if (iconList.Count == 0)

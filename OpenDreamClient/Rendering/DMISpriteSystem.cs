@@ -9,20 +9,19 @@ using Robust.Shared.Timing;
 namespace OpenDreamClient.Rendering;
 
 internal sealed partial class DMISpriteSystem : EntitySystem {
-    [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
+    public RenderTargetPool RenderTargetPool = default!;
+    [Dependency] private ClientAppearanceSystem _appearanceSystem = default!;
+    [Dependency] private IClyde _clyde = default!;
     [Dependency] private IEntityManager _entityManager = default!;
     [Dependency] private IGameTiming _gameTiming = default!;
-    [Dependency] private ClientAppearanceSystem _appearanceSystem = default!;
-    [Dependency] private IOverlayManager _overlayManager = default!;
-    [Dependency] private IClyde _clyde = default!;
-    [Dependency] private IPlayerManager _playerManager = default!;
+    [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
     [Dependency] private EntityLookupSystem _lookupSystem = default!;
-    [Dependency] private TransformSystem _transformSystem = default!;
-
-    public RenderTargetPool RenderTargetPool = default!;
+    private DreamViewOverlay _mapOverlay = default!;
+    [Dependency] private IOverlayManager _overlayManager = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
 
     private EntityQuery<DMISpriteComponent> _spriteQuery;
-    private DreamViewOverlay _mapOverlay = default!;
+    [Dependency] private TransformSystem _transformSystem = default!;
 
     public override void Initialize() {
         SubscribeLocalEvent<DMISpriteComponent, ComponentAdd>(HandleComponentAdd);
@@ -31,7 +30,7 @@ internal sealed partial class DMISpriteSystem : EntitySystem {
         SubscribeLocalEvent<TransformComponent, MoveEvent>(HandleTransformMove);
         SubscribeLocalEvent<TileChangedEvent>(HandleTileChanged);
 
-        RenderTargetPool = new(_clyde);
+        RenderTargetPool = new RenderTargetPool(_clyde);
         _spriteQuery = _entityManager.GetEntityQuery<DMISpriteComponent>();
         _mapOverlay = new DreamViewOverlay(RenderTargetPool);
         _overlayManager.AddOverlay(_mapOverlay);
@@ -44,15 +43,16 @@ internal sealed partial class DMISpriteSystem : EntitySystem {
     }
 
     /// <summary>
-    /// Checks if a sprite should be visible to the player<br/>
-    /// Checks the appearance's invisibility, if it's inside the given AABB, and whether it's parented to another entity
+    ///     Checks if a sprite should be visible to the player<br />
+    ///     Checks the appearance's invisibility, if it's inside the given AABB, and whether it's parented to another entity
     /// </summary>
     /// <param name="sprite">The sprite to check</param>
     /// <param name="transform">The entity's transform, the parent check is skipped if this is null</param>
     /// <param name="seeInvisibility">The eye's see_invisibility var</param>
     /// <param name="worldAABB">The box visible to the viewport</param>
-    public bool IsVisible(DMISpriteComponent sprite, TransformComponent? transform, int? seeInvisibility, Box2? worldAABB) {
-        var icon = sprite.Icon;
+    public bool IsVisible(DMISpriteComponent sprite, TransformComponent? transform, int? seeInvisibility,
+        Box2? worldAABB) {
+        DreamIcon icon = sprite.Icon;
         if (icon.Appearance?.Invisibility > seeInvisibility)
             return false;
 
@@ -74,7 +74,7 @@ internal sealed partial class DMISpriteSystem : EntitySystem {
     }
 
     private void OnIconSizeChanged(EntityUid uid) {
-        if (!_entityManager.TryGetComponent<TransformComponent>(uid, out var transform))
+        if (!_entityManager.TryGetComponent<TransformComponent>(uid, out TransformComponent? transform))
             return;
 
         _lookupSystem.FindAndAddToEntityTree(uid, xform: transform);
@@ -86,7 +86,7 @@ internal sealed partial class DMISpriteSystem : EntitySystem {
     }
 
     private void HandleComponentState(EntityUid uid, DMISpriteComponent component, ref ComponentHandleState args) {
-        SharedDMISpriteComponent.DMISpriteComponentState? state = (SharedDMISpriteComponent.DMISpriteComponentState?)args.Current;
+        var state = (SharedDMISpriteComponent.DMISpriteComponentState?)args.Current;
         if (state == null)
             return;
 
@@ -96,7 +96,7 @@ internal sealed partial class DMISpriteSystem : EntitySystem {
     }
 
     private void HandleTransformMove(EntityUid uid, TransformComponent component, ref MoveEvent args) {
-        if (!_spriteQuery.TryGetComponent(uid, out var sprite))
+        if (!_spriteQuery.TryGetComponent(uid, out DMISpriteComponent? sprite))
             return;
 
         if (sprite.Icon.Appearance?.Opacity is true || uid == _playerManager.LocalSession?.AttachedEntity)

@@ -11,11 +11,6 @@ namespace OpenDreamClient.States.MainMenu;
 
 [GenerateTypedNameReferences]
 public sealed partial class MainMenuControl : Control {
-    public LineEdit UserNameBox => UsernameBoxProtected;
-    public LineEdit AddressBox => AddressBoxProtected;
-    public Button ConnectButton => ConnectButtonProtected;
-    public Button QuitButton => QuitButtonProtected;
-
     public MainMenuControl(IResourceCache resCache, IConfigurationManager configMan) {
         RobustXamlLoader.Load(this);
 
@@ -31,7 +26,7 @@ public sealed partial class MainMenuControl : Control {
         var logoTexture = resCache.GetResource<TextureResource>("/OpenDream/Logo/logo.png");
         Logo.Texture = logoTexture;
 
-        var currentUserName = configMan.GetCVar(CVars.PlayerName);
+        string currentUserName = configMan.GetCVar(CVars.PlayerName);
         UserNameBox.Text = currentUserName;
 
         AddressBoxProtected.Text = "127.0.0.1:1212";
@@ -40,4 +35,9 @@ public sealed partial class MainMenuControl : Control {
         DebugWarningLabel.Visible = true;
 #endif
     }
+
+    public LineEdit UserNameBox => UsernameBoxProtected;
+    public LineEdit AddressBox => AddressBoxProtected;
+    public Button ConnectButton => ConnectButtonProtected;
+    public Button QuitButton => QuitButtonProtected;
 }

@@ -4,7 +4,10 @@ using Robust.Shared.Audio.Components;
 
 namespace OpenDreamClient.Audio;
 
-public sealed class DreamSoundChannel(AudioSystem audioSystem, (EntityUid Entity, AudioComponent Component) source, SoundData soundData) {
+public sealed class DreamSoundChannel(
+    AudioSystem audioSystem,
+    (EntityUid Entity, AudioComponent Component) source,
+    SoundData soundData) {
     public readonly (EntityUid Entity, AudioComponent Component) Source = source;
     private SoundData _soundData = soundData;
 

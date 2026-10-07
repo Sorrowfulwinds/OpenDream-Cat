@@ -15,7 +15,8 @@ public sealed partial class ConnectingControl : Control {
 
         Panel.PanelOverride = new StyleBoxFlat(Color.Black);
 
-        ConnectingLabel.FontOverride = new VectorFont(resCache.GetResource<FontResource>("/Fonts/NotoSans-Regular.ttf"), 24);
+        ConnectingLabel.FontOverride =
+            new VectorFont(resCache.GetResource<FontResource>("/Fonts/NotoSans-Regular.ttf"), 24);
         WIPLabel.FontOverride = new VectorFont(resCache.GetResource<FontResource>("/Fonts/NotoSans-Bold.ttf"), 32);
 
         LayoutContainer.SetAnchorPreset(this, LayoutContainer.LayoutPreset.Wide);

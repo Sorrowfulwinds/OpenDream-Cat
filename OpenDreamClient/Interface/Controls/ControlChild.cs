@@ -7,10 +7,10 @@ using Robust.Client.UserInterface;
 
 namespace OpenDreamClient.Interface.Controls;
 
-internal sealed class ControlChild(ControlDescriptor controlDescriptor, ControlWindow window) : InterfaceControl(controlDescriptor, window) {
-    private ControlDescriptorChild ChildDescriptor => (ControlDescriptorChild)ElementDescriptor;
-
+internal sealed class ControlChild(ControlDescriptor controlDescriptor, ControlWindow window)
+    : InterfaceControl(controlDescriptor, window) {
     private Splitter _splitter = default!;
+    private ControlDescriptorChild ChildDescriptor => (ControlDescriptorChild)ElementDescriptor;
 
     protected override Control CreateUIElement() {
         _splitter = new Splitter();
@@ -21,12 +21,14 @@ internal sealed class ControlChild(ControlDescriptor controlDescriptor, ControlW
     protected override void UpdateElementDescriptor() {
         base.UpdateElementDescriptor();
 
-        var newLeftElement = InterfaceManager.Windows.TryGetValue(ChildDescriptor.Left.Value, out var leftWindow)
-            ? leftWindow.UIElement
-            : null;
-        var newRightElement = InterfaceManager.Windows.TryGetValue(ChildDescriptor.Right.Value, out var rightWindow)
-            ? rightWindow.UIElement
-            : null;
+        Control? newLeftElement =
+            InterfaceManager.Windows.TryGetValue(ChildDescriptor.Left.Value, out ControlWindow? leftWindow)
+                ? leftWindow.UIElement
+                : null;
+        Control? newRightElement =
+            InterfaceManager.Windows.TryGetValue(ChildDescriptor.Right.Value, out ControlWindow? rightWindow)
+                ? rightWindow.UIElement
+                : null;
 
         _splitter.Left = newLeftElement;
         _splitter.Right = newRightElement;
@@ -34,10 +36,11 @@ internal sealed class ControlChild(ControlDescriptor controlDescriptor, ControlW
         _splitter.Vertical = ChildDescriptor.IsVert.Value;
         _splitter.SplitterPercentage = ChildDescriptor.Splitter.Value / 100f;
         _splitter.DragStyleBoxOverride = new StyleBoxColoredTexture {
-            BackgroundColor = (ChildDescriptor.BackgroundColor.Value != Color.Transparent)
+            BackgroundColor = ChildDescriptor.BackgroundColor.Value != Color.Transparent
                 ? ChildDescriptor.BackgroundColor.Value
                 : DreamStylesheet.DefaultBackgroundColor,
-            Texture = IoCManager.Resolve<IResourceCache>().GetResource<TextureResource>("/Textures/Interface/SplitterBorder.png"),
+            Texture = IoCManager.Resolve<IResourceCache>()
+                .GetResource<TextureResource>("/Textures/Interface/SplitterBorder.png"),
             PatchMarginTop = 1,
             PatchMarginLeft = 1,
             PatchMarginRight = 1,
@@ -46,9 +49,9 @@ internal sealed class ControlChild(ControlDescriptor controlDescriptor, ControlW
     }
 
     public override void Shutdown() {
-        if (InterfaceManager.Windows.TryGetValue(ChildDescriptor.Left.Value, out var left))
+        if (InterfaceManager.Windows.TryGetValue(ChildDescriptor.Left.Value, out ControlWindow? left))
             left.Shutdown();
-        if (InterfaceManager.Windows.TryGetValue(ChildDescriptor.Right.Value, out var right))
+        if (InterfaceManager.Windows.TryGetValue(ChildDescriptor.Right.Value, out ControlWindow? right))
             right.Shutdown();
     }
 

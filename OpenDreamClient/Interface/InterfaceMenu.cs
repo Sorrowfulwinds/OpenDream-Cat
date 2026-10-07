@@ -6,21 +6,19 @@ using Robust.Shared.Serialization.Manager;
 namespace OpenDreamClient.Interface;
 
 public sealed class InterfaceMenu : InterfaceElement {
+    public readonly MenuBar MenuBar;
     public readonly Dictionary<string, MenuElement> MenuElementsById = new();
     public readonly Dictionary<string, MenuElement> MenuElementsByName = new();
-    public readonly MenuBar MenuBar;
 
     private readonly bool _pauseMenuCreation;
 
     public InterfaceMenu(MenuDescriptor descriptor) : base(descriptor) {
         MenuBar = new MenuBar {
-            Margin = new(4, 0)
+            Margin = new Thickness(4, 0)
         };
 
         _pauseMenuCreation = true;
-        foreach (MenuElementDescriptor menuElement in descriptor.Elements) {
-            AddChild(menuElement);
-        }
+        foreach (MenuElementDescriptor menuElement in descriptor.Elements) AddChild(menuElement);
 
         _pauseMenuCreation = false;
         CreateMenu();
@@ -31,9 +29,8 @@ public sealed class InterfaceMenu : InterfaceElement {
             if (menuElement.ElementDescriptor is not MenuElementDescriptor menuElementDescriptor)
                 continue;
 
-            if (menuElementDescriptor.Group.AsRaw() == group) {
+            if (menuElementDescriptor.Group.AsRaw() == group)
                 menuElementDescriptor.IsChecked = new DMFPropertyBool(menuElementDescriptor.Id.AsRaw() == id);
-            }
         }
     }
 
@@ -43,9 +40,9 @@ public sealed class InterfaceMenu : InterfaceElement {
 
         MenuElement element;
         if (string.IsNullOrEmpty(elementDescriptor.Category.Value)) {
-            element = new(elementDescriptor, this);
+            element = new MenuElement(elementDescriptor, this);
         } else {
-            if (!MenuElementsById.TryGetValue(elementDescriptor.Category.Value, out var parentMenu) &&
+            if (!MenuElementsById.TryGetValue(elementDescriptor.Category.Value, out MenuElement? parentMenu) &&
                 !MenuElementsByName.TryGetValue(elementDescriptor.Category.Value, out parentMenu)) {
                 //if category is set but the parent element doesn't exist, create it
                 var parentMenuDescriptor = new MenuElementDescriptor {
@@ -53,7 +50,7 @@ public sealed class InterfaceMenu : InterfaceElement {
                     Name = elementDescriptor.Category
                 };
 
-                parentMenu = new(parentMenuDescriptor, this);
+                parentMenu = new MenuElement(parentMenuDescriptor, this);
                 MenuElementsById.Add(parentMenu.Id.AsRaw(), parentMenu);
             }
 
@@ -94,7 +91,7 @@ public sealed class InterfaceMenu : InterfaceElement {
     public sealed class MenuElement(MenuElementDescriptor data, InterfaceMenu menu) : InterfaceElement(data) {
         public readonly List<MenuElement> Children = new();
 
-        public MenuElementDescriptor MenuElementDescriptor => (MenuElementDescriptor) ElementDescriptor;
+        public MenuElementDescriptor MenuElementDescriptor => (MenuElementDescriptor)ElementDescriptor;
         public DMFPropertyString Category => MenuElementDescriptor.Category;
         public DMFPropertyString Command => MenuElementDescriptor.Command;
 
@@ -102,12 +99,12 @@ public sealed class InterfaceMenu : InterfaceElement {
             string text = MenuElementDescriptor.Name.AsRaw();
             text = text.Replace("&", string.Empty); // TODO: Character after '&' becomes a selection shortcut
 
-            if(Children.Count > 0) {
+            if (Children.Count > 0) {
                 MenuBar.SubMenu subMenu = new() {
                     Text = text
                 };
 
-                foreach(MenuElement child in Children)
+                foreach (MenuElement child in Children)
                     subMenu.Entries.Add(child.CreateMenuEntry());
 
                 return subMenu;
@@ -116,8 +113,8 @@ public sealed class InterfaceMenu : InterfaceElement {
             if (string.IsNullOrEmpty(text))
                 return new MenuBar.MenuSeparator();
 
-            if(MenuElementDescriptor.CanCheck.Value)
-                if(MenuElementDescriptor.IsChecked.Value)
+            if (MenuElementDescriptor.CanCheck.Value)
+                if (MenuElementDescriptor.IsChecked.Value)
                     text += " ☑";
 
             MenuBar.MenuButton menuButton = new() {
@@ -125,13 +122,13 @@ public sealed class InterfaceMenu : InterfaceElement {
             };
 
             menuButton.OnPressed += () => {
-                if(MenuElementDescriptor.CanCheck.Value)
-                    if(!string.IsNullOrEmpty(MenuElementDescriptor.Group.Value))
+                if (MenuElementDescriptor.CanCheck.Value)
+                    if (!string.IsNullOrEmpty(MenuElementDescriptor.Group.Value))
                         menu.SetGroupChecked(MenuElementDescriptor.Group.Value, MenuElementDescriptor.Id.AsRaw());
                     else
                         MenuElementDescriptor.IsChecked = new DMFPropertyBool(!MenuElementDescriptor.IsChecked.Value);
                 menu.CreateMenu();
-                if(!string.IsNullOrEmpty(MenuElementDescriptor.Command.Value))
+                if (!string.IsNullOrEmpty(MenuElementDescriptor.Command.Value))
                     InterfaceManager.RunCommand(Command.AsRaw());
             };
             return menuButton;
@@ -140,7 +137,8 @@ public sealed class InterfaceMenu : InterfaceElement {
         public override void AddChild(ElementDescriptor descriptor) {
             // Set the child's category to this element
             // TODO: The "parent" and "category" attributes seem to be treated differently in BYOND; not the same thing.
-            descriptor = ((MenuElementDescriptor) descriptor).WithCategory(IoCManager.Resolve<ISerializationManager>(), MenuElementDescriptor.Name);
+            descriptor = ((MenuElementDescriptor)descriptor).WithCategory(IoCManager.Resolve<ISerializationManager>(),
+                MenuElementDescriptor.Name);
 
             // Pass this on to the parent menu
             menu.AddChild(descriptor);

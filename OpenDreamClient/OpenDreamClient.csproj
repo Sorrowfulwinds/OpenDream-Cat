@@ -11,16 +11,16 @@
     <NoWarn>NU1507</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\OpenDreamShared\OpenDreamShared.csproj" />
-    <PackageReference Include="SpaceWizards.Sodium" />
-    <PackageReference Include="SixLabors.ImageSharp" />
+    <ProjectReference Include="..\OpenDreamShared\OpenDreamShared.csproj"/>
+    <PackageReference Include="SpaceWizards.Sodium"/>
+    <PackageReference Include="SixLabors.ImageSharp"/>
   </ItemGroup>
 
-  <Import Project="..\RobustToolbox\Imports\Lidgren.props" />
-  <Import Project="..\RobustToolbox\Imports\Client.props" />
-  <Import Project="..\RobustToolbox\Imports\WebView.props" />
-  <Import Project="..\RobustToolbox\Imports\Shared.props" />
+  <Import Project="..\RobustToolbox\Imports\Lidgren.props"/>
+  <Import Project="..\RobustToolbox\Imports\Client.props"/>
+  <Import Project="..\RobustToolbox\Imports\WebView.props"/>
+  <Import Project="..\RobustToolbox\Imports\Shared.props"/>
 
-  <Import Project="..\RobustToolbox\MSBuild\Robust.Properties.targets" />
-  <Import Project="..\RobustToolbox\MSBuild\XamlIL.targets" />
+  <Import Project="..\RobustToolbox\MSBuild\Robust.Properties.targets"/>
+  <Import Project="..\RobustToolbox\MSBuild\XamlIL.targets"/>
 </Project>

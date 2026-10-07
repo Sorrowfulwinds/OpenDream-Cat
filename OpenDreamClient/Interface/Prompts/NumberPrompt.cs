@@ -8,10 +8,10 @@ internal sealed class NumberPrompt : InputWindow {
 
     public NumberPrompt(string title, string message, string defaultValue, bool canCancel,
         Action<DreamValueType, object?>? onClose) : base(title, message, canCancel, onClose) {
-        _numberInput = new() {
+        _numberInput = new LineEdit {
             Text = defaultValue,
             VerticalAlignment = VAlignment.Top,
-            IsValid = static str => float.TryParse(str, out float _),
+            IsValid = static str => float.TryParse(str, out float _)
         };
 
         _numberInput.OnTextEntered += NumberInput_TextEntered;
@@ -19,9 +19,9 @@ internal sealed class NumberPrompt : InputWindow {
     }
 
     protected override void OkButtonClicked() {
-        if (!float.TryParse(_numberInput.Text, out float num)) {
-            Logger.GetSawmill("opendream.prompt").Error($"Error while trying to convert {_numberInput.Text} to a number.");
-        }
+        if (!float.TryParse(_numberInput.Text, out float num))
+            Logger.GetSawmill("opendream.prompt")
+                .Error($"Error while trying to convert {_numberInput.Text} to a number.");
 
         FinishPrompt(DreamValueType.Num, num);
     }

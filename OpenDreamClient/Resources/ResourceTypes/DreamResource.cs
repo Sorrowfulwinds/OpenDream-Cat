@@ -6,9 +6,9 @@ namespace OpenDreamClient.Resources.ResourceTypes;
 [Virtual]
 public class DreamResource {
     public readonly int Id;
-    public List<Action> OnUpdateCallbacks = new();
 
     protected byte[] Data;
+    public List<Action> OnUpdateCallbacks = new();
 
     [UsedImplicitly]
     public DreamResource(int id, byte[] data) {

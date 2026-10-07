@@ -1,8 +1,8 @@
-﻿using OpenDreamShared.Dream;
-using Robust.Shared.Utility;
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using OpenDreamShared.Dream;
+using Robust.Shared.Utility;
 
 namespace OpenDreamClient.Interface.Html;
 
@@ -14,11 +14,13 @@ public static class HtmlParser {
     private static readonly HashSet<string> WarnedAttributes = new();
 
     private static Regex? _attributeMatchRegex;
-    private static Regex AttributeMatchRegex => _attributeMatchRegex ??= new Regex(@"[^ =]+(?:=(?:\w+|""[^""]*""|'[^']*'))?");
 
     static HtmlParser() {
         Sawmill = IoCManager.Resolve<ILogManager>().GetSawmill("opendream.html_parser");
     }
+
+    private static Regex AttributeMatchRegex =>
+        _attributeMatchRegex ??= new Regex(@"[^ =]+(?:=(?:\w+|""[^""]*""|'[^']*'))?");
 
     public static void Parse(string text, FormattedMessage appendTo) {
         StringBuilder currentText = new();
@@ -39,7 +41,7 @@ public static class HtmlParser {
         }
 
         void SkipComment() {
-            while ((i - 2 < 0 || (text[i - 2] != '-' || text[i - 1] != '-' || text[i] != '>')) && text.Length > 2)
+            while ((i - 2 < 0 || text[i - 2] != '-' || text[i - 1] != '-' || text[i] != '>') && text.Length > 2)
                 i++;
         }
 
@@ -76,7 +78,7 @@ public static class HtmlParser {
                         return;
                     }
 
-                    string insideTag = currentText.ToString();
+                    var insideTag = currentText.ToString();
                     string[] attributes = AttributeMatchRegex.Matches(insideTag)
                         .Where(x => x.Length > 0)
                         .Select(x => x.Value)
@@ -91,19 +93,20 @@ public static class HtmlParser {
                     tagType = tagType.TrimEnd('/');
 
                     // remove self-closing slash at end of attributes, if present
-                    if (attributes.Length > 0) {
-                        attributes[^1] = attributes[^1].TrimEnd('/');
-                    }
+                    if (attributes.Length > 0) attributes[^1] = attributes[^1].TrimEnd('/');
 
                     if (closingTag) {
-                        if (isSelfClosing) {
+                        if (isSelfClosing)
                             // ignore closing tags of void elements since they don't
                             // do anything anyway. Should probably warn.
                             return;
-                        } else if (tags.Count == 0) {
+
+                        if (tags.Count == 0) {
                             Sawmill.Error("Unexpected closing tag");
                             return;
-                        } else if (tags.Peek() != tagType) {
+                        }
+
+                        if (tags.Peek() != tagType) {
                             Sawmill.Error($"Invalid closing tag </{tagType}>, expected </{tags.Peek()}>");
                             return;
                         }
@@ -117,33 +120,28 @@ public static class HtmlParser {
                             SkipComment();
                             continue;
                         }
-                        if (!isSelfClosing) {
-                            tags.Push(tagType);
-                        }
 
-                        if (tagType == "br") {
+                        if (!isSelfClosing) tags.Push(tagType);
+
+                        if (tagType == "br")
                             appendTo.PushNewline();
-                        } else {
-                            appendTo.PushTag(new MarkupNode(tagType, null, ParseAttributes(attributes)), selfClosing: isSelfClosing);
-                        }
+                        else
+                            appendTo.PushTag(new MarkupNode(tagType, null, ParseAttributes(attributes)), isSelfClosing);
                     }
 
                     break;
                 case '&':
                     // HTML named/numbered entity
                     int end = text.IndexOf(';', i);
-                    if (end == -1) {
+                    if (end == -1)
                         // browsers usually allow for some fallibility here
                         break;
-                    }
 
                     string insideEntity = text.Substring(i + 1, end - (i + 1));
                     i = end;
 
                     if (insideEntity.StartsWith('#')) {
-                        if (int.TryParse(insideEntity.Substring(1), out int result)) {
-                            currentText.Append((char)result);
-                        }
+                        if (int.TryParse(insideEntity.Substring(1), out int result)) currentText.Append((char)result);
                     } else {
                         switch (insideEntity) {
                             case "nbsp": currentText.Append("\u00A0"); break;
@@ -178,7 +176,7 @@ public static class HtmlParser {
                         var appearanceId = (uint)((upper << 16) | lower);
 
                         PushCurrentText();
-                        appendTo.PushTag(new MarkupNode("icon", new(appearanceId), null), true);
+                        appendTo.PushTag(new MarkupNode("icon", new MarkupParameter(appearanceId), null), true);
                         break;
                     }
 
@@ -194,14 +192,12 @@ public static class HtmlParser {
 
     /**
      * <summary>
-     * Returns if a tag is written in old self-closing form, or if the tag
-     * represents a void element, which must have no children
+     *     Returns if a tag is written in old self-closing form, or if the tag
+     *     represents a void element, which must have no children
      * </summary>
      */
     private static bool IsSelfClosing(string tagType, string[] attributes) {
-        if (tagType.EndsWith("/") || attributes[^1].EndsWith("/")) {
-            return true;
-        }
+        if (tagType.EndsWith("/") || attributes[^1].EndsWith("/")) return true;
 
         switch (tagType) {
             case "area":
@@ -228,7 +224,7 @@ public static class HtmlParser {
     private static Dictionary<string, MarkupParameter> ParseAttributes(string[] attributes) {
         Dictionary<string, MarkupParameter> parsedAttributes = new();
 
-        for (int i = 1; i < attributes.Length; i++) { // First one should be the tag type, skip it
+        for (var i = 1; i < attributes.Length; i++) { // First one should be the tag type, skip it
             string attribute = attributes[i];
 
             if (attribute == "") // tag ended with a detached self-closing slash
@@ -247,14 +243,14 @@ public static class HtmlParser {
             MarkupParameter parameter;
             switch (attributeName) {
                 case "size":
-                    long.TryParse(attributeTextValue, out var longValue);
-                    parameter = new(longValue);
+                    long.TryParse(attributeTextValue, out long longValue);
+                    parameter = new MarkupParameter(longValue);
                     break;
                 case "color":
-                    if (!Color.TryFromName(attributeTextValue, out var color))
-                        color = Color.TryFromHex(attributeTextValue, out var parsedColor) ? parsedColor : Color.Black;
+                    if (!Color.TryFromName(attributeTextValue, out Color color))
+                        color = Color.TryFromHex(attributeTextValue, out Color parsedColor) ? parsedColor : Color.Black;
 
-                    parameter = new(color);
+                    parameter = new MarkupParameter(color);
                     break;
                 default:
                     if (WarnedAttributes.Add(attributeName))

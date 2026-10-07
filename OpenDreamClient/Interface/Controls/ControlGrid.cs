@@ -12,9 +12,7 @@ internal sealed class ControlGrid : InterfaceControl {
     }
 
     protected override Control CreateUIElement() {
-        _grid = new GridContainer() {
-
-        };
+        _grid = new GridContainer();
 
         return _grid;
     }

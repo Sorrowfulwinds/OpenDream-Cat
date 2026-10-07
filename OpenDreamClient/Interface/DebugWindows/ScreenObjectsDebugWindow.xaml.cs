@@ -8,12 +8,12 @@ using Robust.Shared.Console;
 namespace OpenDreamClient.Interface.DebugWindows;
 
 /// <summary>
-/// A debug window that lists all the client's screen objects, and gives the option to view their properties
+///     A debug window that lists all the client's screen objects, and gives the option to view their properties
 /// </summary>
 [GenerateTypedNameReferences]
 internal sealed partial class ScreenObjectsDebugWindow : OSWindow {
-    private readonly ClientScreenOverlaySystem _screenOverlaySystem;
     private readonly IEntityManager _entityManager;
+    private readonly ClientScreenOverlaySystem _screenOverlaySystem;
 
     public ScreenObjectsDebugWindow() {
         RobustXamlLoader.Load(this);
@@ -30,7 +30,7 @@ internal sealed partial class ScreenObjectsDebugWindow : OSWindow {
     private void Update() {
         ScreenObjectsList.RemoveAllChildren();
 
-        foreach (var screenObjectEntity in _screenOverlaySystem.ScreenObjects) {
+        foreach (EntityUid screenObjectEntity in _screenOverlaySystem.ScreenObjects) {
             if (!_entityManager.TryGetComponent(screenObjectEntity, out DMISpriteComponent? screenObject))
                 continue;
 
@@ -41,24 +41,24 @@ internal sealed partial class ScreenObjectsDebugWindow : OSWindow {
     private void AddScreenObject(DMISpriteComponent screenObject) {
         var container = new BoxContainer {
             Orientation = BoxContainer.LayoutOrientation.Horizontal,
-            Margin = new(4f, 0f)
+            Margin = new Thickness(4f, 0f)
         };
 
         container.AddChild(new TextureRect {
             Texture = screenObject.Icon.LastRenderedTexture,
             Stretch = TextureRect.StretchMode.KeepAspect,
-            SetSize = new(128, 128)
+            SetSize = new Vector2(128, 128)
         });
 
         container.AddChild(new Label {
             Text = screenObject.Icon.Appearance?.Name ?? "<No appearance>",
-            Margin = new(2f, 0f),
+            Margin = new Thickness(2f, 0f),
             HorizontalExpand = true
         });
 
         container.AddChild(new Label {
             Text = screenObject.ScreenLocation?.ToString() ?? "<No screen_loc>",
-            Margin = new(2f, 0f)
+            Margin = new Thickness(2f, 0f)
         });
 
         var viewButton = new Button {
@@ -68,9 +68,7 @@ internal sealed partial class ScreenObjectsDebugWindow : OSWindow {
             MaxHeight = 38
         };
 
-        viewButton.OnPressed += _ => {
-            new IconDebugWindow(screenObject.Icon).Show();
-        };
+        viewButton.OnPressed += _ => { new IconDebugWindow(screenObject.Icon).Show(); };
 
         container.AddChild(viewButton);
         ScreenObjectsList.AddChild(container);

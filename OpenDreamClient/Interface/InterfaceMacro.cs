@@ -9,39 +9,38 @@ using Key = Robust.Client.Input.Keyboard.Key;
 namespace OpenDreamClient.Interface;
 
 public sealed class InterfaceMacroSet : InterfaceElement {
-    public readonly Dictionary<string, InterfaceMacro> Macros = new();
-
     private const string InputContextPrefix = "macroSet_";
-
-    private readonly IInputManager _inputManager;
+    public readonly Dictionary<string, InterfaceMacro> Macros = new();
     private readonly IEntitySystemManager _entitySystemManager;
     private readonly IInputCmdContext _inputContext;
-    private readonly IUserInterfaceManager _uiManager;
 
     private readonly string _inputContextName;
 
-    public InterfaceMacroSet(MacroSetDescriptor descriptor, IEntitySystemManager entitySystemManager, IInputManager inputManager, IUserInterfaceManager uiManager) : base(descriptor) {
+    private readonly IInputManager _inputManager;
+    private readonly IUserInterfaceManager _uiManager;
+
+    public InterfaceMacroSet(MacroSetDescriptor descriptor, IEntitySystemManager entitySystemManager,
+        IInputManager inputManager, IUserInterfaceManager uiManager) : base(descriptor) {
         _inputManager = inputManager;
         _entitySystemManager = entitySystemManager;
         _uiManager = uiManager;
 
         _inputContextName = $"{InputContextPrefix}{ElementDescriptor.Id}";
-        if (inputManager.Contexts.TryGetContext(_inputContextName, out var existingContext)) {
+        if (inputManager.Contexts.TryGetContext(_inputContextName, out IInputCmdContext? existingContext))
             _inputContext = existingContext;
-        } else {
+        else
             _inputContext = inputManager.Contexts.New(_inputContextName, "common");
-        }
 
-        foreach (MacroDescriptor macro in descriptor.Macros) {
-            AddChild(macro);
-        }
+        foreach (MacroDescriptor macro in descriptor.Macros) AddChild(macro);
     }
 
     public override void AddChild(ElementDescriptor descriptor) {
         if (descriptor is not MacroDescriptor macroDescriptor)
             throw new ArgumentException($"Attempted to add a {descriptor} to a macro set", nameof(descriptor));
 
-        Macros.Add(macroDescriptor.Id.AsRaw(), new InterfaceMacro(_inputContextName, macroDescriptor, _entitySystemManager, _inputManager, _inputContext, _uiManager));
+        Macros.Add(macroDescriptor.Id.AsRaw(),
+            new InterfaceMacro(_inputContextName, macroDescriptor, _entitySystemManager, _inputManager, _inputContext,
+                _uiManager));
     }
 
     public void SetActive() {
@@ -58,7 +57,7 @@ internal struct ParsedKeybind {
     public bool IsAny;
     public Key? Key;
 
-    private static Dictionary<string, Key> keyNameToKey = new Dictionary<string, Key>() {
+    private static readonly Dictionary<string, Key> keyNameToKey = new() {
         {"A", Keyboard.Key.A},
         {"B", Keyboard.Key.B},
         {"C", Keyboard.Key.C},
@@ -152,7 +151,7 @@ internal struct ParsedKeybind {
         //TODO: Right shift/ctrl/alt
         {"SHIFT", Keyboard.Key.Shift},
         {"CTRL", Keyboard.Key.Control},
-        {"ALT", Keyboard.Key.Alt},
+        {"ALT", Keyboard.Key.Alt}
     };
 
     private static Dictionary<Key, string>? keyToKeyName;
@@ -164,20 +163,18 @@ internal struct ParsedKeybind {
     public static string? KeyToKeyName(Key key) {
         if (keyToKeyName == null) {
             keyToKeyName = new Dictionary<Key, string>();
-            foreach (KeyValuePair<string, Key> entry in keyNameToKey) {
-                keyToKeyName[entry.Value] = entry.Key;
-            }
+            foreach (KeyValuePair<string, Key> entry in keyNameToKey) keyToKeyName[entry.Value] = entry.Key;
         }
 
         return keyToKeyName.GetValueOrDefault(key);
     }
 
     public static ParsedKeybind Parse(string keybind) {
-        ParsedKeybind parsed = new ParsedKeybind();
+        var parsed = new ParsedKeybind();
 
-        bool foundKey = false;
+        var foundKey = false;
         string[] parts = keybind.ToUpperInvariant().Split('+');
-        foreach (string part in parts) {
+        foreach (string part in parts)
             switch (part) {
                 case "UP":
                     parsed.Up = true;
@@ -199,19 +196,14 @@ internal struct ParsedKeybind {
                         parsed.IsAny = true;
                     } else {
                         parsed.Key = KeyNameToKey(part);
-                        if (parsed.Key == Keyboard.Key.Unknown) {
-                            throw new Exception($"Invalid keybind part: {part}");
-                        }
+                        if (parsed.Key == Keyboard.Key.Unknown) throw new Exception($"Invalid keybind part: {part}");
                     }
 
-                    if (foundKey) {
-                        throw new Exception($"Duplicate key in keybind: {part}");
-                    }
+                    if (foundKey) throw new Exception($"Duplicate key in keybind: {part}");
 
                     foundKey = true;
                     break;
             }
-        }
 
         // If we haven't found a key and the first part is a modifier, treat it as the keybind instead of a modifier
         if (!foundKey) {
@@ -232,25 +224,23 @@ internal struct ParsedKeybind {
 }
 
 public sealed class InterfaceMacro : InterfaceElement {
-    public string Command => MacroDescriptor.Command;
-
-    private MacroDescriptor MacroDescriptor => (MacroDescriptor)ElementDescriptor;
     private readonly IEntitySystemManager _entitySystemManager;
-    private readonly IUserInterfaceManager _uiManager;
     private readonly IInputCmdContext _inputContext;
     private readonly IInputManager _inputManager;
+    private readonly bool _isAny;
+    private readonly bool _isRelease;
 
     private readonly bool _isRepeating;
-    private readonly bool _isRelease;
-    private readonly bool _isAny;
+    private readonly IUserInterfaceManager _uiManager;
 
-    public InterfaceMacro(string contextName, MacroDescriptor descriptor, IEntitySystemManager entitySystemManager, IInputManager inputManager, IInputCmdContext inputContext, IUserInterfaceManager uiManager) : base(descriptor) {
+    public InterfaceMacro(string contextName, MacroDescriptor descriptor, IEntitySystemManager entitySystemManager,
+        IInputManager inputManager, IInputCmdContext inputContext, IUserInterfaceManager uiManager) : base(descriptor) {
         _entitySystemManager = entitySystemManager;
         _uiManager = uiManager;
         _inputContext = inputContext;
         _inputManager = inputManager;
 
-        BoundKeyFunction function = new BoundKeyFunction($"{contextName}_{Id}");
+        var function = new BoundKeyFunction($"{contextName}_{Id}");
         ParsedKeybind parsedKeybind;
 
         try {
@@ -282,11 +272,17 @@ public sealed class InterfaceMacro : InterfaceElement {
 
         inputContext.AddFunction(function);
         inputManager.RegisterBinding(in binding);
-        inputManager.SetInputCommand(function, InputCmdHandler.FromDelegate(OnMacroPress, OnMacroRelease, outsidePrediction: false));
+        inputManager.SetInputCommand(function,
+            InputCmdHandler.FromDelegate(OnMacroPress, OnMacroRelease, outsidePrediction: false));
     }
 
+    public string Command => MacroDescriptor.Command;
+
+    private MacroDescriptor MacroDescriptor => (MacroDescriptor)ElementDescriptor;
+
     private void FirstChanceKeyHandler(KeyEventArgs args, KeyEventType type) {
-        if (_inputManager.Contexts.ActiveContext != _inputContext) // don't trigger macro if we're not in the right context / macro set
+        if (_inputManager.Contexts.ActiveContext !=
+            _inputContext) // don't trigger macro if we're not in the right context / macro set
             return;
         if (!_isAny) // this is where we handle only the ANY macros
             return;
@@ -294,12 +290,11 @@ public sealed class InterfaceMacro : InterfaceElement {
             return;
         if (string.IsNullOrEmpty(Command))
             return;
-        if (_uiManager.KeyboardFocused != null) {
+        if (_uiManager.KeyboardFocused != null)
             // don't trigger  macros if we're typing somewhere
             // Ideally this would be way more robust and would instead go through the RT keybind pipeline, most importantly passing through control.KeyBindDown.
             // However, currently it all seems to be internal, protected or protected internal so no luck.
             return;
-        }
 
         string? keyName = ParsedKeybind.KeyToKeyName(args.Key);
         if (keyName == null)
@@ -321,11 +316,9 @@ public sealed class InterfaceMacro : InterfaceElement {
         if (string.IsNullOrEmpty(Command))
             return;
 
-        if (_isRepeating) {
+        if (_isRepeating)
             InterfaceManager.StopRepeatingCommand(Command);
-        } else if (_isRelease) {
-            InterfaceManager.RunCommand(Command);
-        }
+        else if (_isRelease) InterfaceManager.RunCommand(Command);
     }
 
     private static KeyBindingRegistration? CreateMacroBinding(BoundKeyFunction function, ParsedKeybind keybind) {
@@ -334,12 +327,12 @@ public sealed class InterfaceMacro : InterfaceElement {
             return null;
         }
 
-        return new KeyBindingRegistration() {
+        return new KeyBindingRegistration {
             BaseKey = keybind.Key.Value,
             Function = function,
             Mod1 = keybind.Shift ? Key.Shift : Key.Unknown,
             Mod2 = keybind.Ctrl ? Key.Control : Key.Unknown,
-            Mod3 = keybind.Alt ? Key.Alt : Key.Unknown,
+            Mod3 = keybind.Alt ? Key.Alt : Key.Unknown
         };
     }
 }

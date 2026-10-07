@@ -1,9 +1,10 @@
-﻿using System.IO;
+﻿using System.Collections.Specialized;
+using System.IO;
 using System.Net;
 using System.Text;
 using System.Web;
-using OpenDreamShared.Interface.Descriptors;
 using OpenDreamClient.Resources;
+using OpenDreamShared.Interface.Descriptors;
 using OpenDreamShared.Network.Messages;
 using Robust.Client.Graphics;
 using Robust.Client.UserInterface;
@@ -18,26 +19,26 @@ namespace OpenDreamClient.Interface.Controls;
 
 internal sealed partial class ControlBrowser : InterfaceControl {
     private static readonly Dictionary<string, string> FileExtensionMimeTypes = new() {
-        { "css", "text/css" },
-        { "html", "text/html" },
-        { "htm", "text/html" },
-        { "png", "image/png" },
-        { "svg", "image/svg+xml" },
-        { "jpeg", "image/jpeg" },
-        { "jpg", "image/jpeg" },
-        { "js", "application/javascript" },
-        { "json", "application/json" },
-        { "ttf", "font/ttf" },
-        { "txt", "text/plain" }
+        {"css", "text/css"},
+        {"html", "text/html"},
+        {"htm", "text/html"},
+        {"png", "image/png"},
+        {"svg", "image/svg+xml"},
+        {"jpeg", "image/jpeg"},
+        {"jpg", "image/jpeg"},
+        {"js", "application/javascript"},
+        {"json", "application/json"},
+        {"ttf", "font/ttf"},
+        {"txt", "text/plain"}
     };
 
-    [Dependency] private IResourceManager _resourceManager = default!;
-    [Dependency] private IClientNetManager _netManager = default!;
-    [Dependency] private IDreamResourceManager _dreamResource = default!;
-
     private readonly ISawmill _sawmill = Logger.GetSawmill("opendream.browser");
+    [Dependency] private IDreamResourceManager _dreamResource = default!;
+    [Dependency] private IClientNetManager _netManager = default!;
 
     private PanelContainer _panel = default!;
+
+    [Dependency] private IResourceManager _resourceManager = default!;
     private WebViewControl _webView = default!;
 
     public ControlBrowser(ControlDescriptor controlDescriptor, ControlWindow window)
@@ -54,15 +55,14 @@ internal sealed partial class ControlBrowser : InterfaceControl {
 
         _webView.AddResourceRequestHandler(RequestHandler);
         _webView.AddBeforeBrowseHandler(BeforeBrowseHandler);
-        _webView.OnVisibilityChanged += (args) => {
-            if (args.Visible) {
+        _webView.OnVisibilityChanged += args => {
+            if (args.Visible)
                 OnShowEvent();
-            } else {
+            else
                 OnHideEvent();
-            }
         };
 
-        if(ControlDescriptor.IsVisible.Value)
+        if (ControlDescriptor.IsVisible.Value)
             OnShowEvent();
         else
             OnHideEvent();
@@ -82,22 +82,21 @@ internal sealed partial class ControlBrowser : InterfaceControl {
         // Prepare the argument to be used in JS
         //output is formatted by list2params sometimes, which means raw strings are url encoded, but the message contains & chars which are not encoded that are the params
         //so we split on &, url decode the parts, and then join them back together with , as the separator for the JS params
-        var parts = value.Split('&');
-        for (var i = 0; i < parts.Length; i++) {
-            parts[i] = "\""+HttpUtility.JavaScriptStringEncode(HttpUtility.UrlDecode(parts[i]))+"\""; //wrap in quotes and encode for JS
-        }
+        string[] parts = value.Split('&');
+        for (var i = 0; i < parts.Length; i++)
+            parts[i] = "\"" + HttpUtility.JavaScriptStringEncode(HttpUtility.UrlDecode(parts[i])) +
+                       "\""; //wrap in quotes and encode for JS
 
         // Insert the values directly into JS and execute it (what could go wrong??)
         _webView.ExecuteJavaScript($"{jsFunction}({string.Join(",", parts)})");
     }
 
     public void SetFileSource(ResPath? filepath) {
-        if (filepath != null) {
+        if (filepath != null)
             // hostname must be the localhost IP for TGUI to work properly
             _webView.Url = "http://127.0.0.1/" + filepath;
-        } else {
+        else
             _webView.Url = "about:blank";
-        }
     }
 
     private void BeforeBrowseHandler(IBeforeBrowseContext context) {
@@ -106,10 +105,11 @@ internal sealed partial class ControlBrowser : InterfaceControl {
             if (string.IsNullOrEmpty(_webView.Url))
                 return;
 
-            Uri oldUri = new Uri(_webView.Url);
-            Uri newUri = new Uri(context.Url);
+            var oldUri = new Uri(_webView.Url);
+            var newUri = new Uri(context.Url);
 
-            if (newUri.Scheme == "byond" || (newUri.AbsolutePath == oldUri.AbsolutePath && newUri.Query != string.Empty)) {
+            if (newUri.Scheme == "byond" ||
+                (newUri.AbsolutePath == oldUri.AbsolutePath && newUri.Query != string.Empty)) {
                 context.DoCancel();
 
                 switch (newUri.Host) {
@@ -120,7 +120,7 @@ internal sealed partial class ControlBrowser : InterfaceControl {
                         HandleEmbeddedWinget(newUri.Query);
                         return;
                     default: {
-                        var msg = new MsgTopic { Query = newUri.Query };
+                        var msg = new MsgTopic {Query = newUri.Query};
                         _netManager.ClientSendMessage(msg);
                         break;
                     }
@@ -134,13 +134,13 @@ internal sealed partial class ControlBrowser : InterfaceControl {
     private void RequestHandler(IRequestHandlerContext context) {
         // An exception in here will crash RT (and not log it because it's uncaught)
         try {
-            Uri newUri = new Uri(context.Url);
+            var newUri = new Uri(context.Url);
 
             if (newUri is {Scheme: "http", Host: "127.0.0.1"}) {
                 Stream stream;
                 HttpStatusCode status;
                 var resource = new ResPath(newUri.AbsolutePath);
-                var path = HttpUtility.UrlDecode(resource.CanonPath); // files are saved in decoded form
+                string path = HttpUtility.UrlDecode(resource.CanonPath); // files are saved in decoded form
 
                 if (!_dreamResource.EnsureCacheFile(path)) {
                     stream = Stream.Null;
@@ -160,7 +160,8 @@ internal sealed partial class ControlBrowser : InterfaceControl {
                     }
                 }
 
-                var mimeType = FileExtensionMimeTypes.GetValueOrDefault(resource.Extension, "application/octet-stream");
+                string mimeType =
+                    FileExtensionMimeTypes.GetValueOrDefault(resource.Extension, "application/octet-stream");
                 context.DoRespondStream(stream, mimeType, status);
             }
         } catch (Exception e) {
@@ -170,22 +171,22 @@ internal sealed partial class ControlBrowser : InterfaceControl {
     }
 
     /// <summary>
-    /// Handles an embedded winset
-    /// <code>byond://winset?command=.quit</code>
+    ///     Handles an embedded winset
+    ///     <code>byond://winset?command=.quit</code>
     /// </summary>
     /// <param name="query">The query portion of the embedded winset</param>
     private void HandleEmbeddedWinset(string query) {
         // Strip the question mark out before parsing
         // Also replace ';' with '&' because they're both usable here
-        var queryParams = HttpUtility.ParseQueryString(query.Substring(1).Replace(';', '&'));
+        NameValueCollection queryParams = HttpUtility.ParseQueryString(query.Substring(1).Replace(';', '&'));
 
         // We need to extract the control element (if one was included)
         string? element = queryParams.Get("element");
         queryParams.Remove("element");
 
         // Wrap each parameter in quotes so the entire value is used
-        foreach (var paramKey in queryParams.AllKeys) {
-            var paramValue = queryParams[paramKey];
+        foreach (string? paramKey in queryParams.AllKeys) {
+            string? paramValue = queryParams[paramKey];
             if (paramValue == null)
                 continue;
 
@@ -202,7 +203,7 @@ internal sealed partial class ControlBrowser : InterfaceControl {
     }
 
     /// <summary>
-    /// Handles an embedded winget
+    ///     Handles an embedded winget
     /// </summary>
     /// <param name="query">The query portion of the embedded winget</param>
     // Example: byond://winget?id=browseroutput&property=size&callback=JSFunction
@@ -210,11 +211,11 @@ internal sealed partial class ControlBrowser : InterfaceControl {
     private void HandleEmbeddedWinget(string query) {
         // Strip the question mark out before parsing
         // Also replace ';' with '&' because they're both usable here
-        var queryParams = HttpUtility.ParseQueryString(query.Substring(1).Replace(';', '&'));
+        NameValueCollection queryParams = HttpUtility.ParseQueryString(query.Substring(1).Replace(';', '&'));
 
-        var elementId = queryParams.Get("id");
-        var property = queryParams.Get("property");
-        var callback = queryParams.Get("callback");
+        string? elementId = queryParams.Get("id");
+        string? property = queryParams.Get("property");
+        string? callback = queryParams.Get("callback");
         if (elementId == null || property == null || callback == null) {
             _sawmill.Error($"Required arg 'id', 'property', or 'callback' not provided in embedded winget ({query})");
             return;
@@ -222,18 +223,19 @@ internal sealed partial class ControlBrowser : InterfaceControl {
 
         // TG uses property=* but really just wants size
         // TODO: Actual winget * support
-        bool forceJson = true;
+        var forceJson = true;
         if (property == "*") {
             property = "size";
             forceJson = false; // property=* does not return "as json" values (why?!)
         }
 
         // Multiple properties can be queried in a single winget with "&property=size,view-size"
-        var properties = property.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        string[] properties =
+            property.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var jsonBuilder = new StringBuilder(); // Build the JSON object that the callback receives
 
         jsonBuilder.Append("{ ");
-        foreach (var wingetting in properties) {
+        foreach (string wingetting in properties) {
             if (jsonBuilder.Length > 2)
                 jsonBuilder.Append(", ");
 
@@ -241,7 +243,7 @@ internal sealed partial class ControlBrowser : InterfaceControl {
             jsonBuilder.Append(HttpUtility.JavaScriptStringEncode(wingetting));
             jsonBuilder.Append("\": ");
 
-            var result = InterfaceManager.WinGet(elementId, wingetting, forceJson: forceJson);
+            string result = InterfaceManager.WinGet(elementId, wingetting, forceJson);
             if (forceJson) {
                 jsonBuilder.Append(result);
             } else {
@@ -259,17 +261,15 @@ internal sealed partial class ControlBrowser : InterfaceControl {
     }
 
     private void OnShowEvent() {
-        ControlDescriptorBrowser controlDescriptor = (ControlDescriptorBrowser)ControlDescriptor;
-        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnShowCommand.Value)) {
+        var controlDescriptor = (ControlDescriptorBrowser)ControlDescriptor;
+        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnShowCommand.Value))
             InterfaceManager.RunCommand(controlDescriptor.OnShowCommand.AsRaw());
-        }
     }
 
     private void OnHideEvent() {
-        ControlDescriptorBrowser controlDescriptor = (ControlDescriptorBrowser)ControlDescriptor;
-        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnHideCommand.Value)) {
+        var controlDescriptor = (ControlDescriptorBrowser)ControlDescriptor;
+        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnHideCommand.Value))
             InterfaceManager.RunCommand(controlDescriptor.OnHideCommand.AsRaw());
-        }
     }
 }
 

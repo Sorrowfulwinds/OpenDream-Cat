@@ -7,7 +7,7 @@ using Robust.Shared.Utility;
 namespace OpenDreamClient.Interface.Html.Tags;
 
 /// <summary>
-/// Display an appearance
+///     Display an appearance
 /// </summary>
 public sealed class TagIcon : IMarkupTagHandler {
     public const string AppearanceIdAttribute = "AppearanceId";

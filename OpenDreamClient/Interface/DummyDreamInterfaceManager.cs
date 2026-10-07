@@ -7,9 +7,10 @@ using Robust.Shared.Timing;
 namespace OpenDreamClient.Interface;
 
 /// <summary>
-/// Used in unit testing to run a headless client.
+///     Used in unit testing to run a headless client.
 /// </summary>
 public sealed partial class DummyDreamInterfaceManager : IDreamInterfaceManager {
+    [Dependency] private IClientNetManager _netManager = default!;
     public Dictionary<string, ControlWindow> Windows { get; } = new();
     public Dictionary<string, InterfaceMenu> Menus { get; } = new();
     public Dictionary<string, InterfaceMacroSet> MacroSets { get; } = new();
@@ -21,8 +22,6 @@ public sealed partial class DummyDreamInterfaceManager : IDreamInterfaceManager 
     public bool ShowPopupMenus => true;
     public int IconSize => 32;
     public CursorHolder Cursors => null!;
-
-    [Dependency] private IClientNetManager _netManager = default!;
 
     public void Initialize() {
         _netManager.RegisterNetMessage<MsgLoadInterface>(_ => _netManager.ClientSendMessage(new MsgAckLoadInterface()));
@@ -48,10 +47,12 @@ public sealed partial class DummyDreamInterfaceManager : IDreamInterfaceManager 
         return string.Empty;
     }
 
-    public void OpenAlert(string title, string message, string button1, string? button2, string? button3, Action<DreamValueType, object?>? onClose) {
+    public void OpenAlert(string title, string message, string button1, string? button2, string? button3,
+        Action<DreamValueType, object?>? onClose) {
     }
 
-    public void Prompt(DreamValueType types, string title, string message, string defaultValue, Action<DreamValueType, object?>? onClose) {
+    public void Prompt(DreamValueType types, string title, string message, string defaultValue,
+        Action<DreamValueType, object?>? onClose) {
     }
 
     public void RunCommand(string fullCommand, bool repeating = false) {

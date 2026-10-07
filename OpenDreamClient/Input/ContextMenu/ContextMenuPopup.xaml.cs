@@ -15,23 +15,21 @@ namespace OpenDreamClient.Input.ContextMenu;
 
 [GenerateTypedNameReferences]
 internal sealed partial class ContextMenuPopup : Popup {
-    [Dependency] private IPlayerManager _playerManager = default!;
-    [Dependency] private IEntityManager _entityManager = default!;
-    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
-    [Dependency] private IUserInterfaceManager _uiManager = default!;
     private readonly ClientAppearanceSystem _appearanceSystem;
-    private readonly ClientVerbSystem _verbSystem;
-    private readonly DMISpriteSystem _spriteSystem;
     private readonly EntityLookupSystem _lookupSystem;
-    private readonly MouseInputSystem _mouseInputSystem;
-    private readonly TransformSystem _transformSystem;
-    private readonly EntityQuery<DMISpriteComponent> _spriteQuery;
-    private readonly EntityQuery<TransformComponent> _xformQuery;
     private readonly EntityQuery<DreamMobSightComponent> _mobSightQuery;
-
-    public int EntityCount => ContextMenu.ChildCount;
+    private readonly MouseInputSystem _mouseInputSystem;
+    private readonly EntityQuery<DMISpriteComponent> _spriteQuery;
+    private readonly DMISpriteSystem _spriteSystem;
+    private readonly TransformSystem _transformSystem;
+    private readonly ClientVerbSystem _verbSystem;
+    private readonly EntityQuery<TransformComponent> _xformQuery;
 
     private VerbMenuPopup? _currentVerbMenu;
+    [Dependency] private IEntityManager _entityManager = default!;
+    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
+    [Dependency] private IUserInterfaceManager _uiManager = default!;
 
     public ContextMenuPopup() {
         IoCManager.InjectDependencies(this);
@@ -48,50 +46,55 @@ internal sealed partial class ContextMenuPopup : Popup {
         _mobSightQuery = _entityManager.GetEntityQuery<DreamMobSightComponent>();
     }
 
+    public int EntityCount => ContextMenu.ChildCount;
+
     public void RepopulateEntities(ScalingViewport viewport, Vector2 relativePos, ScreenCoordinates pointerLocation) {
         ContextMenu.RemoveAllChildren();
 
-        var mapCoords = viewport.ScreenToMap(pointerLocation.Position);
+        MapCoordinates mapCoords = viewport.ScreenToMap(pointerLocation.Position);
 
         // TODO: Even quite distant entities could have transformed bounding boxes that intersect with mapCoords. 10 tile radius is good for now...
-        var entities = _lookupSystem.GetEntitiesInRange(mapCoords, 10f, LookupFlags.Uncontained | LookupFlags.Approximate);
-        foreach (var uid in entities) {
-            if (!_xformQuery.TryGetComponent(uid, out var transform)) // Has a transform
+        HashSet<EntityUid> entities =
+            _lookupSystem.GetEntitiesInRange(mapCoords, 10f, LookupFlags.Uncontained | LookupFlags.Approximate);
+        foreach (EntityUid uid in entities) {
+            if (!_xformQuery.TryGetComponent(uid, out TransformComponent? transform)) // Has a transform
                 continue;
             if (!_entityManager.HasComponent<MapGridComponent>(transform.ParentUid)) // Not a child of another entity
                 continue;
-            if (!_spriteQuery.TryGetComponent(uid, out var sprite)) // Has a sprite
+            if (!_spriteQuery.TryGetComponent(uid, out DMISpriteComponent? sprite)) // Has a sprite
                 continue;
             if (sprite.Icon.Appearance?.MouseOpacity == MouseOpacity.Transparent) // Not transparent to mouse clicks
                 continue;
             if (!_spriteSystem.IsVisible(sprite, transform, GetSeeInvisible(), null)) // Not invisible
                 continue;
-            if (!IconTransformedBoundingBoxContainsPoint(transform, sprite, mapCoords)) // Check the transform's deformations
+            if (!IconTransformedBoundingBoxContainsPoint(transform, sprite,
+                    mapCoords)) // Check the transform's deformations
                 continue;
 
             var reference = new ClientObjectReference(_entityManager.GetNetEntity(uid));
-            var name = _appearanceSystem.GetNameUnformatted(reference);
+            string name = _appearanceSystem.GetNameUnformatted(reference);
             ContextMenu.AddChild(new ContextMenuItem(this, reference, name, sprite.Icon));
         }
 
         // Add the screen object directly under the mouse, if any
-        var atomUnderMouse = _mouseInputSystem.GetAtomUnderMouse(viewport, relativePos, pointerLocation);
-        if (atomUnderMouse is { IsScreen: true }) {
-            var uid = _entityManager.GetEntity(atomUnderMouse.Value.Atom.Entity);
+        (ClientObjectReference Atom, Vector2i IconPosition, bool IsScreen)? atomUnderMouse =
+            _mouseInputSystem.GetAtomUnderMouse(viewport, relativePos, pointerLocation);
+        if (atomUnderMouse is {IsScreen: true}) {
+            EntityUid uid = _entityManager.GetEntity(atomUnderMouse.Value.Atom.Entity);
 
-            if (_spriteQuery.TryGetComponent(uid, out var sprite) &&
+            if (_spriteQuery.TryGetComponent(uid, out DMISpriteComponent? sprite) &&
                 sprite.Icon.Appearance?.MouseOpacity != MouseOpacity.Transparent) {
                 var reference = new ClientObjectReference(_entityManager.GetNetEntity(uid));
-                var name = _appearanceSystem.GetNameUnformatted(reference);
+                string name = _appearanceSystem.GetNameUnformatted(reference);
                 ContextMenu.AddChild(new ContextMenuItem(this, reference, name, sprite.Icon));
             }
         }
 
         // Append the turf to the end of the context menu
-        var turfUnderMouse = _mouseInputSystem.GetTurfUnderMouse(mapCoords, out var turfId)?.Atom;
+        ClientObjectReference? turfUnderMouse = _mouseInputSystem.GetTurfUnderMouse(mapCoords, out uint? turfId)?.Atom;
         if (turfUnderMouse is not null && turfId is not null) {
-            var name = _appearanceSystem.GetNameUnformatted(turfUnderMouse.Value);
-            var icon = _appearanceSystem.GetTurfIcon(turfId.Value);
+            string name = _appearanceSystem.GetNameUnformatted(turfUnderMouse.Value);
+            DreamIcon icon = _appearanceSystem.GetTurfIcon(turfId.Value);
 
             ContextMenu.AddChild(new ContextMenuItem(this, turfUnderMouse.Value, name, icon));
         }
@@ -104,24 +107,26 @@ internal sealed partial class ContextMenuPopup : Popup {
     }
 
     // Determines if the given point falls inside the transformed bounding box of the given sprite's icon and its entity transform
-    private bool IconTransformedBoundingBoxContainsPoint(TransformComponent transform, DMISpriteComponent sprite, MapCoordinates mapCoords) {
+    private bool IconTransformedBoundingBoxContainsPoint(TransformComponent transform, DMISpriteComponent sprite,
+        MapCoordinates mapCoords) {
         // Find center of icon in case it's not the same size as a tile
-        var worldPos = _transformSystem.GetWorldPosition(transform);
+        Vector2 worldPos = _transformSystem.GetWorldPosition(transform);
         Box2? worldAABB = null;
         sprite.Icon.GetWorldAABB(worldPos, ref worldAABB);
         if (!worldAABB.HasValue)
             return false;
 
-        var centerWorldPos = worldAABB.Value.Center;
+        Vector2 centerWorldPos = worldAABB.Value.Center;
 
         // Inverse transform on the point and check if it's in the icon's AABB
-        var iconTransform = sprite.Icon.Appearance!.Transform;
-        Matrix3x2 t = new(iconTransform[0], iconTransform[1], iconTransform[2], iconTransform[3], iconTransform[4], iconTransform[5]);
-        if (!Matrix3x2.Invert(t, out var invT))
+        float[] iconTransform = sprite.Icon.Appearance!.Transform;
+        Matrix3x2 t = new(iconTransform[0], iconTransform[1], iconTransform[2], iconTransform[3], iconTransform[4],
+            iconTransform[5]);
+        if (!Matrix3x2.Invert(t, out Matrix3x2 invT))
             return false;
 
         // Origin of transform is centerWorldPos so remove it before transforming, then put it back before checking
-        var xformedPoint = Vector2.Transform(mapCoords.Position - centerWorldPos, invT) + centerWorldPos;
+        Vector2 xformedPoint = Vector2.Transform(mapCoords.Position - centerWorldPos, invT) + centerWorldPos;
         return worldAABB.Value.Contains(xformedPoint);
     }
 
@@ -136,7 +141,7 @@ internal sealed partial class ContextMenuPopup : Popup {
         _currentVerbMenu.OnVerbSelected += Close;
 
         Vector2 desiredSize = _currentVerbMenu.DesiredSize;
-        Vector2 verbMenuPos = item.GlobalPosition with { X = item.GlobalPosition.X + item.Size.X };
+        Vector2 verbMenuPos = item.GlobalPosition with {X = item.GlobalPosition.X + item.Size.X};
         _uiManager.ModalRoot.AddChild(_currentVerbMenu);
         _currentVerbMenu.Open(UIBox2.FromDimensions(verbMenuPos, desiredSize));
     }
@@ -145,7 +150,8 @@ internal sealed partial class ContextMenuPopup : Popup {
     private sbyte GetSeeInvisible() {
         if (_playerManager.LocalSession == null)
             return 127;
-        if (!_mobSightQuery.TryGetComponent(_playerManager.LocalSession.AttachedEntity, out DreamMobSightComponent? sight))
+        if (!_mobSightQuery.TryGetComponent(_playerManager.LocalSession.AttachedEntity,
+                out DreamMobSightComponent? sight))
             return 127;
 
         return sight.SeeInvisibility;

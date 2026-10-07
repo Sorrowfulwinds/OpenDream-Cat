@@ -10,16 +10,16 @@ using Robust.Shared.Utility;
 namespace OpenDreamClient.Rendering;
 
 /// <summary>
-/// Helper for rendering maptext to a render target.
-/// Adapted from RobustToolbox's RichTextEntry.
+///     Helper for rendering maptext to a render target.
+///     Adapted from RobustToolbox's RichTextEntry.
 /// </summary>
 public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManager tagManager) {
     private const float Scale = 1f;
 
+    private readonly Color _defaultColor = Color.White;
+
     private readonly VectorFont _defaultFont =
         new(resourceCache.GetResource<FontResource>("/Fonts/NotoSans-Regular.ttf"), 8);
-
-    private readonly Color _defaultColor = Color.White;
 
     // TODO: This is probably unoptimal and could cache a lot of things between frames
     public void RenderToTarget(DrawingHandleWorld handle, IRenderTexture texture, string maptext) {
@@ -29,8 +29,8 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
             var message = new FormattedMessage();
             HtmlParser.Parse(StringFormatDecoder.RemoveFormatting(maptext), message);
 
-            var (height, lineBreaks) = ProcessWordWrap(message, texture.Size.X);
-            var lineHeight = _defaultFont.GetLineHeight(Scale);
+            (int height, List<int> lineBreaks) = ProcessWordWrap(message, texture.Size.X);
+            int lineHeight = _defaultFont.GetLineHeight(Scale);
             var context = new MarkupDrawingContext();
             context.Color.Push(_defaultColor);
             context.Font.Push(_defaultFont);
@@ -39,25 +39,25 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
             var lineBreakIndex = 0;
             var globalBreakCounter = 0;
 
-            foreach (var node in message) {
-                var text = ProcessNode(node, context);
-                if (!context.Color.TryPeek(out var color))
+            foreach (MarkupNode node in message) {
+                string text = ProcessNode(node, context);
+                if (!context.Color.TryPeek(out Color color))
                     color = _defaultColor;
-                if (!context.Font.TryPeek(out var font))
+                if (!context.Font.TryPeek(out Font? font))
                     font = _defaultFont;
 
-                foreach (var rune in text.EnumerateRunes()) {
+                foreach (Rune rune in text.EnumerateRunes()) {
                     if (lineBreakIndex < lineBreaks.Count && lineBreaks[lineBreakIndex] == globalBreakCounter) {
-                        baseLine = new(0, baseLine.Y - lineHeight);
+                        baseLine = new Vector2(0, baseLine.Y - lineHeight);
                         lineBreakIndex += 1;
                     }
 
-                    var metric = font.GetCharMetrics(rune, Scale);
-                    Vector2 mod = new Vector2(0);
+                    CharMetrics? metric = font.GetCharMetrics(rune, Scale);
+                    var mod = new Vector2(0);
                     if (metric.HasValue)
                         mod.Y += metric.Value.BearingY - (metric.Value.Height - metric.Value.BearingY);
 
-                    var advance = font.DrawChar(handle, rune, baseLine + mod, Scale, color);
+                    float advance = font.DrawChar(handle, rune, baseLine + mod, Scale, color);
                     baseLine.X += advance;
 
                     globalBreakCounter += 1;
@@ -72,7 +72,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
             return node.Value.StringValue ?? "";
 
         //Skip the node if there is no markup tag for it.
-        if (!tagManager.TryGetMarkupTag(node.Name, null, out var tag))
+        if (!tagManager.TryGetMarkupTag(node.Name, null, out IMarkupTag? tag))
             return "";
 
         if (!node.Closing) {
@@ -90,7 +90,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
         // I am so deeply sorry for the person adding stuff to this in the future.
 
         var lineBreaks = new List<int>();
-        var height = _defaultFont.GetLineHeight(Scale);
+        int height = _defaultFont.GetLineHeight(Scale);
 
         int? breakLine;
         var wordWrap = new WordWrap(maxSizeX);
@@ -101,19 +101,19 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
         // Go over every node.
         // Nodes can change the markup drawing context and return additional text.
         // It's also possible for nodes to return inline controls. They get treated as one large rune.
-        foreach (var node in message) {
-            var text = ProcessNode(node, context);
+        foreach (MarkupNode node in message) {
+            string text = ProcessNode(node, context);
 
-            if (!context.Font.TryPeek(out var font))
+            if (!context.Font.TryPeek(out Font? font))
                 font = _defaultFont;
 
             // And go over every character.
-            foreach (var rune in text.EnumerateRunes()) {
+            foreach (Rune rune in text.EnumerateRunes()) {
                 if (ProcessRune(rune, out breakLine))
                     continue;
 
                 // Uh just skip unknown characters I guess.
-                if (!font.TryGetCharMetrics(rune, Scale, out var metrics))
+                if (!font.TryGetCharMetrics(rune, Scale, out CharMetrics metrics))
                     continue;
 
                 if (ProcessMetric(metrics, out breakLine))
@@ -126,7 +126,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
         return (height, lineBreaks);
 
         bool ProcessRune(Rune rune, out int? outBreakLine) {
-            wordWrap.NextRune(rune, out breakLine, out var breakNewLine, out var skip);
+            wordWrap.NextRune(rune, out breakLine, out int? breakNewLine, out bool skip);
             CheckLineBreak(breakLine);
             CheckLineBreak(breakNewLine);
             outBreakLine = breakLine;
@@ -134,7 +134,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
         }
 
         bool ProcessMetric(CharMetrics metrics, out int? outBreakLine) {
-            wordWrap.NextMetrics(metrics, out breakLine, out var abort);
+            wordWrap.NextMetrics(metrics, out breakLine, out bool abort);
             CheckLineBreak(breakLine);
             outBreakLine = breakLine;
             return abort;
@@ -143,7 +143,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
         void CheckLineBreak(int? line) {
             if (line is { } l) {
                 lineBreaks.Add(l);
-                if (!context.Font.TryPeek(out var font))
+                if (!context.Font.TryPeek(out Font? font))
                     font = _defaultFont;
 
                 height += font.GetLineHeight(Scale);
@@ -152,7 +152,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
     }
 
     /// <summary>
-    /// Helper utility struct for word-wrapping calculations.
+    ///     Helper utility struct for word-wrapping calculations.
     /// </summary>
     private struct WordWrap {
         private readonly float _maxSizeX;
@@ -232,7 +232,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
             breakLine = null;
 
             // Increase word size and such with the current character.
-            var oldWordSizePixels = _wordSizePixels;
+            int oldWordSizePixels = _wordSizePixels;
             _wordSizePixels += metrics.Advance;
             // TODO: Theoretically, does it make sense to break after the glyph's width instead of its advance?
             //   It might result in some more tight packing but I doubt it'd be noticeable.
@@ -246,7 +246,7 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
 
             // Oh hey we get to break a word that doesn't fit on a single line.
             if (_wordSizePixels > _maxSizeX) {
-                var (breakIndex, splitWordSize) = _forceSplitData.Value;
+                (int breakIndex, int splitWordSize) = _forceSplitData.Value;
                 if (splitWordSize == 0) {
                     // Happens if there's literally not enough space for a single character so uh...
                     // Yeah just don't.
@@ -267,17 +267,16 @@ public sealed class MapTextRenderer(IResourceCache resourceCache, MarkupTagManag
         public int? FinalizeText() {
             // This needs to happen because word wrapping doesn't get checked for the last word.
             if (_posX > _maxSizeX) {
-                if (!_wordStartBreakIndex.HasValue) {
+                if (!_wordStartBreakIndex.HasValue)
                     throw new Exception(
                         "wordStartBreakIndex can only be null if the word begins at a new line," +
                         "in which case this branch shouldn't be reached as" +
                         "the word would be split due to being longer than a single line.");
-                }
 
                 return _wordStartBreakIndex.Value.index;
-            } else {
-                return null;
             }
+
+            return null;
         }
 
         [Pure]

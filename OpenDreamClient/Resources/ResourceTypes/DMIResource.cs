@@ -9,11 +9,10 @@ using SixLabors.ImageSharp.Processing;
 namespace OpenDreamClient.Resources.ResourceTypes;
 
 public sealed class DMIResource : DreamResource {
-    public Texture Texture;
-    public Vector2i IconSize;
-    public DMIParser.ParsedDMIDescription Description;
-
     private readonly Dictionary<string, State> _states;
+    public DMIParser.ParsedDMIDescription Description;
+    public Vector2i IconSize;
+    public Texture Texture;
 
     public DMIResource(int id, byte[] data) : base(id, data) {
         _states = new Dictionary<string, State>();
@@ -32,13 +31,13 @@ public sealed class DMIResource : DreamResource {
         dmiStream.Seek(0, SeekOrigin.Begin);
 
         Image<Rgba32> image = Image.Load<Rgba32>(dmiStream);
-        Texture = IoCManager.Resolve<IClyde>().LoadTextureFromImage(image, name: $"DMI Resource #{Id}");
+        Texture = IoCManager.Resolve<IClyde>().LoadTextureFromImage(image, $"DMI Resource #{Id}");
         IconSize = new Vector2i(description.Width, description.Height);
         Description = description;
 
         _states.Clear();
         foreach (DMIParser.ParsedDMIState parsedState in description.States.Values) {
-            State state = new State(Texture, parsedState, description.Width, description.Height);
+            var state = new State(Texture, parsedState, description.Width, description.Height);
 
             _states.Add(parsedState.Name, state);
         }
@@ -46,30 +45,30 @@ public sealed class DMIResource : DreamResource {
 
     public State? GetState(string? stateName) {
         if (stateName == null || !_states.ContainsKey(stateName))
-            return _states.TryGetValue(string.Empty, out var state) ? state : null; // Default state, if one exists
+            return _states.TryGetValue(string.Empty, out State state) ? state : null; // Default state, if one exists
 
         return _states[stateName];
     }
 
     public ICursor? GetStateAsImage(IClyde clyde, string? stateName) {
         using var dmiStream = new MemoryStream(Data);
-        var description = DMIParser.ParseDMI(dmiStream);
+        DMIParser.ParsedDMIDescription description = DMIParser.ParseDMI(dmiStream);
 
         dmiStream.Seek(0, SeekOrigin.Begin);
 
         Image<Rgba32> image = Image.Load<Rgba32>(dmiStream);
-        var state = description.GetStateOrDefault(stateName);
-        if (!(state?.Directions.TryGetValue(AtomDirection.South, out var frames) ?? false))
+        DMIParser.ParsedDMIState? state = description.GetStateOrDefault(stateName);
+        if (!(state?.Directions.TryGetValue(AtomDirection.South, out DMIParser.ParsedDMIFrame[]? frames) ?? false))
             return null;
 
-        var stateImage = image.Clone(clone => {
-            var frame = frames[0];
+        Image<Rgba32> stateImage = image.Clone(clone => {
+            DMIParser.ParsedDMIFrame frame = frames[0];
 
             clone.Crop(new Rectangle(frame.X, frame.Y, frame.X + description.Width, frame.Y + description.Height));
         });
 
-        var hotspot = state.Hotspot ?? (0, stateImage.Height - 1); // Default to the top-left
-        var cursor = clyde.CreateCursor(stateImage, hotspot);
+        Vector2i hotspot = state.Hotspot ?? (0, stateImage.Height - 1); // Default to the top-left
+        ICursor cursor = clyde.CreateCursor(stateImage, hotspot);
         return cursor;
     }
 
@@ -82,12 +81,13 @@ public sealed class DMIResource : DreamResource {
             foreach (KeyValuePair<AtomDirection, DMIParser.ParsedDMIFrame[]> pair in parsedState.Directions) {
                 AtomDirection dir = pair.Key;
                 DMIParser.ParsedDMIFrame[] parsedFrames = pair.Value;
-                AtlasTexture[] frames = new AtlasTexture[parsedFrames.Length];
+                var frames = new AtlasTexture[parsedFrames.Length];
 
-                for (int i = 0; i < parsedFrames.Length; i++) {
+                for (var i = 0; i < parsedFrames.Length; i++) {
                     DMIParser.ParsedDMIFrame parsedFrame = parsedFrames[i];
 
-                    frames[i] = new AtlasTexture(texture, new UIBox2(parsedFrame.X, parsedFrame.Y, parsedFrame.X + width, parsedFrame.Y + height));
+                    frames[i] = new AtlasTexture(texture,
+                        new UIBox2(parsedFrame.X, parsedFrame.Y, parsedFrame.X + width, parsedFrame.Y + height));
                 }
 
                 Frames.Add(dir, frames);

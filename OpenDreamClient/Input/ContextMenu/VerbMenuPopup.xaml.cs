@@ -9,6 +9,7 @@ using Robust.Client.UserInterface.Controls;
 using Robust.Client.UserInterface.XAML;
 using Robust.Client.ViewVariables;
 using Robust.Shared.Map;
+using Robust.Shared.Map.Components;
 
 namespace OpenDreamClient.Input.ContextMenu;
 
@@ -16,11 +17,11 @@ namespace OpenDreamClient.Input.ContextMenu;
 internal sealed partial class VerbMenuPopup : Popup {
     public delegate void VerbSelectedHandler();
 
-    public VerbSelectedHandler? OnVerbSelected;
+    private readonly ClientObjectReference _target;
 
     private readonly ClientVerbSystem? _verbSystem;
 
-    private readonly ClientObjectReference _target;
+    public VerbSelectedHandler? OnVerbSelected;
 
     public VerbMenuPopup(ClientVerbSystem? verbSystem, sbyte seeInvisible, ClientObjectReference target) {
         RobustXamlLoader.Load(this);
@@ -29,12 +30,13 @@ internal sealed partial class VerbMenuPopup : Popup {
         _target = target;
 
         if (verbSystem != null) {
-            var sorted = verbSystem.GetExecutableVerbs(_target).Order(VerbNameComparer.OrdinalInstance);
+            IOrderedEnumerable<(int, ClientObjectReference, VerbSystem.VerbInfo)> sorted =
+                verbSystem.GetExecutableVerbs(_target).Order(VerbNameComparer.OrdinalInstance);
 
-            foreach (var (verbId, verbSrc, verbInfo) in sorted) {
+            foreach ((int verbId, ClientObjectReference verbSrc, VerbSystem.VerbInfo verbInfo) in sorted) {
                 if (verbInfo.IsHidden(false, seeInvisible))
                     continue;
-                if(!verbInfo.ShowInPopupAttribute)
+                if (!verbInfo.ShowInPopupAttribute)
                     continue;
 
                 AddVerb(verbId, verbSrc, verbInfo);
@@ -43,14 +45,14 @@ internal sealed partial class VerbMenuPopup : Popup {
 
 #if TOOLS
         // We add some additional debugging tools in TOOLS mode
-        var iconDebugButton = AddButton("Debug Icon");
+        Button iconDebugButton = AddButton("Debug Icon");
 
         iconDebugButton.OnPressed += _ => {
             DreamIcon icon;
             switch (_target.Type) {
                 case ClientObjectReference.RefType.Entity:
                     var entityManager = IoCManager.Resolve<IEntityManager>();
-                    var entityId = entityManager.GetEntity(_target.Entity);
+                    EntityUid entityId = entityManager.GetEntity(_target.Entity);
                     if (!entityManager.TryGetComponent(entityId, out DMISpriteComponent? spriteComponent)) {
                         Logger.GetSawmill("opendream")
                             .Error($"Failed to get sprite component for {entityId} when trying to debug its icon");
@@ -66,13 +68,13 @@ internal sealed partial class VerbMenuPopup : Popup {
 
                     var mapId = new MapId(_target.TurfZ);
                     var mapPos = new Vector2(_target.TurfX, _target.TurfY);
-                    if (!mapSystem.TryFindGridAt(mapId, mapPos, out var gridUid, out var grid)) {
+                    if (!mapSystem.TryFindGridAt(mapId, mapPos, out EntityUid gridUid, out MapGridComponent? grid)) {
                         Logger.GetSawmill("opendream")
                             .Error($"Failed to get icon for {_target} when trying to debug its icon");
                         return;
                     }
 
-                    var tileRef = mapSystem.GetTileRef(gridUid, grid, (Vector2i)mapPos);
+                    TileRef tileRef = mapSystem.GetTileRef(gridUid, grid, (Vector2i)mapPos);
                     icon = appearanceSystem.GetTurfIcon((uint)tileRef.Tile.TypeId);
                     break;
                 default:
@@ -84,7 +86,7 @@ internal sealed partial class VerbMenuPopup : Popup {
 
         // If this is an entity, provide the option to use RT's VV
         if (_target.Type == ClientObjectReference.RefType.Entity) {
-            var viewVariablesButton = AddButton("RT ViewVariables");
+            Button viewVariablesButton = AddButton("RT ViewVariables");
 
             viewVariablesButton.OnPressed += _ => {
                 IoCManager.Resolve<IClientViewVariablesManager>().OpenVV(_target.Entity);
@@ -94,12 +96,10 @@ internal sealed partial class VerbMenuPopup : Popup {
     }
 
     private void AddVerb(int verbId, ClientObjectReference verbSrc, VerbSystem.VerbInfo verbInfo) {
-        var button = AddButton(verbInfo.Name);
-        var takesTargetArg = verbInfo.GetTargetType() != null;
+        Button button = AddButton(verbInfo.Name);
+        bool takesTargetArg = verbInfo.GetTargetType() != null;
 
-        button.OnPressed += _ => {
-            _verbSystem?.ExecuteVerb(verbSrc, verbId, takesTargetArg ? [_target] : []);
-        };
+        button.OnPressed += _ => { _verbSystem?.ExecuteVerb(verbSrc, verbId, takesTargetArg ? [_target] : []); };
     }
 
     private Button AddButton(string text) {

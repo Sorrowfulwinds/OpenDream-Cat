@@ -7,7 +7,7 @@ using Robust.Shared.Console;
 namespace OpenDreamClient.Interface.DebugWindows;
 
 /// <summary>
-/// A debug window that displays all existing verbs, and all executable verbs
+///     A debug window that displays all existing verbs, and all executable verbs
 /// </summary>
 internal sealed partial class VerbsWindow : OSWindow {
     [Dependency] private IEntitySystemManager _entitySystemManager = default!;
@@ -20,7 +20,7 @@ internal sealed partial class VerbsWindow : OSWindow {
 
         var verbSystem = _entitySystemManager.GetEntitySystem<ClientVerbSystem>();
         var tabContainer = new TabContainer {
-            Children = { CreateAllVerbsTab(verbSystem), CreateExecutableVerbsTab(verbSystem) }
+            Children = {CreateAllVerbsTab(verbSystem), CreateExecutableVerbsTab(verbSystem)}
         };
 
         AddChild(tabContainer);
@@ -31,25 +31,25 @@ internal sealed partial class VerbsWindow : OSWindow {
             Columns = 3
         };
 
-        foreach (var verbInfo in verbSystem.GetAllVerbs().Order(VerbsWindowNameComparer.Instance)) {
+        foreach (VerbSystem.VerbInfo verbInfo in verbSystem.GetAllVerbs().Order(VerbsWindowNameComparer.Instance)) {
             grid.AddChild(new Label {
                 Text = verbInfo.GetCommandName(),
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
 
             grid.AddChild(new Label {
                 Text = verbInfo.Name,
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
 
             grid.AddChild(new Label {
                 Text = verbInfo.Category,
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
         }
 
         var scroll = new ScrollContainer {
-            Children = { grid },
+            Children = {grid},
             HScrollEnabled = false,
             MinSize = new Vector2(520, 180)
         };
@@ -63,30 +63,31 @@ internal sealed partial class VerbsWindow : OSWindow {
             Columns = 4
         };
 
-        foreach (var (_, src, verbInfo) in verbSystem.GetExecutableVerbs(true).Order(VerbNameComparer.CultureInstance)) {
+        foreach ((int _, ClientObjectReference src, VerbSystem.VerbInfo verbInfo) in verbSystem.GetExecutableVerbs(true)
+                     .Order(VerbNameComparer.CultureInstance)) {
             grid.AddChild(new Label {
                 Text = verbInfo.GetCommandName(),
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
 
             grid.AddChild(new Label {
                 Text = verbInfo.Name,
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
 
             grid.AddChild(new Label {
                 Text = verbInfo.Category,
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
 
             grid.AddChild(new Label {
                 Text = src.Type.ToString(),
-                Margin = new(3)
+                Margin = new Thickness(3)
             });
         }
 
         var scroll = new ScrollContainer {
-            Children = { grid },
+            Children = {grid},
             HScrollEnabled = false,
             MinSize = new Vector2(520, 180)
         };
@@ -116,6 +117,7 @@ public sealed class ShowVerbsCommand : IConsoleCommand {
 internal sealed class VerbsWindowNameComparer : IComparer<VerbSystem.VerbInfo> {
     public static VerbsWindowNameComparer Instance = new();
 
-    public int Compare(VerbSystem.VerbInfo a, VerbSystem.VerbInfo b) =>
-        string.Compare(a.Name, b.Name, StringComparison.CurrentCulture);
+    public int Compare(VerbSystem.VerbInfo a, VerbSystem.VerbInfo b) {
+        return string.Compare(a.Name, b.Name, StringComparison.CurrentCulture);
+    }
 }

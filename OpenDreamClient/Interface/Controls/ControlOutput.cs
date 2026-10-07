@@ -1,13 +1,14 @@
 ﻿using OpenDreamClient.Interface.Controls.UI;
-using OpenDreamShared.Interface.Descriptors;
 using OpenDreamClient.Interface.Html;
+using OpenDreamShared.Interface.Descriptors;
 using Robust.Client.Graphics;
 using Robust.Client.UserInterface;
 using Robust.Shared.Utility;
 
 namespace OpenDreamClient.Interface.Controls;
 
-public sealed class ControlOutput(ControlDescriptor controlDescriptor, ControlWindow window) : InterfaceControl(controlDescriptor, window) {
+public sealed class ControlOutput(ControlDescriptor controlDescriptor, ControlWindow window)
+    : InterfaceControl(controlDescriptor, window) {
     private OutputControl _textBox = default!;
 
     protected override Control CreateUIElement() {
@@ -19,7 +20,7 @@ public sealed class ControlOutput(ControlDescriptor controlDescriptor, ControlWi
     protected override void UpdateElementDescriptor() {
         base.UpdateElementDescriptor();
 
-        _textBox.StyleBoxOverride = new StyleBoxFlat((ControlDescriptor.BackgroundColor.Value != Color.Transparent)
+        _textBox.StyleBoxOverride = new StyleBoxFlat(ControlDescriptor.BackgroundColor.Value != Color.Transparent
             ? ControlDescriptor.BackgroundColor.Value
             : Color.White);
     }

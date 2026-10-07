@@ -6,17 +6,17 @@ using Robust.Shared.Timing;
 namespace OpenDreamClient.Interface.Controls.UI;
 
 /// <summary>
-/// Draws an icon with an appearance ID
+///     Draws an icon with an appearance ID
 /// </summary>
 public sealed partial class AppearanceControl : Control {
-    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
-    [Dependency] private IGameTiming _gameTiming = default!;
-    [Dependency] private IClyde _clyde = default!;
-    [Dependency] private IOverlayManager _overlayManager = default!;
-    [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
+    private readonly DreamIcon _icon;
 
     private readonly DreamViewOverlay _overlay;
-    private readonly DreamIcon _icon;
+    [Dependency] private IClyde _clyde = default!;
+    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
+    [Dependency] private IGameTiming _gameTiming = default!;
+    [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
+    [Dependency] private IOverlayManager _overlayManager = default!;
 
     public AppearanceControl(uint appearanceId) {
         IoCManager.InjectDependencies(this);
@@ -31,10 +31,10 @@ public sealed partial class AppearanceControl : Control {
     }
 
     protected override void Draw(IRenderHandle renderHandle) {
-        var world = renderHandle.DrawingHandleWorld;
-        var screen = renderHandle.DrawingHandleScreen;
+        DrawingHandleWorld world = renderHandle.DrawingHandleWorld;
+        DrawingHandleScreen screen = renderHandle.DrawingHandleScreen;
 
-        var texture = _icon.GetTexture(_overlay, world, new RendererMetaData {MainIcon = _icon}, null, null);
+        Texture? texture = _icon.GetTexture(_overlay, world, new RendererMetaData {MainIcon = _icon}, null, null);
         if (texture is null)
             return;
 
@@ -45,8 +45,8 @@ public sealed partial class AppearanceControl : Control {
     protected override Vector2 MeasureOverride(Vector2 availableSize) {
         // TODO: Would be ideal if we could always render at the texture's size
         //       RichTextLabel doesn't make that possible right now though (enforces the font's line height)
-        var size = Math.Min(_icon.DMI?.IconSize.Y ?? 0, availableSize.Y);
+        float size = Math.Min(_icon.DMI?.IconSize.Y ?? 0, availableSize.Y);
 
-        return new(size);
+        return new Vector2(size);
     }
 }

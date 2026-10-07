@@ -6,17 +6,13 @@ using Robust.Shared.Utility;
 namespace OpenDreamClient.Interface.Controls.UI;
 
 /// <summary>
-/// Similar functionality to RobustToolbox's OutputPanel
-/// Works with inline controls in the rich texts
+///     Similar functionality to RobustToolbox's OutputPanel
+///     Works with inline controls in the rich texts
 /// </summary>
 public sealed class OutputControl : Control {
-    public StyleBox? StyleBoxOverride {
-        get => _panelContainer.PanelOverride;
-        set => _panelContainer.PanelOverride = value;
-    }
+    private readonly BoxContainer _messageContainer;
 
     private readonly PanelContainer _panelContainer;
-    private readonly BoxContainer _messageContainer;
 
     public OutputControl() {
         _panelContainer = new PanelContainer {
@@ -37,6 +33,11 @@ public sealed class OutputControl : Control {
         };
 
         AddChild(_panelContainer);
+    }
+
+    public StyleBox? StyleBoxOverride {
+        get => _panelContainer.PanelOverride;
+        set => _panelContainer.PanelOverride = value;
     }
 
     public void AddMessage(FormattedMessage message) {

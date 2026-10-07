@@ -19,16 +19,16 @@ using Robust.Shared.Timing;
 namespace OpenDreamClient;
 
 public sealed partial class EntryPoint : GameClient {
-    [Dependency] private IDreamInterfaceManager _dreamInterface = default!;
-    [Dependency] private IDreamResourceManager _dreamResource = default!;
-    [Dependency] private ILightManager _lightManager = default!;
-    [Dependency] private IConfigurationManager _configurationManager = default!;
-    [Dependency] private IClientNetManager _netManager = default!;
-    [Dependency] private ParticlesManager _particleManager = default!;
-    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
-
     private const string IEUserAgent =
         "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.2; WOW64; Trident/7.0; .NET4.0C; .NET4.0E; .NET CLR 2.0.50727; .NET CLR 3.0.30729; .NET CLR 3.5.30729)";
+
+    [Dependency] private IConfigurationManager _configurationManager = default!;
+    [Dependency] private IDreamInterfaceManager _dreamInterface = default!;
+    [Dependency] private IDreamResourceManager _dreamResource = default!;
+    [Dependency] private IEntitySystemManager _entitySystemManager = default!;
+    [Dependency] private ILightManager _lightManager = default!;
+    [Dependency] private IClientNetManager _netManager = default!;
+    [Dependency] private ParticlesManager _particleManager = default!;
 
     public override void PreInit() {
         var config = IoCManager.Resolve<IConfigurationManager>();
@@ -39,19 +39,18 @@ public sealed partial class EntryPoint : GameClient {
 
         config.SetCVar(CVars.RenderTileEdges, false);
 
-        if (config.GetCVar(OpenDreamCVars.SpoofIEUserAgent)) {
+        if (config.GetCVar(OpenDreamCVars.SpoofIEUserAgent))
             config.OverrideDefault(WCVars.WebUserAgentOverride, IEUserAgent);
-        }
     }
 
     public override void Init() {
-        IComponentFactory componentFactory = IoCManager.Resolve<IComponentFactory>();
+        var componentFactory = IoCManager.Resolve<IComponentFactory>();
         componentFactory.DoAutoRegistrations();
 
         ClientContentIoC.Register();
 
         // This needs to happen after all IoC registrations, but before IoC.BuildGraph();
-        foreach (var callback in TestingCallbacks) {
+        foreach (ModuleTestingCallbacks callback in TestingCallbacks) {
             var cast = (ClientModuleTestingCallbacks)callback;
             cast.ClientBeforeIoC?.Invoke();
         }
@@ -60,7 +59,8 @@ public sealed partial class EntryPoint : GameClient {
         IoCManager.InjectDependencies(this);
 
         _configurationManager.OverrideDefault(CVars.NetPredict, false);
-        _configurationManager.OverrideDefault(CVars.ResAutoScaleEnabled, false); // Fixes weird scaling when sizing windows too small
+        _configurationManager.OverrideDefault(CVars.ResAutoScaleEnabled,
+            false); // Fixes weird scaling when sizing windows too small
 
         IoCManager.Resolve<DreamUserInterfaceStateManager>().Initialize();
 
@@ -106,7 +106,8 @@ public sealed partial class EntryPoint : GameClient {
     }
 
     private void RxAllAppearances(MsgAllAppearances message) {
-        if (!_entitySystemManager.TryGetEntitySystem<ClientAppearanceSystem>(out var clientAppearanceSystem)) {
+        if (!_entitySystemManager.TryGetEntitySystem<ClientAppearanceSystem>(
+                out ClientAppearanceSystem? clientAppearanceSystem)) {
             Logger.GetSawmill("opendream").Error("Received MsgAllAppearances before initializing entity systems");
             return;
         }

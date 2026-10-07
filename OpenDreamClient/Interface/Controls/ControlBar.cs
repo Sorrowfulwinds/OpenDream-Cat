@@ -3,18 +3,19 @@ using OpenDreamShared.Interface.Descriptors;
 using Robust.Client.Graphics;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
+using Range = Robust.Client.UserInterface.Controls.Range;
 
 namespace OpenDreamClient.Interface.Controls;
 
 internal sealed class ControlBar : InterfaceControl {
     private ProgressBar? _bar;
-    private Slider? _slider;
     private Control _container = default!; // Created by base constructor
-
-    private ControlDescriptorBar BarDescriptor => (ControlDescriptorBar)ElementDescriptor;
+    private Slider? _slider;
 
     public ControlBar(ControlDescriptor controlDescriptor, ControlWindow window) : base(controlDescriptor, window) {
     }
+
+    private ControlDescriptorBar BarDescriptor => (ControlDescriptorBar)ElementDescriptor;
 
     protected override void UpdateElementDescriptor() {
         base.UpdateElementDescriptor();
@@ -33,7 +34,7 @@ internal sealed class ControlBar : InterfaceControl {
                     MinValue = 0,
                     Margin = new Thickness(4),
                     HorizontalExpand = true,
-                    VerticalExpand = (barWidth == 0f),
+                    VerticalExpand = barWidth == 0f,
                     MinHeight = barWidth,
                     Value = BarDescriptor.Value.Value
                 };
@@ -51,7 +52,7 @@ internal sealed class ControlBar : InterfaceControl {
             }
 
             //bar-color
-            if (_slider.TryGetStyleProperty<StyleBoxFlat>(Slider.StylePropertyGrabber, out var box)) {
+            if (_slider.TryGetStyleProperty<StyleBoxFlat>(Slider.StylePropertyGrabber, out StyleBoxFlat? box)) {
                 box.BackgroundColor = BarDescriptor.BarColor.Value;
                 _slider.GrabberStyleBoxOverride = box;
             }
@@ -62,7 +63,7 @@ internal sealed class ControlBar : InterfaceControl {
                     MinValue = 0,
                     Margin = new Thickness(4),
                     HorizontalExpand = true,
-                    VerticalExpand = (barWidth == 0f),
+                    VerticalExpand = barWidth == 0f,
                     MinHeight = barWidth,
                     Value = BarDescriptor.Value.Value
                 };
@@ -80,21 +81,21 @@ internal sealed class ControlBar : InterfaceControl {
             }
 
             //bar-color
-            if (_bar.TryGetStyleProperty<StyleBoxFlat>(ProgressBar.StylePropertyForeground, out var box)) {
+            if (_bar.TryGetStyleProperty<StyleBoxFlat>(ProgressBar.StylePropertyForeground, out StyleBoxFlat? box)) {
                 box.BackgroundColor = BarDescriptor.BarColor.Value;
                 _bar.ForegroundStyleBoxOverride = box;
             }
         }
     }
 
-    private void OnValueChanged(Robust.Client.UserInterface.Controls.Range range) {
+    private void OnValueChanged(Range range) {
         //don't run while you're still sliding, only after
         // TODO: RT doesn't update Grabbed until after OnValueChanged, fix that
         //if (_slider is not null && _slider.Grabbed)
         //    return;
 
         if (!string.IsNullOrEmpty(BarDescriptor.OnChange.Value)) {
-            var valueReplaced =
+            string valueReplaced =
                 BarDescriptor.OnChange.Value.Replace("[[*]]", range.Value.ToString(CultureInfo.InvariantCulture));
 
             InterfaceManager.RunCommand(valueReplaced);

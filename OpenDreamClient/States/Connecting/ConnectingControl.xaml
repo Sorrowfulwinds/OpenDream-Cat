@@ -1,4 +1,3 @@
-
 <Control xmlns="https://spacestation14.io">
     <PanelContainer Name="Panel">
         <LayoutContainer>
@@ -6,15 +5,15 @@
                           Orientation="Vertical">
                 <TextureRect Name="Logo"
                              Stretch="KeepCentered" />
-                <Control MinHeight="128"></Control>
+                <Control MinHeight="128" />
                 <BoxContainer Orientation="Horizontal"
                               SeparationOverride="4">
-                    <Label Name="ConnectingLabel" Text="Connecting... " FontColorOverride="#FFFFFF"/>
+                    <Label Name="ConnectingLabel" Text="Connecting... " FontColorOverride="#FFFFFF" />
                 </BoxContainer>
-                <Control MinHeight="128"></Control>
+                <Control MinHeight="128" />
                 <BoxContainer Name="WIP" Orientation="Horizontal"
                               SeparationOverride="4">
-                    <Label Name="WIPLabel" Text="Work In Progress" FontColorOverride="#FFFFFF"/>
+                    <Label Name="WIPLabel" Text="Work In Progress" FontColorOverride="#FFFFFF" />
                 </BoxContainer>
 
             </BoxContainer>

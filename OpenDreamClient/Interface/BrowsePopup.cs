@@ -7,8 +7,6 @@ using Robust.Client.UserInterface.Controls;
 namespace OpenDreamClient.Interface;
 
 internal sealed class BrowsePopup {
-    public event Action? Closed;
-
     public readonly ControlBrowser Browser;
     public readonly ControlWindow WindowElement;
 
@@ -18,8 +16,8 @@ internal sealed class BrowsePopup {
         string name,
         Vector2i size,
         IClydeWindow ownerWindow) {
-        WindowDescriptor popupWindowDescriptor = new WindowDescriptor(name,
-            new() {
+        var popupWindowDescriptor = new WindowDescriptor(name,
+            new List<ControlDescriptor> {
                 new ControlDescriptorBrowser {
                     Id = new DMFPropertyString("browser"),
                     Size = new DMFPropertySize(size),
@@ -27,8 +25,8 @@ internal sealed class BrowsePopup {
                     Anchor2 = new DMFPropertyPos(100, 100)
                 }
             }) {
-                Size = new DMFPropertySize(size)
-            };
+            Size = new DMFPropertySize(size)
+        };
 
         WindowElement = new ControlWindow(popupWindowDescriptor);
         WindowElement.CreateChildControls();
@@ -40,6 +38,8 @@ internal sealed class BrowsePopup {
 
         Browser = (ControlBrowser)WindowElement.ChildControls[0];
     }
+
+    public event Action? Closed;
 
     public void Open() {
         _window.Show();

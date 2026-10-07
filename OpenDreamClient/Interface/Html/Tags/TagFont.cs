@@ -8,21 +8,21 @@ using Robust.Shared.Utility;
 namespace OpenDreamClient.Interface.Html.Tags;
 
 /// <summary>
-/// Modified version of RobustToolbox's font tag
-/// Supports text color and uses font sizes that better match BYOND's
+///     Modified version of RobustToolbox's font tag
+///     Supports text color and uses font sizes that better match BYOND's
 /// </summary>
 [UsedImplicitly]
 public sealed partial class TagFont : IMarkupTagHandler {
-    [Dependency] private IResourceCache _resourceCache = default!;
     [Dependency] private IPrototypeManager _prototypeManager = default!;
+    [Dependency] private IResourceCache _resourceCache = default!;
 
     public string Name => "font"; // Overrides RobustToolbox's font tag
 
     public void PushDrawContext(MarkupNode node, MarkupDrawingContext context) {
-        var font = CreateFont(context.Font, node, _resourceCache, _prototypeManager);
+        Font font = CreateFont(context.Font, node, _resourceCache, _prototypeManager);
 
-        node.Attributes.TryGetValue("color", out var colorParameter);
-        var textColor = colorParameter.ColorValue ?? context.Color.Peek();
+        node.Attributes.TryGetValue("color", out MarkupParameter colorParameter);
+        Color textColor = colorParameter.ColorValue ?? context.Color.Peek();
 
         context.Font.Push(font);
         context.Color.Push(textColor);
@@ -40,7 +40,7 @@ public sealed partial class TagFont : IMarkupTagHandler {
         IPrototypeManager prototypeManager) {
         var size = 1;
 
-        if (contextFontStack.TryPeek(out var previousFont)) {
+        if (contextFontStack.TryPeek(out Font? previousFont))
             switch (previousFont) {
                 case VectorFont vectorFont:
                     size = (vectorFont.Size - 8) / 2;
@@ -52,9 +52,8 @@ public sealed partial class TagFont : IMarkupTagHandler {
                     size = (stackVectorFont.Size - 8) / 2;
                     break;
             }
-        }
 
-        if (node.Attributes.TryGetValue("size", out var sizeParameter))
+        if (node.Attributes.TryGetValue("size", out MarkupParameter sizeParameter))
             size = (int)(sizeParameter.LongValue ?? size);
 
         size = Math.Max(size, 1);

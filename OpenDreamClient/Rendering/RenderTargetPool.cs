@@ -10,13 +10,13 @@ public sealed class RenderTargetPool(IClyde clyde) {
     public IRenderTexture Rent(Vector2i size) {
         IRenderTexture result;
 
-        if (!_renderTargets.TryGetValue(size, out var listResult)) {
-            result = clyde.CreateRenderTarget(size, new(RenderTargetColorFormat.Rgba8Srgb));
-        } else {
+        if (!_renderTargets.TryGetValue(size, out List<IRenderTexture>? listResult))
+            result = clyde.CreateRenderTarget(size,
+                new RenderTargetFormatParameters(RenderTargetColorFormat.Rgba8Srgb));
+        else
             result = listResult.Count > 0
                 ? listResult.Pop()
-                : clyde.CreateRenderTarget(size, new(RenderTargetColorFormat.Rgba8Srgb));
-        }
+                : clyde.CreateRenderTarget(size, new RenderTargetFormatParameters(RenderTargetColorFormat.Rgba8Srgb));
 
         return result;
     }
@@ -26,7 +26,7 @@ public sealed class RenderTargetPool(IClyde clyde) {
     }
 
     public void Return(IRenderTexture rental) {
-        if (!_renderTargets.TryGetValue(rental.Size, out var storeList)) {
+        if (!_renderTargets.TryGetValue(rental.Size, out List<IRenderTexture>? storeList)) {
             storeList = new List<IRenderTexture>(4);
             _renderTargets.Add(rental.Size, storeList);
         }
@@ -37,7 +37,7 @@ public sealed class RenderTargetPool(IClyde clyde) {
     [Access(typeof(DreamViewOverlay))]
     public void HandleEndOfFrame() {
         //some render targets need to be kept until the end of the render cycle, so return them here.
-        while (_renderTargetsToReturn.TryPop(out var toReturn))
+        while (_renderTargetsToReturn.TryPop(out IRenderTexture? toReturn))
             Return(toReturn);
     }
 }

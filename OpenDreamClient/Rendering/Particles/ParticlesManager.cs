@@ -14,9 +14,7 @@ public sealed class ParticlesManager {
 
     public void FrameUpdate(FrameEventArgs args) {
         // can't use parallel foreach here because IoC doesn't have context in parallel tasks
-        foreach (var particleSys in _particleSystems.Values) {
-            particleSys.FrameUpdate(args);
-        }
+        foreach (ParticleSystem particleSys in _particleSystems.Values) particleSys.FrameUpdate(args);
     }
 
     public ParticleSystem CreateParticleSystem(EntityUid entity, ParticleSystemArgs args) {
@@ -35,98 +33,99 @@ public sealed class ParticlesManager {
 }
 
 public sealed class ParticleSystem {
-    //unchanging
-    public Vector2i RenderSize => _particleSystemSize;
-
     /// <summary>
-    ///  Size of drawing surface
-    /// </summary>
-    private Vector2i _particleSystemSize;
-
-    /// <summary>
-    ///  Maximum number of particles in this system. New particles will not be created while at this maximum.
-    /// </summary>
-    private uint _particleCount;
-
-    /// <summary>
-    ///  The number of new particles to create each second. No new particles will be created if we are at the maximum already.
-    /// </summary>
-    private float _particlesPerSecond;
-
-    /// <summary>
-    ///  The lower left hand back corner of the cuboid outside of which particles will be deactivated
-    /// </summary>
-    private Vector3 _lowerBound;
-
-    /// <summary>
-    ///  The upper right hand front corner of the cuboid outside of which particles will be deactivated
-    /// </summary>
-    private Vector3 _upperBound;
-
-    /// <summary>
-    /// The base transform to apply to all particles in this system
-    /// </summary>
-    private Matrix3x2 _baseTransform;
-
-    //queried on each particle spawn
-
-    /// <summary>
-    /// A function which returns a float which is this particles lifespan in seconds
-    /// </summary>
-    private Func<float> _lifespan;
-
-    /// <summary>
-    /// A function which returns a float which is this particles fade-out time in seconds
-    /// </summary>
-    private Func<float> _fadeout;
-
-    /// <summary>
-    /// A function which returns a float which is this particles fade-in time in seconds
-    /// </summary>
-    private Func<float> _fadein;
-
-    /// <summary>
-    /// A function which returns a Texture which is this particles texture at spawning. Null textures will be re-evaluated each frame until not null
-    /// </summary>
-    private Func<Texture?> _icon;
-
-    /// <summary>
-    /// A function which returns a Vector3 which is this particles position at spawning
-    /// </summary>
-    private Func<Vector3> _spawnPosition;
-
-    /// <summary>
-    /// A function which returns a Vector3 which is this particles velocity at spawning
-    /// </summary>
-    private Func<Vector3> _spawnVelocity;
-
-    //queried every tick - arg is seconds particle has been alive. 0 for just spawned.
-
-    /// <summary>
-    /// A function which takes the life time of this particles and returns the Color of this particle
-    /// </summary>
-    private Func<float, Color> _color;
-
-    /// <summary>
-    /// A function which takes the life time of this particles and returns the transform of this particle. Note that this is multiplied with the base transform.
-    /// </summary>
-    private Func<float, Matrix3x2> _transform;
-
-    /// <summary>
-    /// A function which takes the life time of this particles and returns the an acceleration to apply to this particle
+    ///     A function which takes the life time of this particles and returns the an acceleration to apply to this particle
     /// </summary>
     private Func<float, Vector3, Vector3> _acceleration;
 
     /// <summary>
-    /// Internal store for particles for this system
+    ///     The base transform to apply to all particles in this system
+    /// </summary>
+    private Matrix3x2 _baseTransform;
+
+    //queried every tick - arg is seconds particle has been alive. 0 for just spawned.
+
+    /// <summary>
+    ///     A function which takes the life time of this particles and returns the Color of this particle
+    /// </summary>
+    private Func<float, Color> _color;
+
+    /// <summary>
+    ///     A function which returns a float which is this particles fade-in time in seconds
+    /// </summary>
+    private Func<float> _fadein;
+
+    /// <summary>
+    ///     A function which returns a float which is this particles fade-out time in seconds
+    /// </summary>
+    private Func<float> _fadeout;
+
+    /// <summary>
+    ///     A function which returns a Texture which is this particles texture at spawning. Null textures will be re-evaluated
+    ///     each frame until not null
+    /// </summary>
+    private Func<Texture?> _icon;
+
+    //queried on each particle spawn
+
+    /// <summary>
+    ///     A function which returns a float which is this particles lifespan in seconds
+    /// </summary>
+    private Func<float> _lifespan;
+
+    /// <summary>
+    ///     The lower left hand back corner of the cuboid outside of which particles will be deactivated
+    /// </summary>
+    private Vector3 _lowerBound;
+
+    /// <summary>
+    ///     Maximum number of particles in this system. New particles will not be created while at this maximum.
+    /// </summary>
+    private uint _particleCount;
+
+    /// <summary>
+    ///     Size of drawing surface
+    /// </summary>
+    private Vector2i _particleSystemSize;
+
+    /// <summary>
+    ///     Internal store for particles for this system
     /// </summary>
     private Particle[] _particles;
+
+    /// <summary>
+    ///     The number of new particles to create each second. No new particles will be created if we are at the maximum
+    ///     already.
+    /// </summary>
+    private float _particlesPerSecond;
+
+    /// <summary>
+    ///     A function which returns a Vector3 which is this particles position at spawning
+    /// </summary>
+    private Func<Vector3> _spawnPosition;
+
+    /// <summary>
+    ///     A function which returns a Vector3 which is this particles velocity at spawning
+    /// </summary>
+    private Func<Vector3> _spawnVelocity;
+
+    /// <summary>
+    ///     A function which takes the life time of this particles and returns the transform of this particle. Note that this
+    ///     is multiplied with the base transform.
+    /// </summary>
+    private Func<float, Matrix3x2> _transform;
+
+    /// <summary>
+    ///     The upper right hand front corner of the cuboid outside of which particles will be deactivated
+    /// </summary>
+    private Vector3 _upperBound;
 
     public ParticleSystem(ParticleSystemArgs args) {
         _particleSystemSize = args.ParticleSystemSize;
         _particleCount = args.ParticleCount;
         _particlesPerSecond = args.ParticlesPerSecond;
-        _lowerBound = args.LowerDrawBound ?? new Vector3(-_particleSystemSize.X, -_particleSystemSize.Y, float.MinValue);
+        _lowerBound = args.LowerDrawBound ??
+                      new Vector3(-_particleSystemSize.X, -_particleSystemSize.Y, float.MinValue);
         _upperBound = args.UpperDrawBound ?? new Vector3(_particleSystemSize.X, _particleSystemSize.Y, float.MaxValue);
         _icon = args.Icon;
         _baseTransform = args.BaseTransform ?? Matrix3x2.Identity;
@@ -140,25 +139,29 @@ public sealed class ParticleSystem {
         _acceleration = args.Acceleration ?? ((_, _) => Vector3.Zero);
 
         _particles = new Particle[_particleCount];
-        for (int i = 0; i < _particleCount; i++)
-            _particles[i] = new();
+        for (var i = 0; i < _particleCount; i++)
+            _particles[i] = new Particle();
     }
+
+    //unchanging
+    public Vector2i RenderSize => _particleSystemSize;
 
     public void UpdateSystem(ParticleSystemArgs args) {
         _particleSystemSize = args.ParticleSystemSize;
         if (_particleCount != args.ParticleCount) {
             _particleCount = args.ParticleCount;
-            Particle[] newParticles = new Particle[_particleCount];
-            for (int i = 0; i < _particleCount; i++)
+            var newParticles = new Particle[_particleCount];
+            for (var i = 0; i < _particleCount; i++)
                 if (i < _particles.Length)
                     newParticles[i] = _particles[i];
                 else
-                    newParticles[i] = new();
+                    newParticles[i] = new Particle();
             _particles = newParticles;
         }
 
         _particlesPerSecond = args.ParticlesPerSecond;
-        _lowerBound = args.LowerDrawBound ?? new Vector3(-_particleSystemSize.X, -_particleSystemSize.Y, float.MinValue);
+        _lowerBound = args.LowerDrawBound ??
+                      new Vector3(-_particleSystemSize.X, -_particleSystemSize.Y, float.MinValue);
         _upperBound = args.UpperDrawBound ?? new Vector3(_particleSystemSize.X, _particleSystemSize.Y, float.MaxValue);
         _icon = args.Icon;
         _baseTransform = args.BaseTransform ?? Matrix3x2.Identity;
@@ -173,18 +176,19 @@ public sealed class ParticleSystem {
     }
 
     public void FrameUpdate(FrameEventArgs args) {
-        int particlesSpawned = 0;
-        for (int i = 0; i < _particleCount; i++) {
+        var particlesSpawned = 0;
+        for (var i = 0; i < _particleCount; i++) {
             if (_particles[i].Active) {
                 _particles[i].Lifetime += args.DeltaSeconds;
                 _particles[i].Transform = _baseTransform * _transform(_particles[i].Lifetime);
                 _particles[i].Color = _color(_particles[i].Lifetime);
                 _particles[i].Velocity += _acceleration(_particles[i].Lifetime, _particles[i].Velocity);
-                _particles[i].Position += _particles[i].Velocity*args.DeltaSeconds;
-                if(_particles[i].Fadein > _particles[i].Lifetime)
-                    _particles[i].Color.A = Math.Clamp(_particles[i].Lifetime/_particles[i].Fadein, 0, 1);
-                if(_particles[i].Fadeout > _particles[i].Lifespan-_particles[i].Lifetime)
-                    _particles[i].Color.A = Math.Clamp((_particles[i].Lifespan-_particles[i].Lifetime)/_particles[i].Fadeout, 0, 1);
+                _particles[i].Position += _particles[i].Velocity * args.DeltaSeconds;
+                if (_particles[i].Fadein > _particles[i].Lifetime)
+                    _particles[i].Color.A = Math.Clamp(_particles[i].Lifetime / _particles[i].Fadein, 0, 1);
+                if (_particles[i].Fadeout > _particles[i].Lifespan - _particles[i].Lifetime)
+                    _particles[i].Color.A =
+                        Math.Clamp((_particles[i].Lifespan - _particles[i].Lifetime) / _particles[i].Fadeout, 0, 1);
 
                 if (_particles[i].Lifetime > _particles[i].Lifespan || _particles[i].Position.X > _upperBound.X ||
                     _particles[i].Position.Y > _upperBound.Y || _particles[i].Position.Z > _upperBound.Z ||
@@ -213,15 +217,14 @@ public sealed class ParticleSystem {
 
     public void Draw(DrawingHandleWorld handle, Matrix3x2 transform) {
         Array.Sort(_particles, (p1, p2) => p1.Position.Z.CompareTo(p2.Position.Z));
-        foreach (var particle in _particles) {
-            if (particle is { Active: true, Texture: not null }) {
+        foreach (Particle particle in _particles)
+            if (particle is {Active: true, Texture: not null}) {
                 handle.SetTransform(particle.Transform * transform);
                 handle.DrawTextureRect(particle.Texture!,
                     new Box2(new Vector2(particle.Position.X, particle.Position.Y),
                         new Vector2(particle.Position.X, particle.Position.Y) + particle.Texture!.Size),
                     particle.Color);
             }
-        }
     }
 }
 

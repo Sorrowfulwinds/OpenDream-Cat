@@ -1,11 +1,12 @@
 ﻿using OpenDreamClient.Interface.Prompts;
+using OpenDreamShared.Interface.DMF;
 using Robust.Client.UserInterface.Controls;
 using Robust.Shared.Console;
 
 namespace OpenDreamClient.Interface.DebugWindows;
 
 /// <summary>
-/// A debug window that displays all the current macro sets and allows you to execute them
+///     A debug window that displays all the current macro sets and allows you to execute them
 /// </summary>
 internal sealed partial class MacrosWindow : OSWindow {
     [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
@@ -18,13 +19,13 @@ internal sealed partial class MacrosWindow : OSWindow {
 
         var tabs = new TabContainer();
 
-        foreach (var macroSet in _interfaceManager.MacroSets.Values) {
-            var isCurrent = (macroSet == _interfaceManager.DefaultWindow?.Macro);
-            var tabName = macroSet.Id;
+        foreach (InterfaceMacroSet macroSet in _interfaceManager.MacroSets.Values) {
+            bool isCurrent = macroSet == _interfaceManager.DefaultWindow?.Macro;
+            DMFPropertyString tabName = macroSet.Id;
             if (isCurrent)
                 tabName.Value += " (Current)";
 
-            var macroTable = CreateMacroTable(macroSet);
+            ScrollContainer macroTable = CreateMacroTable(macroSet);
             TabContainer.SetTabTitle(macroTable, tabName.AsRaw());
             tabs.AddChild(macroTable);
 
@@ -38,17 +39,17 @@ internal sealed partial class MacrosWindow : OSWindow {
     private ScrollContainer CreateMacroTable(InterfaceMacroSet macroSet) {
         var macroTable = new GridContainer {
             Columns = 3,
-            Margin = new(5, 10, 5, 5),
+            Margin = new Thickness(5, 10, 5, 5)
         };
 
-        foreach (var macro in macroSet.Macros.Values) {
-            var idText = macro.Id;
+        foreach (InterfaceMacro macro in macroSet.Macros.Values) {
+            DMFPropertyString idText = macro.Id;
             if (macro.ElementDescriptor.Id.Value != idText.Value)
                 idText.Value += $" ({macro.ElementDescriptor.Id.AsRaw()})";
 
-            var idLabel = new Label { Text = idText.AsRaw() };
-            var commandLabel = new Label { Text = macro.Command };
-            var executeButton = new Button { Text = "Execute" };
+            var idLabel = new Label {Text = idText.AsRaw()};
+            var commandLabel = new Label {Text = macro.Command};
+            var executeButton = new Button {Text = "Execute"};
 
             executeButton.OnPressed += _ => {
                 if (macro.Command.Contains("[[*]]")) {
@@ -72,7 +73,7 @@ internal sealed partial class MacrosWindow : OSWindow {
         }
 
         return new ScrollContainer {
-            Children = { macroTable },
+            Children = {macroTable},
             MinSize = new Vector2(1024, 700)
         };
     }

@@ -1,21 +1,52 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using OpenDreamClient.Interface;
 using OpenDreamClient.Resources;
 using OpenDreamClient.Resources.ResourceTypes;
 using OpenDreamShared.Dream;
 using OpenDreamShared.Resources;
 using Robust.Client.Graphics;
 using Robust.Shared.Timing;
-using System.Linq;
-using OpenDreamClient.Interface;
 
 namespace OpenDreamClient.Rendering;
 
-internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfaceManager interfaceManager, IGameTiming gameTiming, IClyde clyde, ClientAppearanceSystem appearanceSystem) : IDisposable {
+internal sealed class DreamIcon(
+    RenderTargetPool renderTargetPool,
+    IDreamInterfaceManager interfaceManager,
+    IGameTiming gameTiming,
+    IClyde clyde,
+    ClientAppearanceSystem appearanceSystem) : IDisposable {
     public delegate void SizeChangedEventHandler();
+    public Texture? LastRenderedTexture;
+
+    public Vector2 TextureRenderOffset = Vector2.Zero;
+
+    //acts as a cache for the mutable appearance, so we don't have to ToMutable() every frame
+    private MutableAppearance? _animatedAppearance;
+    private bool _animationComplete;
+
+    private int _animationFrame;
+
+    private ImmutableAppearance? _appearance;
+    private List<AppearanceAnimation>? _appearanceAnimations;
+    private int _appearanceAnimationsLoops;
+    private Box2? _cachedAABB;
+    private AtomDirection _direction;
+
+    private DMIResource? _dmi;
+    private string? _iconState;
+    private TimeSpan _lastAppearanceChange = gameTiming.CurTime;
+    private bool _textureDirty = true;
+
+    public DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfaceManager interfaceManager, IGameTiming gameTiming,
+        IClyde clyde, ClientAppearanceSystem appearanceSystem, uint appearanceId,
+        AtomDirection? parentDir = null, string? parentIconState = null) : this(renderTargetPool, interfaceManager,
+        gameTiming, clyde, appearanceSystem) {
+        SetAppearance(appearanceId, parentDir, parentIconState);
+    }
 
     public List<DreamIcon> Overlays { get; } = new();
     public List<DreamIcon> Underlays { get; } = new();
-    public event SizeChangedEventHandler? SizeChanged;
 
     public DMIResource? DMI {
         get => _dmi;
@@ -25,8 +56,6 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             CheckSizeChange();
         }
     }
-
-    private DMIResource? _dmi;
 
     [ViewVariables]
     public ImmutableAppearance? Appearance {
@@ -41,13 +70,6 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
         }
     }
 
-    private ImmutableAppearance? _appearance;
-
-    //acts as a cache for the mutable appearance, so we don't have to ToMutable() every frame
-    private MutableAppearance? _animatedAppearance;
-    private AtomDirection _direction;
-    private string? _iconState;
-
     // TODO: We could cache these per-appearance instead of per-atom
     public IRenderTexture? CachedTexture {
         get;
@@ -58,38 +80,25 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
         }
     }
 
-    public Vector2 TextureRenderOffset = Vector2.Zero;
-    public Texture? LastRenderedTexture;
-
-    private int _animationFrame;
-    private TimeSpan _lastAppearanceChange = gameTiming.CurTime;
-    private List<AppearanceAnimation>? _appearanceAnimations;
-    private int _appearanceAnimationsLoops;
-    private Box2? _cachedAABB;
-    private bool _textureDirty = true;
-    private bool _animationComplete;
-
-    public DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfaceManager interfaceManager, IGameTiming gameTiming, IClyde clyde, ClientAppearanceSystem appearanceSystem, uint appearanceId,
-        AtomDirection? parentDir = null, string? parentIconState = null) : this(renderTargetPool, interfaceManager, gameTiming, clyde, appearanceSystem) {
-        SetAppearance(appearanceId, parentDir, parentIconState);
-    }
-
     public void Dispose() {
         CachedTexture = null;
         LastRenderedTexture = null;
         DMI = null; //triggers the removal of the onUpdateCallback
     }
 
-    public Texture? GetTexture(DreamViewOverlay viewOverlay, DrawingHandleWorld handle, RendererMetaData iconMetaData, Texture? textureOverride, ClientAppearanceSystem.Flick? flick) {
+    public event SizeChangedEventHandler? SizeChanged;
+
+    public Texture? GetTexture(DreamViewOverlay viewOverlay, DrawingHandleWorld handle, RendererMetaData iconMetaData,
+        Texture? textureOverride, ClientAppearanceSystem.Flick? flick) {
         Texture? frame;
 
         if (textureOverride == null) {
             if (Appearance == null || DMI == null)
                 return null;
 
-            var dmi = flick?.Icon ?? DMI;
-            var iconState = flick?.IconState ?? _iconState;
-            var animationFrame = flick?.GetAnimationFrame(gameTiming) ?? GetAnimationFrame();
+            DMIResource dmi = flick?.Icon ?? DMI;
+            string? iconState = flick?.IconState ?? _iconState;
+            int animationFrame = flick?.GetAnimationFrame(gameTiming) ?? GetAnimationFrame();
             if (animationFrame == -1) // A flick returns -1 for a finished animation
                 animationFrame = GetAnimationFrame();
             if (CachedTexture != null && !_textureDirty && flick == null)
@@ -101,9 +110,9 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             frame = textureOverride;
         }
 
-        var canSkipFullRender = Appearance?.Filters.Length is 0 or null &&
-                                    iconMetaData.ColorMatrixToApply.Equals(ColorMatrix.Identity) &&
-                                    iconMetaData.AlphaToApply.Equals(1.0f);
+        bool canSkipFullRender = Appearance?.Filters.Length is 0 or null &&
+                                 iconMetaData.ColorMatrixToApply.Equals(ColorMatrix.Identity) &&
+                                 iconMetaData.AlphaToApply.Equals(1.0f);
 
         if (frame == null) {
             CachedTexture = null;
@@ -112,7 +121,7 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             return frame;
         } else {
             if (textureOverride is not null) { //no caching in the presence of overrides
-                var texture = FullRenderTexture(viewOverlay, handle, iconMetaData, frame);
+                IRenderTexture texture = FullRenderTexture(viewOverlay, handle, iconMetaData, frame);
 
                 renderTargetPool.ReturnAtEndOfFrame(texture);
                 return texture.Texture;
@@ -135,11 +144,10 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
         }
 
         appearanceSystem.LoadAppearance(appearanceId.Value, appearance => {
-            if (parentDir != null && appearance.InheritsDirection) {
+            if (parentDir != null && appearance.InheritsDirection)
                 _direction = parentDir.Value;
-            } else {
+            else
                 _direction = appearance.Direction;
-            }
 
             _iconState = appearance.IconState ?? parentIconState;
             Appearance = appearance;
@@ -147,36 +155,40 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
     }
 
     //three things to do here, chained animations, loops and parallel animations
-    public void StartAppearanceAnimation(ImmutableAppearance endingAppearance, TimeSpan duration, AnimationEasing easing, int loops, AnimationFlags flags, int delay, bool chainAnim) {
+    public void StartAppearanceAnimation(ImmutableAppearance endingAppearance, TimeSpan duration,
+        AnimationEasing easing, int loops, AnimationFlags flags, int delay, bool chainAnim) {
         _appearance = CalculateAnimatedAppearance(); //Animation starts from the current animated appearance
         DateTime start = DateTime.Now;
-        if(!chainAnim)
+        if (!chainAnim)
             EndAppearanceAnimation(null);
-        else
-            if(_appearanceAnimations != null && _appearanceAnimations.Count > 0)
-                if((flags & AnimationFlags.AnimationParallel) != 0)
-                    start = _appearanceAnimations[^1].Start; //either that's also a parallel, or its one that this should be parallel with
-                else
-                    start = _appearanceAnimations[^1].Start + _appearanceAnimations[^1].Duration; //if it's not parallel, it's chained
+        else if (_appearanceAnimations != null && _appearanceAnimations.Count > 0)
+            if ((flags & AnimationFlags.AnimationParallel) != 0)
+                start = _appearanceAnimations[^1]
+                    .Start; //either that's also a parallel, or its one that this should be parallel with
+            else
+                start = _appearanceAnimations[^1].Start +
+                        _appearanceAnimations[^1].Duration; //if it's not parallel, it's chained
 
         _appearanceAnimations ??= new List<AppearanceAnimation>();
-        if(_appearanceAnimations.Count == 0) {//only valid on the first animation
+        if (_appearanceAnimations.Count == 0) //only valid on the first animation
             _appearanceAnimationsLoops = loops;
-        }
 
-        for(int i=_appearanceAnimations.Count-1; i>=0; i--) //there can be only one last-in-sequence, and it might not be the last element of the list because it could be added to mid-loop
-            if(_appearanceAnimations[i].LastInSequence) {
-                var lastAnim =  _appearanceAnimations[i];
+        for (int i = _appearanceAnimations.Count - 1;
+             i >= 0;
+             i--) //there can be only one last-in-sequence, and it might not be the last element of the list because it could be added to mid-loop
+            if (_appearanceAnimations[i].LastInSequence) {
+                AppearanceAnimation lastAnim = _appearanceAnimations[i];
                 lastAnim.LastInSequence = false;
                 _appearanceAnimations[i] = lastAnim;
                 break;
             }
 
-        _appearanceAnimations.Add(new AppearanceAnimation(start, duration, endingAppearance, easing, flags, delay, true));
+        _appearanceAnimations.Add(
+            new AppearanceAnimation(start, duration, endingAppearance, easing, flags, delay, true));
     }
 
     /// <summary>
-    /// Ends the target appearance animation. If appearanceAnimation is null, ends all animations.
+    ///     Ends the target appearance animation. If appearanceAnimation is null, ends all animations.
     /// </summary>
     /// <param name="appearanceAnimation">Animation to end</param>
     private void EndAppearanceAnimation(AppearanceAnimation? appearanceAnimation) {
@@ -197,42 +209,40 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
 
     public void GetWorldAABB(Vector2 worldPos, ref Box2? aabb) {
         if (DMI != null && Appearance != null) {
-            var size = DMI.IconSize / (float)interfaceManager.IconSize;
-            var pixelOffset = Appearance.TotalPixelOffset / (float)interfaceManager.IconSize;
+            Vector2 size = DMI.IconSize / (float)interfaceManager.IconSize;
+            Vector2 pixelOffset = Appearance.TotalPixelOffset / (float)interfaceManager.IconSize;
 
             worldPos += pixelOffset;
 
-            var thisAABB = Box2.CenteredAround(worldPos, size);
+            Box2 thisAABB = Box2.CenteredAround(worldPos, size);
             aabb = aabb?.Union(thisAABB) ?? thisAABB;
         }
 
-        foreach (DreamIcon underlay in Underlays) {
-            underlay.GetWorldAABB(worldPos, ref aabb);
-        }
+        foreach (DreamIcon underlay in Underlays) underlay.GetWorldAABB(worldPos, ref aabb);
 
-        foreach (DreamIcon overlay in Overlays) {
-            overlay.GetWorldAABB(worldPos, ref aabb);
-        }
+        foreach (DreamIcon overlay in Overlays) overlay.GetWorldAABB(worldPos, ref aabb);
     }
 
-    public int GetAnimationFrame() => GetAnimationFrame(_iconState, _direction);
+    public int GetAnimationFrame() {
+        return GetAnimationFrame(_iconState, _direction);
+    }
 
     public int GetAnimationFrame(string? iconState, AtomDirection dir) {
-        if(DMI == null || Appearance == null || _animationComplete)
+        if (DMI == null || Appearance == null || _animationComplete)
             return _animationFrame;
 
         DMIParser.ParsedDMIState? dmiState = DMI.Description.GetStateOrDefault(iconState);
-        if(dmiState == null)
+        if (dmiState == null)
             return _animationFrame;
         DMIParser.ParsedDMIFrame[] frames = dmiState.GetFrames(dir);
 
         if (frames.Length <= 1)
             return 0;
 
-        var noLoop = !dmiState.Loop;
-        var oldFrame = _animationFrame;
-        var animationTick = gameTiming.CurTime.Ticks - (noLoop ? _lastAppearanceChange.Ticks : 0);
-        var sequenceDuration = frames.Aggregate(TimeSpan.Zero, (duration, frame) => duration + frame.Delay);
+        bool noLoop = !dmiState.Loop;
+        int oldFrame = _animationFrame;
+        long animationTick = gameTiming.CurTime.Ticks - (noLoop ? _lastAppearanceChange.Ticks : 0);
+        TimeSpan sequenceDuration = frames.Aggregate(TimeSpan.Zero, (duration, frame) => duration + frame.Delay);
         var durationDiff = new TimeSpan(animationTick % sequenceDuration.Ticks);
 
         _animationFrame = 0;
@@ -266,18 +276,19 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
         _animatedAppearance = _appearance.ToMutable();
         List<AppearanceAnimation>? toRemove = null;
         List<AppearanceAnimation>? toReAdd = null;
-        for(int i = 0; i < _appearanceAnimations.Count; i++) {
+        for (var i = 0; i < _appearanceAnimations.Count; i++) {
             AppearanceAnimation animation = _appearanceAnimations[i];
             //if it's not the first one, and it's not parallel, break
-            if((animation.Flags & AnimationFlags.AnimationParallel) == 0 && i != 0)
+            if ((animation.Flags & AnimationFlags.AnimationParallel) == 0 && i != 0)
                 break;
 
-            float timeFactor = Math.Clamp((float)(DateTime.Now - animation.Start).Ticks / animation.Duration.Ticks, 0.0f, 1.0f);
+            float timeFactor = Math.Clamp((float)(DateTime.Now - animation.Start).Ticks / animation.Duration.Ticks,
+                0.0f, 1.0f);
             float factor = 0;
-            if((animation.Easing & AnimationEasing.EaseIn) != 0)
+            if ((animation.Easing & AnimationEasing.EaseIn) != 0)
                 timeFactor /= 2.0f;
-            if((animation.Easing & AnimationEasing.EaseOut) != 0)
-                timeFactor = 0.5f+timeFactor/2.0f;
+            if ((animation.Easing & AnimationEasing.EaseOut) != 0)
+                timeFactor = 0.5f + timeFactor / 2.0f;
 
             switch (animation.Easing) {
                 case AnimationEasing.Linear:
@@ -290,16 +301,17 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
                     factor = MathF.Sqrt(1 - MathF.Pow(1 - timeFactor, 2));
                     break;
                 case AnimationEasing.Cubic:
-                    factor = 1 - MathF.Pow(1-timeFactor, 3);
+                    factor = 1 - MathF.Pow(1 - timeFactor, 3);
                     break;
-                case AnimationEasing.Bounce: //https://stackoverflow.com/questions/25249829/bouncing-ease-equation-in-c-sharp great match for byond behaviour
-                    float bounce = timeFactor*2.75f;
-                    if(bounce<1)
+                case AnimationEasing.Bounce
+                    : //https://stackoverflow.com/questions/25249829/bouncing-ease-equation-in-c-sharp great match for byond behaviour
+                    float bounce = timeFactor * 2.75f;
+                    if (bounce < 1) {
                         factor = MathF.Pow(bounce, 2);
-                    else if(bounce<2) {
+                    } else if (bounce < 2) {
                         bounce -= 1.5f;
-                        factor = MathF.Pow(bounce, 2)+ 0.75f;
-                    } else if(bounce<2.5) {
+                        factor = MathF.Pow(bounce, 2) + 0.75f;
+                    } else if (bounce < 2.5) {
                         bounce -= 2.25f;
                         factor = MathF.Pow(bounce, 2) + 0.9375f;
                     } else {
@@ -308,21 +320,24 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
                     }
 
                     break;
-                case AnimationEasing.Elastic: //http://www.java2s.com/example/csharp/system/easing-equation-function-for-an-elastic-exponentially-decaying-sine-w.html with d=1, s=pi/2, c=2, b = -1
-                    factor = MathF.Pow(2, -10 * timeFactor) * MathF.Sin((timeFactor - MathF.PI/2.0f) * (2.0f*MathF.PI/0.3f)) + 1.0f;
+                case AnimationEasing.Elastic
+                    : //http://www.java2s.com/example/csharp/system/easing-equation-function-for-an-elastic-exponentially-decaying-sine-w.html with d=1, s=pi/2, c=2, b = -1
+                    factor = MathF.Pow(2, -10 * timeFactor) *
+                        MathF.Sin((timeFactor - MathF.PI / 2.0f) * (2.0f * MathF.PI / 0.3f)) + 1.0f;
                     break;
-                case AnimationEasing.Back: //https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.animation.backease?view=windowsdesktop-8.0
+                case AnimationEasing.Back
+                    : //https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.animation.backease?view=windowsdesktop-8.0
                     factor = MathF.Pow(timeFactor, 3) - timeFactor * MathF.Sin(timeFactor * MathF.PI);
                     break;
                 case AnimationEasing.Quad:
-                    factor = 1 - MathF.Pow(1-timeFactor,2);
+                    factor = 1 - MathF.Pow(1 - timeFactor, 2);
                     break;
                 case AnimationEasing.Jump:
-                    factor = (timeFactor < 1) ? 0 : 1;
+                    factor = timeFactor < 1 ? 0 : 1;
                     break;
             }
 
-            var endAppearance = animation.EndAppearance;
+            ImmutableAppearance endAppearance = animation.EndAppearance;
 
             //non-smooth animations
             /*
@@ -363,26 +378,24 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             transform
             */
 
-            if (endAppearance.Alpha != _appearance.Alpha) {
-                _animatedAppearance.Alpha = (byte)Math.Clamp(((1-factor) * _appearance.Alpha) + (factor * endAppearance.Alpha), 0, 255);
-            }
+            if (endAppearance.Alpha != _appearance.Alpha)
+                _animatedAppearance.Alpha =
+                    (byte)Math.Clamp((1 - factor) * _appearance.Alpha + factor * endAppearance.Alpha, 0, 255);
 
-            if (endAppearance.Color != _appearance.Color) {
+            if (endAppearance.Color != _appearance.Color)
                 _animatedAppearance.Color = Color.FromSrgb(new Color(
-                    Math.Clamp(((1-factor) * _appearance.Color.R) + (factor * endAppearance.Color.R), 0, 1),
-                    Math.Clamp(((1-factor) * _appearance.Color.G) + (factor * endAppearance.Color.G), 0, 1),
-                    Math.Clamp(((1-factor) * _appearance.Color.B) + (factor * endAppearance.Color.B), 0, 1),
-                    Math.Clamp(((1-factor) * _appearance.Color.A) + (factor * endAppearance.Color.A), 0, 1)
+                    Math.Clamp((1 - factor) * _appearance.Color.R + factor * endAppearance.Color.R, 0, 1),
+                    Math.Clamp((1 - factor) * _appearance.Color.G + factor * endAppearance.Color.G, 0, 1),
+                    Math.Clamp((1 - factor) * _appearance.Color.B + factor * endAppearance.Color.B, 0, 1),
+                    Math.Clamp((1 - factor) * _appearance.Color.A + factor * endAppearance.Color.A, 0, 1)
                 ));
-            }
 
-            if (!endAppearance.ColorMatrix.Equals(_appearance.ColorMatrix)){
-                ColorMatrix.Interpolate(in _appearance.ColorMatrix, in endAppearance.ColorMatrix, factor, out _animatedAppearance.ColorMatrix);
-            }
+            if (!endAppearance.ColorMatrix.Equals(_appearance.ColorMatrix))
+                ColorMatrix.Interpolate(in _appearance.ColorMatrix, in endAppearance.ColorMatrix, factor,
+                    out _animatedAppearance.ColorMatrix);
 
-            if (!endAppearance.GlideSize.Equals(_appearance.GlideSize)) {
-                _animatedAppearance.GlideSize = ((1-factor) * _appearance.GlideSize) + (factor * endAppearance.GlideSize);
-            }
+            if (!endAppearance.GlideSize.Equals(_appearance.GlideSize))
+                _animatedAppearance.GlideSize = (1 - factor) * _appearance.GlideSize + factor * endAppearance.GlideSize;
 
             /* TODO infraluminosity
             if (endAppearance.InfraLuminosity != _appearance.InfraLuminosity) {
@@ -390,9 +403,8 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             }
             */
 
-            if (!endAppearance.Layer.Equals(_appearance.Layer)) {
-                _animatedAppearance.Layer = ((1-factor) * _appearance.Layer) + (factor * endAppearance.Layer);
-            }
+            if (!endAppearance.Layer.Equals(_appearance.Layer))
+                _animatedAppearance.Layer = (1 - factor) * _appearance.Layer + factor * endAppearance.Layer;
 
             /* TODO luminosity
             if (endAppearance.Luminosity != _appearance.Luminosity) {
@@ -429,43 +441,50 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             }
 
             if (!endAppearance.Transform.SequenceEqual(_appearance.Transform)) {
-                _animatedAppearance.Transform[0] = (1.0f-factor)*_appearance.Transform[0] + (factor * endAppearance.Transform[0]);
-                _animatedAppearance.Transform[1] = (1.0f-factor)*_appearance.Transform[1] + (factor * endAppearance.Transform[1]);
-                _animatedAppearance.Transform[2] = (1.0f-factor)*_appearance.Transform[2] + (factor * endAppearance.Transform[2]);
-                _animatedAppearance.Transform[3] = (1.0f-factor)*_appearance.Transform[3] + (factor * endAppearance.Transform[3]);
-                _animatedAppearance.Transform[4] = (1.0f-factor)*_appearance.Transform[4] + (factor * endAppearance.Transform[4]);
-                _animatedAppearance.Transform[5] = (1.0f-factor)*_appearance.Transform[5] + (factor * endAppearance.Transform[5]);
+                _animatedAppearance.Transform[0] =
+                    (1.0f - factor) * _appearance.Transform[0] + factor * endAppearance.Transform[0];
+                _animatedAppearance.Transform[1] =
+                    (1.0f - factor) * _appearance.Transform[1] + factor * endAppearance.Transform[1];
+                _animatedAppearance.Transform[2] =
+                    (1.0f - factor) * _appearance.Transform[2] + factor * endAppearance.Transform[2];
+                _animatedAppearance.Transform[3] =
+                    (1.0f - factor) * _appearance.Transform[3] + factor * endAppearance.Transform[3];
+                _animatedAppearance.Transform[4] =
+                    (1.0f - factor) * _appearance.Transform[4] + factor * endAppearance.Transform[4];
+                _animatedAppearance.Transform[5] =
+                    (1.0f - factor) * _appearance.Transform[5] + factor * endAppearance.Transform[5];
             }
 
             if (timeFactor >= 1f) {
-                toRemove ??= new();
+                toRemove ??= new List<AppearanceAnimation>();
                 toRemove.Add(animation);
                 if (_appearanceAnimationsLoops != 0) { //add it back to the list with the times updated
-                    if(_appearanceAnimationsLoops != -1 && animation.LastInSequence)
+                    if (_appearanceAnimationsLoops != -1 && animation.LastInSequence)
                         _appearanceAnimationsLoops -= 1;
-                    toReAdd ??= new();
+                    toReAdd ??= new List<AppearanceAnimation>();
                     DateTime start;
-                    if((animation.Flags & AnimationFlags.AnimationParallel) != 0)
-                        start = _appearanceAnimations[^1].Start; //either that's also a parallel, or its one that this should be parallel with
+                    if ((animation.Flags & AnimationFlags.AnimationParallel) != 0)
+                        start = _appearanceAnimations[^1]
+                            .Start; //either that's also a parallel, or its one that this should be parallel with
                     else
-                        start = _appearanceAnimations[^1].Start + _appearanceAnimations[^1].Duration; //if it's not parallel, it's chained
-                    AppearanceAnimation repeatAnimation = new AppearanceAnimation(start, animation.Duration, animation.EndAppearance, animation.Easing, animation.Flags, animation.Delay, animation.LastInSequence);
+                        start = _appearanceAnimations[^1].Start +
+                                _appearanceAnimations[^1].Duration; //if it's not parallel, it's chained
+                    var repeatAnimation = new AppearanceAnimation(start, animation.Duration, animation.EndAppearance,
+                        animation.Easing, animation.Flags, animation.Delay, animation.LastInSequence);
                     toReAdd.Add(repeatAnimation);
                 }
             }
         }
 
-        if(toRemove != null)
-            foreach (AppearanceAnimation animation in toRemove) {
+        if (toRemove != null)
+            foreach (AppearanceAnimation animation in toRemove)
                 EndAppearanceAnimation(animation);
-            }
 
-        if(toReAdd != null)
-            foreach (AppearanceAnimation animation in toReAdd) {
+        if (toReAdd != null)
+            foreach (AppearanceAnimation animation in toReAdd)
                 _appearanceAnimations.Add(animation);
-            }
 
-        return new(_animatedAppearance, null); //one of the very few times it's okay to do this.
+        return new ImmutableAppearance(_animatedAppearance, null); //one of the very few times it's okay to do this.
     }
 
     private void UpdateIcon() {
@@ -476,9 +495,9 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
             return;
         }
 
-        if (Appearance.Icon == null) {
+        if (Appearance.Icon == null)
             DMI = null;
-        } else {
+        else
             IoCManager.Resolve<IDreamResourceManager>().LoadResourceAsync<DMIResource>(Appearance.Icon.Value, dmi => {
                 if (dmi.Id != Appearance.Icon) return; //Icon changed while resource was loading
                 dmi.OnUpdateCallbacks.Add(DirtyTexture);
@@ -486,19 +505,20 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
                 _animationFrame = 0;
                 _animationComplete = false;
             });
-        }
 
         Overlays.Clear();
-        foreach (var overlayAppearance in Appearance.Overlays) {
-            DreamIcon overlay = new DreamIcon(renderTargetPool, interfaceManager, gameTiming, clyde, appearanceSystem, overlayAppearance.MustGetId(), _direction, _iconState);
+        foreach (ImmutableAppearance overlayAppearance in Appearance.Overlays) {
+            var overlay = new DreamIcon(renderTargetPool, interfaceManager, gameTiming, clyde, appearanceSystem,
+                overlayAppearance.MustGetId(), _direction, _iconState);
             overlay.SizeChanged += CheckSizeChange;
 
             Overlays.Add(overlay);
         }
 
         Underlays.Clear();
-        foreach (var underlayAppearance in Appearance.Underlays) {
-            DreamIcon underlay = new DreamIcon(renderTargetPool, interfaceManager, gameTiming, clyde, appearanceSystem, underlayAppearance.MustGetId(), _direction, _iconState);
+        foreach (ImmutableAppearance underlayAppearance in Appearance.Underlays) {
+            var underlay = new DreamIcon(renderTargetPool, interfaceManager, gameTiming, clyde, appearanceSystem,
+                underlayAppearance.MustGetId(), _direction, _iconState);
             underlay.SizeChanged += CheckSizeChange;
 
             Underlays.Add(underlay);
@@ -506,35 +526,39 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
     }
 
     /// <summary>
-    /// Perform a full (slower) render of this icon's texture, including filters and color
+    ///     Perform a full (slower) render of this icon's texture, including filters and color
     /// </summary>
     /// <remarks>In a separate method to avoid closure allocations when not executed</remarks>
     /// <returns>The final texture</returns>
-    [SuppressMessage("ReSharper", "AccessToModifiedClosure")] // RenderInRenderTarget executes immediately, shouldn't be an issue
-    private IRenderTexture FullRenderTexture(DreamViewOverlay viewOverlay, DrawingHandleWorld handle, RendererMetaData iconMetaData, Texture frame) {
+    [SuppressMessage("ReSharper",
+        "AccessToModifiedClosure")] // RenderInRenderTarget executes immediately, shouldn't be an issue
+    private IRenderTexture FullRenderTexture(DreamViewOverlay viewOverlay, DrawingHandleWorld handle,
+        RendererMetaData iconMetaData, Texture frame) {
         Vector2 requiredRenderSpace = frame.Size;
-        foreach (var filter in iconMetaData.MainIcon!.Appearance!.Filters) {
-            var requiredSpace = filter.CalculateRequiredRenderSpace(frame.Size,
-                renderSource => viewOverlay.RenderSourceLookup.GetValueOrDefault(renderSource)?.Size ?? new(0, 0));
+        foreach (DreamFilter filter in iconMetaData.MainIcon!.Appearance!.Filters) {
+            Vector2i requiredSpace = filter.CalculateRequiredRenderSpace(frame.Size,
+                renderSource => viewOverlay.RenderSourceLookup.GetValueOrDefault(renderSource)?.Size ??
+                                new Vector2i(0, 0));
 
             requiredRenderSpace = Vector2.Max(requiredRenderSpace, requiredSpace);
         }
 
-        var ping = renderTargetPool.Rent((Vector2i)requiredRenderSpace);
-        var pong = renderTargetPool.Rent(ping.Size);
+        IRenderTexture ping = renderTargetPool.Rent((Vector2i)requiredRenderSpace);
+        IRenderTexture pong = renderTargetPool.Rent(ping.Size);
 
         handle.RenderInRenderTarget(pong, () => {
             //we can use the color matrix shader here, since we don't need to blend
             //also because blend mode is none, we don't need to clear
-            var colorMatrix = iconMetaData.ColorMatrixToApply;
+            ColorMatrix colorMatrix = iconMetaData.ColorMatrixToApply;
 
             ShaderInstance colorShader = DreamViewOverlay.ColorInstance.Duplicate();
             colorShader.SetParameter("colorMatrix", colorMatrix.GetMatrix4());
             colorShader.SetParameter("offsetVector", colorMatrix.GetOffsetVector());
-            colorShader.SetParameter("isPlaneMaster",iconMetaData.IsPlaneMaster);
+            colorShader.SetParameter("isPlaneMaster", iconMetaData.IsPlaneMaster);
             handle.UseShader(colorShader);
 
-            handle.SetTransform(DreamViewOverlay.CreateRenderTargetFlipMatrix(pong.Size, (pong.Size/2 - frame.Size/2)));
+            handle.SetTransform(
+                DreamViewOverlay.CreateRenderTargetFlipMatrix(pong.Size, pong.Size / 2 - frame.Size / 2));
             handle.DrawTextureRect(frame, new Box2(Vector2.Zero, frame.Size));
         }, Color.Black.WithAlpha(0));
 
@@ -551,7 +575,8 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
 
             // The blur filter runs a more performant two passes
             if (filterId.FilterType == "blur") {
-                s = appearanceSystem.GetFilterShader(filterId with {FilterType = "blur_vertical"}, viewOverlay.RenderSourceLookup);
+                s = appearanceSystem.GetFilterShader(filterId with {FilterType = "blur_vertical"},
+                    viewOverlay.RenderSourceLookup);
                 (ping, pong) = (pong, ping);
 
                 handle.RenderInRenderTarget(ping, () => {
@@ -586,7 +611,14 @@ internal sealed class DreamIcon(RenderTargetPool renderTargetPool, IDreamInterfa
         CachedTexture = null;
     }
 
-    private struct AppearanceAnimation(DateTime start, TimeSpan duration, ImmutableAppearance endAppearance, AnimationEasing easing, AnimationFlags flags, int delay, bool lastInSequence) {
+    private struct AppearanceAnimation(
+        DateTime start,
+        TimeSpan duration,
+        ImmutableAppearance endAppearance,
+        AnimationEasing easing,
+        AnimationFlags flags,
+        int delay,
+        bool lastInSequence) {
         public readonly DateTime Start = start;
         public readonly TimeSpan Duration = duration;
         public readonly ImmutableAppearance EndAppearance = endAppearance;

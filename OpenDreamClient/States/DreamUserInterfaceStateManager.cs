@@ -11,12 +11,12 @@ namespace OpenDreamClient.States;
 /// </summary>
 [UsedImplicitly]
 public sealed partial class DreamUserInterfaceStateManager {
+    [Dependency] private IBaseClient _client = default!;
     [Dependency] private IGameController _gameController = default!;
     [Dependency] private IStateManager _stateManager = default!;
-    [Dependency] private IBaseClient _client = default!;
 
     public void Initialize() {
-        _client.RunLevelChanged += ((_, args) => {
+        _client.RunLevelChanged += (_, args) => {
             switch (args.NewLevel) {
                 case ClientRunLevel.InGame:
                 case ClientRunLevel.Connected:
@@ -37,7 +37,8 @@ public sealed partial class DreamUserInterfaceStateManager {
                             FromLauncher: true,
                             Ss14Address: not null
                         }) {
-                        _gameController.Redial(_gameController.LaunchState.Ss14Address, "Connection lost; attempting reconnect");
+                        _gameController.Redial(_gameController.LaunchState.Ss14Address,
+                            "Connection lost; attempting reconnect");
 
                         break;
                     }
@@ -49,6 +50,6 @@ public sealed partial class DreamUserInterfaceStateManager {
                     _stateManager.RequestStateChange<ConnectingState>();
                     break;
             }
-        });
+        };
     }
 }

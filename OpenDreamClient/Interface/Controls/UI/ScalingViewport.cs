@@ -15,24 +15,26 @@ namespace OpenDreamClient.Interface.Controls.UI;
 public sealed partial class ScalingViewport : Control, IViewportControl {
     public delegate void MouseMoveHandler(GUIMouseMoveEventArgs args);
 
-    public event MouseMoveHandler? OnMouseMove;
+    private readonly List<CopyPixelsDelegate<Rgba32>> _queuedScreenshots = new();
 
     [Dependency] private IClyde _clyde = default!;
-    [Dependency] private IInputManager _inputManager = default!;
     [Dependency] private IEntityManager _entityManager = default!;
+    private IEye? _eye;
+    private int _fixedRenderScale = 1;
+    [Dependency] private IInputManager _inputManager = default!;
+    private ScalingViewportRenderScaleMode _renderScaleMode = ScalingViewportRenderScaleMode.CeilInt;
+    private ScalingViewportStretchMode _stretchMode = ScalingViewportStretchMode.Bilinear;
 
     // Internal viewport creation is deferred.
     private IClydeViewport? _viewport;
-    private IEye? _eye;
     private Vector2i _viewportSize;
-    private int _curRenderScale;
-    private ScalingViewportStretchMode _stretchMode = ScalingViewportStretchMode.Bilinear;
-    private ScalingViewportRenderScaleMode _renderScaleMode = ScalingViewportRenderScaleMode.CeilInt;
-    private int _fixedRenderScale = 1;
 
-    private readonly List<CopyPixelsDelegate<Rgba32>> _queuedScreenshots = new();
+    public ScalingViewport() {
+        IoCManager.InjectDependencies(this);
+        RectClipContent = true;
+    }
 
-    public int CurrentRenderScale => _curRenderScale;
+    public int CurrentRenderScale { get; private set; }
 
     /// <summary>
     ///     The eye to render.
@@ -92,10 +94,65 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
         }
     }
 
-    public ScalingViewport() {
-        IoCManager.InjectDependencies(this);
-        RectClipContent = true;
+    public MapCoordinates ScreenToMap(Vector2 coords) {
+        if (_eye == null)
+            return default;
+
+        EnsureViewportCreated();
+
+        Matrix3x2.Invert(LocalToScreenMatrix(), out Matrix3x2 matrix);
+        coords = Vector2.Transform(coords, matrix);
+
+        return _viewport!.LocalToWorld(coords);
     }
+
+    public MapCoordinates PixelToMap(Vector2 coords) {
+        if (_eye == null)
+            return default;
+
+        EnsureViewportCreated();
+
+        Matrix3x2.Invert(GetLocalToScreenMatrix(), out Matrix3x2 matrix);
+        coords = Vector2.Transform(coords, matrix);
+
+        var ev = new PixelToMapEvent(coords, this, _viewport!);
+        _entityManager.EventBus.RaiseEvent(EventSource.Local, ref ev);
+
+        return _viewport!.LocalToWorld(ev.VisiblePosition);
+    }
+
+    public Vector2 WorldToScreen(Vector2 map) {
+        if (_eye == null)
+            return default;
+
+        EnsureViewportCreated();
+
+        Vector2 vpLocal = _viewport!.WorldToLocal(map);
+
+        Matrix3x2 matrix = LocalToScreenMatrix();
+
+        return Vector2.Transform(vpLocal, matrix);
+    }
+
+    public Matrix3x2 GetWorldToScreenMatrix() {
+        EnsureViewportCreated();
+        return _viewport!.GetWorldToLocalMatrix() * GetLocalToScreenMatrix();
+    }
+
+    public Matrix3x2 GetLocalToScreenMatrix() {
+        EnsureViewportCreated();
+
+        UIBox2i drawBox = GetDrawBox();
+        Vector2 scaleFactor = drawBox.Size / (Vector2)_viewport!.Size;
+
+        if (scaleFactor.X == 0 || scaleFactor.Y == 0)
+            // Basically a nonsense scenario, at least make sure to return something that can be inverted.
+            return Matrix3x2.Identity;
+
+        return Matrix3Helpers.CreateTransform(GlobalPixelPosition + drawBox.TopLeft, 0, scaleFactor);
+    }
+
+    public event MouseMoveHandler? OnMouseMove;
 
     protected override void KeyBindDown(GUIBoundKeyEventArgs args) {
         base.KeyBindDown(args);
@@ -123,19 +180,17 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
         _viewport!.Render();
 
         if (_queuedScreenshots.Count != 0) {
-            var callbacks = _queuedScreenshots.ToArray();
+            CopyPixelsDelegate<Rgba32>[] callbacks = _queuedScreenshots.ToArray();
 
             _viewport.RenderTarget.CopyPixelsToMemory<Rgba32>(image => {
-                foreach (var callback in callbacks) {
-                    callback(image);
-                }
+                foreach (CopyPixelsDelegate<Rgba32> callback in callbacks) callback(image);
             });
 
             _queuedScreenshots.Clear();
         }
 
-        var drawBox = GetDrawBox();
-        var drawBoxGlobal = drawBox.Translated(GlobalPixelPosition);
+        UIBox2i drawBox = GetDrawBox();
+        UIBox2i drawBoxGlobal = drawBox.Translated(GlobalPixelPosition);
         _viewport.RenderScreenOverlaysBelow(handle, this, drawBoxGlobal);
         handle.DrawingHandleScreen.DrawTextureRect(_viewport.RenderTarget.Texture, drawBox);
         _viewport.RenderScreenOverlaysAbove(handle, this, drawBoxGlobal);
@@ -149,21 +204,21 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
     public UIBox2i GetDrawBox() {
         DebugTools.AssertNotNull(_viewport);
 
-        var vpSize = _viewport!.Size;
+        Vector2i vpSize = _viewport!.Size;
         var ourSize = (Vector2)PixelSize;
 
         if (FixedStretchSize == null) {
-            var (ratioX, ratioY) = ourSize / vpSize;
-            var ratio = Math.Min(ratioX, ratioY);
+            (float ratioX, float ratioY) = ourSize / vpSize;
+            float ratio = Math.Min(ratioX, ratioY);
 
-            var size = vpSize * ratio;
+            Vector2 size = vpSize * ratio;
             // Size
-            var pos = (ourSize - size) / 2;
+            Vector2 pos = (ourSize - size) / 2;
 
             return (UIBox2i)UIBox2.FromDimensions(pos, size);
         } else {
             // Center only, no scaling.
-            var pos = (ourSize - FixedStretchSize.Value) / 2;
+            Vector2 pos = (ourSize - FixedStretchSize.Value) / 2;
             return (UIBox2i)UIBox2.FromDimensions(pos, FixedStretchSize.Value);
         }
     }
@@ -171,17 +226,17 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
     private void RegenerateViewport() {
         DebugTools.AssertNull(_viewport);
 
-        var vpSizeBase = ViewportSize;
-        var ourSize = PixelSize;
-        var (ratioX, ratioY) = ourSize / (Vector2) vpSizeBase;
-        var ratio = Math.Min(ratioX, ratioY);
+        Vector2i vpSizeBase = ViewportSize;
+        Vector2i ourSize = PixelSize;
+        (float ratioX, float ratioY) = ourSize / (Vector2)vpSizeBase;
+        float ratio = Math.Min(ratioX, ratioY);
         var renderScale = 1;
         switch (_renderScaleMode) {
             case ScalingViewportRenderScaleMode.CeilInt:
-                renderScale = (int) Math.Ceiling(ratio);
+                renderScale = (int)Math.Ceiling(ratio);
                 break;
             case ScalingViewportRenderScaleMode.FloorInt:
-                renderScale = (int) Math.Floor(ratio);
+                renderScale = (int)Math.Floor(ratio);
                 break;
             case ScalingViewportRenderScaleMode.Fixed:
                 renderScale = _fixedRenderScale;
@@ -191,12 +246,12 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
         // Always has to be at least one to avoid passing 0,0 to the viewport constructor
         renderScale = Math.Max(1, renderScale);
 
-        _curRenderScale = renderScale;
+        CurrentRenderScale = renderScale;
 
         _viewport = _clyde.CreateViewport(
             ViewportSize * renderScale,
             new TextureSampleParameters {
-                Filter = StretchMode == ScalingViewportStretchMode.Bilinear,
+                Filter = StretchMode == ScalingViewportStretchMode.Bilinear
             });
 
         _viewport.RenderScale = new Vector2(renderScale, renderScale);
@@ -215,51 +270,11 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
         _viewport = null;
     }
 
-    public MapCoordinates ScreenToMap(Vector2 coords) {
-        if (_eye == null)
-            return default;
-
-        EnsureViewportCreated();
-
-        Matrix3x2.Invert(LocalToScreenMatrix(), out var matrix);
-        coords = Vector2.Transform(coords, matrix);
-
-        return _viewport!.LocalToWorld(coords);
-    }
-
-    public MapCoordinates PixelToMap(Vector2 coords) {
-        if (_eye == null)
-            return default;
-
-        EnsureViewportCreated();
-
-        Matrix3x2.Invert(GetLocalToScreenMatrix(), out var matrix);
-        coords = Vector2.Transform(coords, matrix);
-
-        var ev = new PixelToMapEvent(coords, this, _viewport!);
-        _entityManager.EventBus.RaiseEvent(EventSource.Local, ref ev);
-
-        return _viewport!.LocalToWorld(ev.VisiblePosition);
-    }
-
-    public Vector2 WorldToScreen(Vector2 map) {
-        if (_eye == null)
-            return default;
-
-        EnsureViewportCreated();
-
-        var vpLocal = _viewport!.WorldToLocal(map);
-
-        var matrix = LocalToScreenMatrix();
-
-        return Vector2.Transform(vpLocal, matrix);
-    }
-
     private Matrix3x2 LocalToScreenMatrix() {
         DebugTools.AssertNotNull(_viewport);
 
-        var drawBox = GetDrawBox();
-        var scaleFactor = drawBox.Size / (Vector2)_viewport!.Size;
+        UIBox2i drawBox = GetDrawBox();
+        Vector2 scaleFactor = drawBox.Size / (Vector2)_viewport!.Size;
 
         if (scaleFactor == Vector2.Zero)
             // Basically a nonsense scenario, at least make sure to return something that can be inverted.
@@ -272,29 +287,9 @@ public sealed partial class ScalingViewport : Control, IViewportControl {
     }
 
     private void EnsureViewportCreated() {
-        if (_viewport == null) {
-            RegenerateViewport();
-        }
+        if (_viewport == null) RegenerateViewport();
 
         DebugTools.AssertNotNull(_viewport);
-    }
-
-    public Matrix3x2 GetWorldToScreenMatrix() {
-        EnsureViewportCreated();
-        return _viewport!.GetWorldToLocalMatrix() * GetLocalToScreenMatrix();
-    }
-
-    public Matrix3x2 GetLocalToScreenMatrix() {
-        EnsureViewportCreated();
-
-        var drawBox = GetDrawBox();
-        var scaleFactor = drawBox.Size / (Vector2)_viewport!.Size;
-
-        if (scaleFactor.X == 0 || scaleFactor.Y == 0)
-            // Basically a nonsense scenario, at least make sure to return something that can be inverted.
-            return Matrix3x2.Identity;
-
-        return Matrix3Helpers.CreateTransform(GlobalPixelPosition + drawBox.TopLeft, 0, scaleFactor);
     }
 
     protected override void MouseMove(GUIMouseMoveEventArgs args) {
@@ -322,7 +317,7 @@ public enum ScalingViewportStretchMode {
 /// </summary>
 public enum ScalingViewportRenderScaleMode {
     /// <summary>
-    ///     <see cref="ScalingViewport.FixedRenderScale"/> is used.
+    ///     <see cref="ScalingViewport.FixedRenderScale" /> is used.
     /// </summary>
     Fixed = 0,
 

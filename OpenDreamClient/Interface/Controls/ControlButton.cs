@@ -8,14 +8,15 @@ using Robust.Client.UserInterface.Controls;
 
 namespace OpenDreamClient.Interface.Controls;
 
-internal sealed partial class ControlButton(ControlDescriptor controlDescriptor, ControlWindow window) : InterfaceControl(controlDescriptor, window) {
-    [Dependency] private IResourceCache _resCache = default!;
+internal sealed partial class ControlButton(ControlDescriptor controlDescriptor, ControlWindow window)
+    : InterfaceControl(controlDescriptor, window) {
     public const string StyleClassDMFButton = "DMFbutton";
 
     private Button _button;
+    [Dependency] private IResourceCache _resCache = default!;
 
     protected override Control CreateUIElement() {
-        _button = new Button() {
+        _button = new Button {
             ClipText = true
         };
 
@@ -29,9 +30,9 @@ internal sealed partial class ControlButton(ControlDescriptor controlDescriptor,
     protected override void UpdateElementDescriptor() {
         base.UpdateElementDescriptor();
 
-        ControlDescriptorButton controlDescriptor = (ControlDescriptorButton)ElementDescriptor;
+        var controlDescriptor = (ControlDescriptorButton)ElementDescriptor;
 
-        var buttonTexturePath = controlDescriptor.IsChecked.Value
+        string buttonTexturePath = controlDescriptor.IsChecked.Value
             ? "/Textures/Interface/ButtonPressed.png"
             : "/Textures/Interface/Button.png";
 
@@ -48,10 +49,10 @@ internal sealed partial class ControlButton(ControlDescriptor controlDescriptor,
         if (!string.IsNullOrEmpty(controlDescriptor.Image.Value)) {
             TextureRect image = new();
             var dreamResourceManager = IoCManager.Resolve<IDreamResourceManager>();
-            dreamResourceManager.LookupResourceAsync(controlDescriptor.Image.AsRaw().Replace("\\","/"),
-                (resourceId) => dreamResourceManager.LoadResourceAsync<DMIResource>(resourceId, dmi => {
-                    image.Texture = dmi.Texture;
-                }),
+            dreamResourceManager.LookupResourceAsync(controlDescriptor.Image.AsRaw().Replace("\\", "/"),
+                resourceId =>
+                    dreamResourceManager.LoadResourceAsync<DMIResource>(resourceId,
+                        dmi => { image.Texture = dmi.Texture; }),
                 () => _button.Text = "Bad Image Ref" //todo broken image texture
             );
 
@@ -63,15 +64,14 @@ internal sealed partial class ControlButton(ControlDescriptor controlDescriptor,
     }
 
     private void OnButtonClick(BaseButton.ButtonEventArgs args) {
-        ControlDescriptorButton controlDescriptor = (ControlDescriptorButton)ElementDescriptor;
+        var controlDescriptor = (ControlDescriptorButton)ElementDescriptor;
 
         if (controlDescriptor.ButtonType.Value == "pushbox") {
             controlDescriptor.IsChecked.Value = !controlDescriptor.IsChecked.Value;
             UpdateElementDescriptor();
         }
 
-        if (!string.IsNullOrEmpty(controlDescriptor.Command.Value)) {
+        if (!string.IsNullOrEmpty(controlDescriptor.Command.Value))
             InterfaceManager.RunCommand(controlDescriptor.Command.AsRaw());
-        }
     }
 }

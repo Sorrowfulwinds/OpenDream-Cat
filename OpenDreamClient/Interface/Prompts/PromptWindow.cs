@@ -8,19 +8,19 @@ namespace OpenDreamClient.Interface.Prompts;
 
 public abstract class PromptWindow : OSWindow {
     protected readonly Control InputControl;
-    protected string DefaultButton;
 
     private readonly BoxContainer _buttonPanel;
-    private bool _promptFinished;
 
     private readonly Action<DreamValueType, object?>? _closeAction;
+    protected string DefaultButton;
+    private bool _promptFinished;
 
     protected PromptWindow(string? title, string? message, Action<DreamValueType, object?>? onClose) {
         _closeAction = onClose;
 
         Title = !string.IsNullOrEmpty(title) ? title : "OpenDream";
 
-        Label messageLabel = new Label();
+        var messageLabel = new Label();
         messageLabel.Margin = new Thickness(5);
         messageLabel.Text = message;
 
@@ -52,9 +52,9 @@ public abstract class PromptWindow : OSWindow {
     }
 
     protected void CreateButton(string text, bool isDefault) {
-        Button button = new Button() {
+        var button = new Button {
             Margin = new Thickness(15, 0, 0, 0),
-            Children = { new Label { Text = text, Margin = new Thickness(5, 2, 5, 2) } }
+            Children = {new Label {Text = text, Margin = new Thickness(5, 2, 5, 2)}}
         };
 
         if (isDefault)
@@ -77,10 +77,9 @@ public abstract class PromptWindow : OSWindow {
 
     private void PromptWindow_Closing(CancelEventArgs e) {
         //Don't allow closing if there hasn't been a response to the prompt
-        if (!_promptFinished) {
+        if (!_promptFinished)
             e.Cancel = true;
-        } else {
+        else
             Owner = null;
-        }
     }
 }

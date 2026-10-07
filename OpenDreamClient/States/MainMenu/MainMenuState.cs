@@ -13,18 +13,17 @@ using Robust.Shared.Utility;
 namespace OpenDreamClient.States.MainMenu;
 
 public sealed partial class MainMenuState : State {
-    [Dependency] private IUserInterfaceManager _userInterfaceManager = default!;
-    [Dependency] private IBaseClient _client = default!;
-    [Dependency] private IClientNetManager _netManager = default!;
-    [Dependency] private IResourceCache _resourceCache = default!;
-    [Dependency] private IConfigurationManager _configurationManager = default!;
-    [Dependency] private IGameController _controllerProxy = default!;
-
-    private MainMenuControl _mainMenuControl = default!;
-    private bool _isConnecting;
-
     // ReSharper disable once InconsistentNaming
     private static readonly Regex IPv6Regex = new(@"\[(.*:.*:.*)](?::(\d+))?");
+    [Dependency] private IBaseClient _client = default!;
+    [Dependency] private IConfigurationManager _configurationManager = default!;
+    [Dependency] private IGameController _controllerProxy = default!;
+    private bool _isConnecting;
+
+    private MainMenuControl _mainMenuControl = default!;
+    [Dependency] private IClientNetManager _netManager = default!;
+    [Dependency] private IResourceCache _resourceCache = default!;
+    [Dependency] private IUserInterfaceManager _userInterfaceManager = default!;
 
     protected override void Startup() {
         _mainMenuControl = new MainMenuControl(_resourceCache, _configurationManager);
@@ -61,29 +60,27 @@ public sealed partial class MainMenuState : State {
     }
 
     private void ConnectButtonPressed(BaseButton.ButtonEventArgs args) {
-        var input = _mainMenuControl.AddressBox;
+        LineEdit input = _mainMenuControl.AddressBox;
         TryConnect(input.Text);
     }
 
     private void AddressBoxEntered(LineEdit.LineEditEventArgs args) {
-        if (_isConnecting) {
-            return;
-        }
+        if (_isConnecting) return;
 
         TryConnect(args.Text);
     }
 
     private void TryConnect(string address) {
-        var inputName = _mainMenuControl.UserNameBox.Text.Trim();
-        if (!UsernameHelpers.IsNameValid(inputName, out var reason)) {
-            var invalidReason = Loc.GetString(reason.ToText());
+        string inputName = _mainMenuControl.UserNameBox.Text.Trim();
+        if (!UsernameHelpers.IsNameValid(inputName, out UsernameHelpers.UsernameInvalidReason reason)) {
+            string invalidReason = Loc.GetString(reason.ToText());
             _userInterfaceManager.Popup(
                 Loc.GetString("main-menu-invalid-username-with-reason", ("invalidReason", invalidReason)),
                 Loc.GetString("main-menu-invalid-username"));
             return;
         }
 
-        var configName = _configurationManager.GetCVar(CVars.PlayerName);
+        string configName = _configurationManager.GetCVar(CVars.PlayerName);
         if (_mainMenuControl.UserNameBox.Text != configName) {
             _configurationManager.SetCVar(CVars.PlayerName, inputName);
             _configurationManager.SaveToFile();
@@ -92,7 +89,7 @@ public sealed partial class MainMenuState : State {
         _setConnectingState(true);
         _netManager.ConnectFailed += _onConnectFailed;
         try {
-            ParseAddress(address, out var ip, out var port);
+            ParseAddress(address, out string ip, out ushort port);
             _client.ConnectToServer(ip, port);
         } catch (ArgumentException e) {
             _userInterfaceManager.Popup($"Unable to connect: {e.Message}", "Connection error.");
@@ -103,35 +100,29 @@ public sealed partial class MainMenuState : State {
     }
 
     private void ParseAddress(string address, out string ip, out ushort port) {
-        var match6 = IPv6Regex.Match(address);
+        Match match6 = IPv6Regex.Match(address);
         if (match6 != Match.Empty) {
             ip = match6.Groups[1].Value;
-            if (!match6.Groups[2].Success) {
+            if (!match6.Groups[2].Success)
                 port = _client.DefaultPort;
-            } else if (!ushort.TryParse(match6.Groups[2].Value, out port)) {
+            else if (!ushort.TryParse(match6.Groups[2].Value, out port))
                 throw new ArgumentException("Not a valid port.");
-            }
 
             return;
         }
 
         // See if the IP includes a port.
-        var split = address.Split(':');
+        string[] split = address.Split(':');
         ip = address;
         port = _client.DefaultPort;
-        if (split.Length > 2) {
-            throw new ArgumentException("Not a valid Address.");
-        }
+        if (split.Length > 2) throw new ArgumentException("Not a valid Address.");
 
         // IP:port format.
         if (split.Length == 2) {
             ip = split[0];
-            if (!ushort.TryParse(split[1], out port)) {
-                throw new ArgumentException("Not a valid port.");
-            }
+            if (!ushort.TryParse(split[1], out port)) throw new ArgumentException("Not a valid port.");
         }
     }
-
 
     private void _onConnectFailed(object? _, NetConnectFailArgs args) {
         _userInterfaceManager.Popup($"Failed to connect: {args.Reason}");

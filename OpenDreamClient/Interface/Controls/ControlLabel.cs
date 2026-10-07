@@ -5,7 +5,8 @@ using Robust.Client.UserInterface.Controls;
 
 namespace OpenDreamClient.Interface.Controls;
 
-internal sealed class ControlLabel(ControlDescriptor controlDescriptor, ControlWindow window) : InterfaceControl(controlDescriptor, window) {
+internal sealed class ControlLabel(ControlDescriptor controlDescriptor, ControlWindow window)
+    : InterfaceControl(controlDescriptor, window) {
     private Label _label = default!;
 
     protected override Control CreateUIElement() {
@@ -23,9 +24,9 @@ internal sealed class ControlLabel(ControlDescriptor controlDescriptor, ControlW
     protected override void UpdateElementDescriptor() {
         base.UpdateElementDescriptor();
 
-        ControlDescriptorLabel controlDescriptor = (ControlDescriptorLabel)ElementDescriptor;
+        var controlDescriptor = (ControlDescriptorLabel)ElementDescriptor;
         _label.Text = controlDescriptor.Text.AsRaw();
-        _label.FontColorOverride = (ControlDescriptor.TextColor.Value != Color.Transparent)
+        _label.FontColorOverride = ControlDescriptor.TextColor.Value != Color.Transparent
             ? ControlDescriptor.TextColor.Value
             : null;
 

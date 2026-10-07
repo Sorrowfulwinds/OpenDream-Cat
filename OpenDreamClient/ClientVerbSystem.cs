@@ -7,24 +7,22 @@ using Robust.Client.GameObjects;
 using Robust.Client.Graphics;
 using Robust.Client.Player;
 using Robust.Shared.Asynchronous;
-using Robust.Shared.Timing;
 
 namespace OpenDreamClient;
 
 public sealed partial class ClientVerbSystem : VerbSystem {
-    [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
-    [Dependency] private IPlayerManager _playerManager = default!;
+    private readonly Dictionary<int, VerbInfo> _verbs = new();
+    private List<int>? _clientVerbs;
     [Dependency] private IEntityManager _entityManager = default!;
-    [Dependency] private ITaskManager _taskManager = default!;
+    [Dependency] private IDreamInterfaceManager _interfaceManager = default!;
     [Dependency] private IOverlayManager _overlayManager = default!;
+    [Dependency] private IPlayerManager _playerManager = default!;
+    private EntityQuery<DreamMobSightComponent> _sightQuery;
+    private EntityQuery<DMISpriteComponent> _spriteQuery;
+    [Dependency] private ITaskManager _taskManager = default!;
     [Dependency] private TransformSystem _transformSystem = default!;
 
     private EntityQuery<TransformComponent> _xformQuery;
-    private EntityQuery<DMISpriteComponent> _spriteQuery;
-    private EntityQuery<DreamMobSightComponent> _sightQuery;
-
-    private readonly Dictionary<int, VerbInfo> _verbs = new();
-    private List<int>? _clientVerbs;
 
     public override void Initialize() {
         _spriteQuery = _entityManager.GetEntityQuery<DMISpriteComponent>();
@@ -42,23 +40,24 @@ public sealed partial class ClientVerbSystem : VerbSystem {
     }
 
     /// <summary>
-    /// Prompt the user for the arguments to a verb, then ask the server to execute it
+    ///     Prompt the user for the arguments to a verb, then ask the server to execute it
     /// </summary>
     /// <param name="src">The target of the verb</param>
     /// <param name="verbId">ID of the verb to execute</param>
     public async void ExecuteVerb(ClientObjectReference src, int verbId) {
-        var verbInfo = _verbs[verbId];
+        VerbInfo verbInfo = _verbs[verbId];
 
         RaiseNetworkEvent(new ExecuteVerbEvent(src, verbId, await PromptVerbArguments(verbInfo)));
     }
 
     /// <summary>
-    /// Ask the server to execute a verb with the given arguments
+    ///     Ask the server to execute a verb with the given arguments
     /// </summary>
     /// <param name="src">The target of the verb</param>
     /// <param name="verbId">ID of the verb to execute</param>
     /// <param name="arguments">Arguments to the verb</param>
-    /// <remarks>The server will not execute the verb if the arguments are invalid</remarks> // TODO: I think the server actually just errors, fix that
+    /// <remarks>The server will not execute the verb if the arguments are invalid</remarks>
+    /// // TODO: I think the server actually just errors, fix that
     public void ExecuteVerb(ClientObjectReference src, int verbId, object?[] arguments) {
         RaiseNetworkEvent(new ExecuteVerbEvent(src, verbId, arguments));
     }
@@ -76,40 +75,40 @@ public sealed partial class ClientVerbSystem : VerbSystem {
     }
 
     /// <summary>
-    /// Find all the verbs the client is currently capable of executing
+    ///     Find all the verbs the client is currently capable of executing
     /// </summary>
     /// <param name="ignoreHiddenAttr">Whether to ignore "set hidden = TRUE"</param>
     /// <returns>The ID, src, and information of every executable verb</returns>
-    public IEnumerable<(int Id, ClientObjectReference Src, VerbInfo VerbInfo)> GetExecutableVerbs(bool ignoreHiddenAttr = false) {
+    public IEnumerable<(int Id, ClientObjectReference Src, VerbInfo VerbInfo)> GetExecutableVerbs(
+        bool ignoreHiddenAttr = false) {
         sbyte? seeInvisibility = null;
         if (_playerManager.LocalEntity != null) {
-            _sightQuery.TryGetComponent(_playerManager.LocalEntity.Value, out var mobSight);
+            _sightQuery.TryGetComponent(_playerManager.LocalEntity.Value, out DreamMobSightComponent? mobSight);
 
             seeInvisibility = mobSight?.SeeInvisibility;
         }
 
         // First, the verbs attached to our client
-        if (_clientVerbs != null) {
-            foreach (var verbId in _clientVerbs) {
-                if (!_verbs.TryGetValue(verbId, out var verb))
+        if (_clientVerbs != null)
+            foreach (int verbId in _clientVerbs) {
+                if (!_verbs.TryGetValue(verbId, out VerbInfo verb))
                     continue;
                 if (verb.IsHidden(ignoreHiddenAttr, seeInvisibility ?? 0))
                     continue; // TODO: How do invisible client verbs work when you don't have a mob?
 
                 yield return (verbId, ClientObjectReference.Client, verb);
             }
-        }
 
         // Then, the verbs on objects around us
         var viewOverlay = _overlayManager.GetOverlay<DreamViewOverlay>();
-        foreach (var entity in viewOverlay.EntitiesInView) {
-            if (!_spriteQuery.TryGetComponent(entity, out var sprite))
+        foreach (EntityUid entity in viewOverlay.EntitiesInView) {
+            if (!_spriteQuery.TryGetComponent(entity, out DMISpriteComponent? sprite))
                 continue;
             if (sprite.Icon.Appearance is not { } appearance)
                 continue;
 
-            foreach (var verbId in appearance.Verbs) {
-                if (!_verbs.TryGetValue(verbId, out var verb))
+            foreach (int verbId in appearance.Verbs) {
+                if (!_verbs.TryGetValue(verbId, out VerbInfo verb))
                     continue;
                 if (verb.IsHidden(ignoreHiddenAttr, seeInvisibility!.Value))
                     continue;
@@ -151,34 +150,37 @@ public sealed partial class ClientVerbSystem : VerbSystem {
                     case VerbAccessibility.InRange:
                     case VerbAccessibility.ORange:
                     case VerbAccessibility.InORange: {
-                        if(_playerManager.LocalEntity is not null)
+                        if (_playerManager.LocalEntity is not null)
                             continue;
-                        if(verb.Range < 0)
-                            continue;
-
-                        var usrUid = _playerManager.LocalEntity;
-                        var srcUid = entity;
-
-                        if(!_xformQuery.TryGetComponent(usrUid, out var usrXform) || !_xformQuery.TryGetComponent(srcUid, out var srcXform))
+                        if (verb.Range < 0)
                             continue;
 
-                        if(usrXform.GridUid != srcXform.GridUid)
-                            continue;
-                        if(usrXform.ParentUid == srcXform.ParentUid) {
-                            var usrPos = _transformSystem.GetWorldPosition(usrXform);
-                            var srcPos = _transformSystem.GetWorldPosition(srcXform);
+                        EntityUid? usrUid = _playerManager.LocalEntity;
+                        EntityUid srcUid = entity;
 
-                            if(usrPos != srcPos && (Math.Abs(usrPos.X - srcPos.X) > verb.Range || Math.Abs(usrPos.Y - srcPos.Y) > verb.Range))
+                        if (!_xformQuery.TryGetComponent(usrUid, out TransformComponent? usrXform) ||
+                            !_xformQuery.TryGetComponent(srcUid, out TransformComponent? srcXform))
+                            continue;
+
+                        if (usrXform.GridUid != srcXform.GridUid)
+                            continue;
+                        if (usrXform.ParentUid == srcXform.ParentUid) {
+                            Vector2 usrPos = _transformSystem.GetWorldPosition(usrXform);
+                            Vector2 srcPos = _transformSystem.GetWorldPosition(srcXform);
+
+                            if (usrPos != srcPos && (Math.Abs(usrPos.X - srcPos.X) > verb.Range ||
+                                                     Math.Abs(usrPos.Y - srcPos.Y) > verb.Range))
                                 continue;
                         } else {
-                            if(srcXform.ParentUid == usrUid) {
-                                if(verb.Accessibility.IsO())
+                            if (srcXform.ParentUid == usrUid) {
+                                if (verb.Accessibility.IsO())
                                     continue;
-                            } else if(usrXform.ParentUid != srcUid)
+                            } else if (usrXform.ParentUid != srcUid) {
                                 continue;
+                            }
                         }
 
-                        if(verb.Accessibility.IsView()) {
+                        if (verb.Accessibility.IsView()) {
                             // TODO
                         }
 
@@ -195,12 +197,13 @@ public sealed partial class ClientVerbSystem : VerbSystem {
     }
 
     /// <summary>
-    /// Find all the verbs the client is currently capable of executing on the given target
+    ///     Find all the verbs the client is currently capable of executing on the given target
     /// </summary>
     /// <param name="target">The target of the verb</param>
     /// <returns>The ID, src, and information of every executable verb</returns>
-    public IEnumerable<(int Id, ClientObjectReference Src, VerbInfo VerbInfo)> GetExecutableVerbs(ClientObjectReference target) {
-        foreach (var verb in GetExecutableVerbs()) {
+    public IEnumerable<(int Id, ClientObjectReference Src, VerbInfo VerbInfo)> GetExecutableVerbs(
+        ClientObjectReference target) {
+        foreach ((int Id, ClientObjectReference Src, VerbInfo VerbInfo) verb in GetExecutableVerbs()) {
             DreamValueType? targetType = verb.VerbInfo.GetTargetType();
             if (targetType == null) {
                 // Verbs without a target but an "in view()/range()" accessibility will still show
@@ -213,13 +216,13 @@ public sealed partial class ClientVerbSystem : VerbSystem {
                 continue;
             }
 
-            if (targetType == DreamValueType.Anything) {
+            if (targetType == DreamValueType.Anything)
                 yield return verb;
-            } else {
+            else
                 switch (target.Type) {
                     case ClientObjectReference.RefType.Entity:
-                        var entity = _entityManager.GetEntity(target.Entity);
-                        var isMob = _entityManager.HasComponent<DreamMobSightComponent>(entity);
+                        EntityUid entity = _entityManager.GetEntity(target.Entity);
+                        bool isMob = _entityManager.HasComponent<DreamMobSightComponent>(entity);
 
                         if ((targetType & DreamValueType.Mob) != 0x0 && isMob)
                             yield return verb;
@@ -233,41 +236,38 @@ public sealed partial class ClientVerbSystem : VerbSystem {
 
                         break;
                 }
-            }
         }
     }
 
     /// <summary>
-    /// Look for a verb with the given command-name that the client can execute
+    ///     Look for a verb with the given command-name that the client can execute
     /// </summary>
     /// <param name="commandName">Command-name to look for</param>
     /// <returns>The ID, target, and verb information if a verb was found</returns>
     public (int Id, ClientObjectReference Src, VerbInfo VerbInfo)? FindVerbWithCommandName(string commandName) {
-        foreach (var verb in GetExecutableVerbs(true)) {
+        foreach ((int Id, ClientObjectReference Src, VerbInfo VerbInfo) verb in GetExecutableVerbs(true))
             if (verb.VerbInfo.GetCommandName() == commandName)
                 return verb;
-        }
 
         return null;
     }
 
     /// <summary>
-    /// Open prompt windows for the user to enter the arguments to a verb
+    ///     Open prompt windows for the user to enter the arguments to a verb
     /// </summary>
     /// <param name="verbInfo">The verb to get arguments for</param>
     /// <returns>The values the user gives</returns>
     private async Task<object?[]> PromptVerbArguments(VerbInfo verbInfo) {
-        var argumentCount = verbInfo.Arguments.Length;
-        var arguments = (argumentCount > 0) ? new object?[argumentCount] : Array.Empty<object?>();
+        int argumentCount = verbInfo.Arguments.Length;
+        object?[] arguments = argumentCount > 0 ? new object?[argumentCount] : Array.Empty<object?>();
 
-        for (int i = 0; i < argumentCount; i++) {
-            var arg = verbInfo.Arguments[i];
+        for (var i = 0; i < argumentCount; i++) {
+            VerbArg arg = verbInfo.Arguments[i];
             var tcs = new TaskCompletionSource<object?>();
 
             _taskManager.RunOnMainThread(() => {
-                _interfaceManager.Prompt(arg.Types, verbInfo.Name, arg.Name, string.Empty, (_, value) => {
-                    tcs.SetResult(value);
-                });
+                _interfaceManager.Prompt(arg.Types, verbInfo.Name, arg.Name, string.Empty,
+                    (_, value) => { tcs.SetResult(value); });
             });
 
             arguments[i] = await tcs.Task; // Wait for this prompt to finish before moving on to the next
@@ -279,8 +279,8 @@ public sealed partial class ClientVerbSystem : VerbSystem {
     private void OnAllVerbsEvent(AllVerbsEvent e) {
         _verbs.EnsureCapacity(e.Verbs.Count);
 
-        for (int i = 0; i < e.Verbs.Count; i++) {
-            var verb = e.Verbs[i];
+        for (var i = 0; i < e.Verbs.Count; i++) {
+            VerbInfo verb = e.Verbs[i];
 
             _verbs.Add(i, verb);
         }

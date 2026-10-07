@@ -9,7 +9,7 @@ using Robust.Client.UserInterface.XAML;
 namespace OpenDreamClient.Interface.DebugWindows;
 
 /// <summary>
-/// A debug window that displays information about an icon
+///     A debug window that displays information about an icon
 /// </summary>
 [GenerateTypedNameReferences]
 internal sealed partial class IconDebugWindow : OSWindow {
@@ -29,10 +29,10 @@ internal sealed partial class IconDebugWindow : OSWindow {
         // TODO: Include overlays and underlays? May be complicated to do
         Texture.Texture = _icon.LastRenderedTexture;
 
-        var appearance = _icon.Appearance;
+        ImmutableAppearance? appearance = _icon.Appearance;
         if (appearance == null) {
             Tabs.Visible = false;
-            Container.AddChild(new Label { Text = "Icon has no appearance" });
+            Container.AddChild(new Label {Text = "Icon has no appearance"});
 
             return;
         }
@@ -48,7 +48,8 @@ internal sealed partial class IconDebugWindow : OSWindow {
         AddPropertyIfNotDefault("Desc", appearance.Desc, MutableAppearance.Default.Desc);
         AddPropertyIfNotDefault("Icon State", appearance.IconState, MutableAppearance.Default.IconState);
         AddPropertyIfNotDefault("Direction", appearance.Direction, MutableAppearance.Default.Direction);
-        AddPropertyIfNotDefault("Inherits Direction", appearance.InheritsDirection, MutableAppearance.Default.InheritsDirection);
+        AddPropertyIfNotDefault("Inherits Direction", appearance.InheritsDirection,
+            MutableAppearance.Default.InheritsDirection);
         AddPropertyIfNotDefault("Pixel Offset X/Y", appearance.PixelOffset, MutableAppearance.Default.PixelOffset);
         AddPropertyIfNotDefault("Pixel Offset W/Z", appearance.PixelOffset2, MutableAppearance.Default.PixelOffset2);
         AddPropertyIfNotDefault("Color", appearance.Color, MutableAppearance.Default.Color);
@@ -57,7 +58,8 @@ internal sealed partial class IconDebugWindow : OSWindow {
         AddPropertyIfNotDefault("Layer", appearance.Layer, MutableAppearance.Default.Layer);
         AddPropertyIfNotDefault("Plane", appearance.Plane, MutableAppearance.Default.Plane);
         AddPropertyIfNotDefault("Blend Mode", appearance.BlendMode, MutableAppearance.Default.BlendMode);
-        AddPropertyIfNotDefault("Appearance Flags", appearance.AppearanceFlags, MutableAppearance.Default.AppearanceFlags);
+        AddPropertyIfNotDefault("Appearance Flags", appearance.AppearanceFlags,
+            MutableAppearance.Default.AppearanceFlags);
         AddPropertyIfNotDefault("Vis Flags", appearance.VisFlags, MutableAppearance.Default.VisFlags);
         AddPropertyIfNotDefault("Invisibility", appearance.Invisibility, MutableAppearance.Default.Invisibility);
         AddPropertyIfNotDefault("Opacity", appearance.Opacity, MutableAppearance.Default.Opacity);
@@ -68,25 +70,21 @@ internal sealed partial class IconDebugWindow : OSWindow {
         AddPropertyIfNotDefault("Map Text Offset", appearance.MaptextOffset, MutableAppearance.Default.MaptextOffset);
         AddPropertyIfNotDefault("Map Text Size", appearance.MaptextSize, MutableAppearance.Default.MaptextSize);
         AddPropertyIfNotDefault("Map Text", appearance.Maptext, MutableAppearance.Default.Maptext);
-        AddPropertyIfNotDefault("Mouse Events", appearance.EnabledMouseEvents, MutableAppearance.Default.EnabledMouseEvents);
+        AddPropertyIfNotDefault("Mouse Events", appearance.EnabledMouseEvents,
+            MutableAppearance.Default.EnabledMouseEvents);
 
-        foreach (var overlay in _icon.Overlays) {
-            AddDreamIconButton(OverlaysGrid, overlay);
-        }
+        foreach (DreamIcon overlay in _icon.Overlays) AddDreamIconButton(OverlaysGrid, overlay);
 
-        foreach (var underlay in _icon.Underlays) {
-            AddDreamIconButton(UnderlaysGrid, underlay);
-        }
+        foreach (DreamIcon underlay in _icon.Underlays) AddDreamIconButton(UnderlaysGrid, underlay);
 
         var entityManager = IoCManager.Resolve<IEntityManager>();
-        foreach (var visContentNetEntity in appearance.VisContents) {
-            var visContentEntity = entityManager.GetEntity(visContentNetEntity);
+        foreach (NetEntity visContentNetEntity in appearance.VisContents) {
+            EntityUid visContentEntity = entityManager.GetEntity(visContentNetEntity);
 
-            if (entityManager.TryGetComponent(visContentEntity, out DMISpriteComponent? spriteComponent)) {
+            if (entityManager.TryGetComponent(visContentEntity, out DMISpriteComponent? spriteComponent))
                 AddDreamIconButton(VisContentsGrid, spriteComponent.Icon);
-            } else {
-                VisContentsGrid.AddChild(new Label { Text = $"Failed to get sprite component for {visContentEntity}" });
-            }
+            else
+                VisContentsGrid.AddChild(new Label {Text = $"Failed to get sprite component for {visContentEntity}"});
         }
 
         TabContainer.SetTabVisible(OverlaysTab, OverlaysGrid.ChildCount != 0);
@@ -103,7 +101,7 @@ internal sealed partial class IconDebugWindow : OSWindow {
         PropertiesTable.AddChild(
             new Label {
                 Text = propertyName,
-                Margin = new(3, 0),
+                Margin = new Thickness(3, 0),
                 HorizontalExpand = true
             }
         );
@@ -111,7 +109,7 @@ internal sealed partial class IconDebugWindow : OSWindow {
         PropertiesTable.AddChild(
             new Label {
                 Text = value?.ToString() ?? "null",
-                Margin = new(3, 0)
+                Margin = new Thickness(3, 0)
             }
         );
     }
@@ -120,18 +118,16 @@ internal sealed partial class IconDebugWindow : OSWindow {
         var panel = new PanelContainer();
 
         panel.PanelOverride = new StyleBoxFlat(Color.White) {
-            BorderThickness = new(1),
+            BorderThickness = new Thickness(1),
             BorderColor = Color.Black
         };
 
         var overlayButton = new TextureButton {
             TextureNormal = icon.LastRenderedTexture,
-            SetSize = new(128, 128)
+            SetSize = new Vector2(128, 128)
         };
 
-        overlayButton.OnPressed += _ => {
-            new IconDebugWindow(icon).Show();
-        };
+        overlayButton.OnPressed += _ => { new IconDebugWindow(icon).Show(); };
 
         panel.AddChild(overlayButton);
         parent.AddChild(panel);

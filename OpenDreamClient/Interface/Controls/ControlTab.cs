@@ -9,10 +9,10 @@ namespace OpenDreamClient.Interface.Controls;
 
 internal sealed class ControlTab(ControlDescriptor controlDescriptor, ControlWindow window)
     : InterfaceControl(controlDescriptor, window) {
-    private ControlDescriptorTab TabDescriptor => (ControlDescriptorTab)ElementDescriptor;
+    private readonly List<ControlWindow> _tabs = new();
 
     private TabContainer _tab;
-    private readonly List<ControlWindow> _tabs = new();
+    private ControlDescriptorTab TabDescriptor => (ControlDescriptorTab)ElementDescriptor;
 
     protected override Control CreateUIElement() {
         _tab = new TabContainer();
@@ -26,11 +26,11 @@ internal sealed class ControlTab(ControlDescriptor controlDescriptor, ControlWin
         _tabs.Clear();
         _tab.RemoveAllChildren();
 
-        var tabIds = TabDescriptor.Tabs.Value.Split(',',
+        string[] tabIds = TabDescriptor.Tabs.Value.Split(',',
             StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        foreach (var tabId in tabIds) {
-            if (!InterfaceManager.Windows.TryGetValue(tabId, out var pane))
+        foreach (string tabId in tabIds) {
+            if (!InterfaceManager.Windows.TryGetValue(tabId, out ControlWindow? pane))
                 continue;
 
             TabContainer.SetTabTitle(pane.UIElement, pane.Title);
@@ -44,7 +44,7 @@ internal sealed class ControlTab(ControlDescriptor controlDescriptor, ControlWin
     public override bool TryGetProperty(string property, [NotNullWhen(true)] out IDMFProperty? value) {
         switch (property) {
             case "current-tab":
-                var currentTab = _tab.GetChild(_tab.CurrentTab);
+                Control currentTab = _tab.GetChild(_tab.CurrentTab);
 
                 // The use of First() is kinda bad but hopefully this isn't large or performance critical
                 value = _tabs.First(tab => tab.UIElement == currentTab).Id;

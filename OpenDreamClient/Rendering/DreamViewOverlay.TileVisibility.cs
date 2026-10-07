@@ -1,6 +1,7 @@
 using OpenDreamShared.Dream;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
+using Robust.Shared.Profiling;
 
 namespace OpenDreamClient.Rendering;
 
@@ -12,10 +13,11 @@ internal partial class DreamViewOverlay {
         _tileInfoDirty = true;
     }
 
-    private ViewAlgorithm.Tile?[,] CalculateTileVisibility(EntityUid gridUid, MapGridComponent grid, TileRef eyeTile, int seeVis) {
-        using var _ = _prof.Group("visible turfs");
+    private ViewAlgorithm.Tile?[,] CalculateTileVisibility(EntityUid gridUid, MapGridComponent grid, TileRef eyeTile,
+        int seeVis) {
+        using ProfManager.GroupGuard _ = _prof.Group("visible turfs");
 
-        var viewRange = _interfaceManager.View;
+        ViewRange viewRange = _interfaceManager.View;
         if (_tileInfo == null || _tileInfo.GetLength(0) != viewRange.Width + 2 ||
             _tileInfo.GetLength(1) != viewRange.Height + 2) {
             // _tileInfo hasn't been created yet or view range has changed, so create a new array.
@@ -27,14 +29,14 @@ internal partial class DreamViewOverlay {
         if (!_tileInfoDirty)
             return _tileInfo;
 
-        var eyeWorldPos = _mapSystem.GridTileToWorld(gridUid, grid, eyeTile.GridIndices);
-        var tileRefs = _mapSystem.GetTilesEnumerator(gridUid, grid,
+        MapCoordinates eyeWorldPos = _mapSystem.GridTileToWorld(gridUid, grid, eyeTile.GridIndices);
+        SharedMapSystem.TilesEnumerator tileRefs = _mapSystem.GetTilesEnumerator(gridUid, grid,
             Box2.CenteredAround(eyeWorldPos.Position, new Vector2(_tileInfo.GetLength(0), _tileInfo.GetLength(1))));
 
         // Gather up all the data the view algorithm needs
-        while (tileRefs.MoveNext(out var tileRef)) {
-            var delta = tileRef.GridIndices - eyeTile.GridIndices;
-            var appearance = _appearanceSystem.GetTurfIcon((uint)tileRef.Tile.TypeId).Appearance;
+        while (tileRefs.MoveNext(out TileRef tileRef)) {
+            Vector2i delta = tileRef.GridIndices - eyeTile.GridIndices;
+            ImmutableAppearance? appearance = _appearanceSystem.GetTurfIcon((uint)tileRef.Tile.TypeId).Appearance;
             if (appearance == null)
                 continue;
 
@@ -56,22 +58,23 @@ internal partial class DreamViewOverlay {
         // Apply entities' opacity
         foreach (EntityUid entity in EntitiesInView) {
             // TODO use a sprite tree.
-            if (!_spriteQuery.TryGetComponent(entity, out var sprite))
+            if (!_spriteQuery.TryGetComponent(entity, out DMISpriteComponent? sprite))
                 continue;
 
-            var transform = _xformQuery.GetComponent(entity);
+            TransformComponent transform = _xformQuery.GetComponent(entity);
             if (!_spriteSystem.IsVisible(sprite, transform, seeVis, null))
                 continue;
             if (sprite.Icon.Appearance == null) //appearance hasn't loaded yet
                 continue;
 
-            var worldPos = _transformSystem.GetWorldPosition(transform);
-            var tilePos = _mapSystem.WorldToTile(gridUid, grid, worldPos) - eyeTile.GridIndices + viewRange.Center + 1;
+            Vector2 worldPos = _transformSystem.GetWorldPosition(transform);
+            Vector2i tilePos = _mapSystem.WorldToTile(gridUid, grid, worldPos) - eyeTile.GridIndices +
+                               viewRange.Center + 1;
             if (tilePos.X < 0 || tilePos.Y < 0 || tilePos.X >= _tileInfo.GetLength(0) ||
                 tilePos.Y >= _tileInfo.GetLength(1))
                 continue;
 
-            var tile = _tileInfo[tilePos.X, tilePos.Y];
+            ViewAlgorithm.Tile? tile = _tileInfo[tilePos.X, tilePos.Y];
             if (tile != null)
                 tile.Opaque |= sprite.Icon.Appearance.Opacity;
         }

@@ -3,7 +3,7 @@ using Robust.Client.Graphics;
 namespace OpenDreamClient.Interface.Controls.UI;
 
 /// <summary>
-/// Same as StyleBoxTexture, but fills a colored box behind the texture first.
+///     Same as StyleBoxTexture, but fills a colored box behind the texture first.
 /// </summary>
 public sealed class StyleBoxColoredTexture : StyleBoxTexture {
     public Color BackgroundColor = Color.Transparent;

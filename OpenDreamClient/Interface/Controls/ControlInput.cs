@@ -6,7 +6,8 @@ using Robust.Client.UserInterface.Controls;
 
 namespace OpenDreamClient.Interface.Controls;
 
-internal sealed class ControlInput(ControlDescriptor controlDescriptor, ControlWindow window) : InterfaceControl(controlDescriptor, window) {
+internal sealed class ControlInput(ControlDescriptor controlDescriptor, ControlWindow window)
+    : InterfaceControl(controlDescriptor, window) {
     private LineEdit _textBox = default!;
 
     private ControlDescriptorInput InputDescriptor => (ControlDescriptorInput)ControlDescriptor;
@@ -24,12 +25,11 @@ internal sealed class ControlInput(ControlDescriptor controlDescriptor, ControlW
 
         ResetText();
 
-        var command = InputDescriptor.Command.Value;
-        if (command.StartsWith('!')) {
+        string command = InputDescriptor.Command.Value;
+        if (command.StartsWith('!'))
             InterfaceManager.RunCommand(lineEditEventArgs.Text);
-        } else {
+        else
             InterfaceManager.RunCommand(command + lineEditEventArgs.Text);
-        }
     }
 
     protected override void UpdateElementDescriptor() {
@@ -65,12 +65,11 @@ internal sealed class ControlInput(ControlDescriptor controlDescriptor, ControlW
     }
 
     private void ResetText() {
-        var command = InputDescriptor.Command.Value;
+        string command = InputDescriptor.Command.Value;
 
-        if (command.StartsWith('!')) {
+        if (command.StartsWith('!'))
             _textBox.Text = command[1..];
-        } else {
+        else
             _textBox.Clear();
-        }
     }
 }

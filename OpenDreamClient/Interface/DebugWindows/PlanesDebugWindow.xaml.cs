@@ -10,7 +10,7 @@ using Robust.Shared.Console;
 namespace OpenDreamClient.Interface.DebugWindows;
 
 /// <summary>
-/// A debug window that lists all the client's screen objects, and gives the option to view their properties
+///     A debug window that lists all the client's screen objects, and gives the option to view their properties
 /// </summary>
 [GenerateTypedNameReferences]
 internal sealed partial class PlanesDebugWindow : OSWindow {
@@ -29,22 +29,20 @@ internal sealed partial class PlanesDebugWindow : OSWindow {
     private void Update() {
         PlanesList.RemoveAllChildren();
 
-        foreach (var (planeId, plane) in _overlay.Planes.OrderBy(v => v.Key)) {
-            AddPlane(planeId, plane);
-        }
+        foreach ((int planeId, DreamPlane plane) in _overlay.Planes.OrderBy(v => v.Key)) AddPlane(planeId, plane);
     }
 
     private void AddPlane(int planeId, DreamPlane plane) {
         var container = new BoxContainer {
             HorizontalExpand = true,
             Orientation = BoxContainer.LayoutOrientation.Horizontal,
-            Margin = new(4f, 0f)
+            Margin = new Thickness(4f, 0f)
         };
 
         container.AddChild(new TextureRect {
             Texture = plane.RenderTarget.Texture,
             Stretch = TextureRect.StretchMode.KeepAspect,
-            SetSize = new(256, 256)
+            SetSize = new Vector2(256, 256)
         });
 
         container.AddChild(new Label {
@@ -61,7 +59,7 @@ internal sealed partial class PlanesDebugWindow : OSWindow {
                 SetHeight = 38
             };
 
-            viewButton.Label.Margin = new(4f, 0f);
+            viewButton.Label.Margin = new Thickness(4f, 0f);
             viewButton.OnPressed += _ => {
                 if (plane.Master?.MainIcon == null) // We could theoretically lose the master by the time we're clicked
                     return;
@@ -71,7 +69,7 @@ internal sealed partial class PlanesDebugWindow : OSWindow {
 
             container.AddChild(new Control {
                 HorizontalExpand = true,
-                Children = { viewButton }
+                Children = {viewButton}
             });
         } else {
             container.AddChild(new Label {

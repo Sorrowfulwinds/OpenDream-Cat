@@ -13,10 +13,10 @@ internal sealed class ListPrompt : InputWindow {
         _itemList = new ItemList();
         // don't make it as long as the width
         // really this should check for fontHeight not hacky const 24
-        MinHeight = Math.Clamp(100 + (24 * values.Length), MinHeight, MinWidth);
+        MinHeight = Math.Clamp(100 + 24 * values.Length, MinHeight, MinWidth);
 
         var foundDefault = false;
-        foreach (var value in values) {
+        foreach (string value in values) {
             ItemList.Item item = new(_itemList) {
                 Text = value
             };
@@ -30,10 +30,11 @@ internal sealed class ListPrompt : InputWindow {
 
         if (!foundDefault) _itemList[0].Selected = true;
         _itemList.OnKeyBindDown += ItemList_KeyBindDown;
-        SetPromptControl(_itemList, grabKeyboard: false);
+        SetPromptControl(_itemList, false);
     }
 
-    protected override void OkButtonClicked() {;
+    protected override void OkButtonClicked() {
+        ;
         foreach (ItemList.Item item in _itemList) {
             if (!item.Selected)
                 continue;

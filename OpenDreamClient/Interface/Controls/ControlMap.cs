@@ -1,27 +1,27 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using OpenDreamClient.Input;
 using OpenDreamClient.Interface.Controls.UI;
-using OpenDreamShared.Interface.Descriptors;
-using OpenDreamShared.Interface.DMF;
 using OpenDreamClient.Rendering;
 using OpenDreamShared.Dream;
-using Robust.Client.Graphics;
+using OpenDreamShared.Interface.Descriptors;
+using OpenDreamShared.Interface.DMF;
 using Robust.Client.UserInterface;
 using Robust.Client.UserInterface.Controls;
 using Robust.Shared.Input;
 
 namespace OpenDreamClient.Interface.Controls;
 
-public sealed partial class ControlMap(ControlDescriptor controlDescriptor, ControlWindow window) : InterfaceControl(controlDescriptor, window) {
-    public ScalingViewport Viewport { get; private set; }
+public sealed partial class ControlMap(ControlDescriptor controlDescriptor, ControlWindow window)
+    : InterfaceControl(controlDescriptor, window) {
+    private ClientAppearanceSystem? _appearanceSystem;
+
+    private ClientObjectReference? _atomUnderMouse;
 
     [Dependency] private IEntitySystemManager _entitySystemManager = default!;
     private MouseInputSystem? _mouseInput;
-    private ClientAppearanceSystem? _appearanceSystem;
+    public ScalingViewport Viewport { get; private set; }
 
     private ControlDescriptorMap MapDescriptor => (ControlDescriptorMap)ElementDescriptor;
-
-    private ClientObjectReference? _atomUnderMouse;
 
     protected override void UpdateElementDescriptor() {
         base.UpdateElementDescriptor();
@@ -42,13 +42,13 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
     }
 
     public void UpdateViewRange(ViewRange view) {
-        var viewWidth = Math.Max(view.Width, 1);
-        var viewHeight = Math.Max(view.Height, 1);
+        int viewWidth = Math.Max(view.Width, 1);
+        int viewHeight = Math.Max(view.Height, 1);
 
         Viewport.ViewportSize = new Vector2i(viewWidth, viewHeight) * InterfaceManager.IconSize;
         if (MapDescriptor.IconSize.Value != 0) {
             // BYOND supports a negative number here (flips the view), but we're gonna enforce a positive number instead
-            var iconSize = Math.Max(MapDescriptor.IconSize.Value, 1);
+            float iconSize = Math.Max(MapDescriptor.IconSize.Value, 1);
 
             Viewport.SetWidth = iconSize * viewWidth;
             Viewport.SetHeight = iconSize * viewHeight;
@@ -60,27 +60,26 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
     }
 
     protected override Control CreateUIElement() {
-        Viewport = new ScalingViewport { MouseFilter = Control.MouseFilterMode.Stop };
+        Viewport = new ScalingViewport {MouseFilter = Control.MouseFilterMode.Stop};
         Viewport.OnKeyBindDown += OnViewportKeyBindEvent;
         Viewport.OnKeyBindUp += OnViewportKeyBindEvent;
         Viewport.OnMouseMove += OnViewportMouseMoveEvent;
         Viewport.OnMouseExited += OnViewportMouseExitedEvent;
-        Viewport.OnVisibilityChanged += (args) => {
-            if (args.Visible) {
+        Viewport.OnVisibilityChanged += args => {
+            if (args.Visible)
                 OnShowEvent();
-            } else {
+            else
                 OnHideEvent();
-            }
         };
 
-        if(ControlDescriptor.IsVisible.Value)
+        if (ControlDescriptor.IsVisible.Value)
             OnShowEvent();
         else
             OnHideEvent();
 
         UpdateViewRange(InterfaceManager.View);
 
-        return new PanelContainer { StyleClasses = {"MapBackground"}, Children = { Viewport } };
+        return new PanelContainer {StyleClasses = {"MapBackground"}, Children = {Viewport}};
     }
 
     private void OnViewportKeyBindEvent(GUIBoundKeyEventArgs e) {
@@ -88,9 +87,7 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
             e.Function == EngineKeyFunctions.UIRightClick || e.Function == OpenDreamKeyFunctions.MouseMiddle) {
             _entitySystemManager.Resolve(ref _mouseInput);
 
-            if (_mouseInput.HandleViewportEvent(Viewport, e, ControlDescriptor)) {
-                e.Handle();
-            }
+            if (_mouseInput.HandleViewportEvent(Viewport, e, ControlDescriptor)) e.Handle();
         }
     }
 
@@ -98,7 +95,8 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
         if (_mouseInput == null)
             return;
 
-        var underMouse = _mouseInput.GetAtomUnderMouse(Viewport, e.RelativePixelPosition, e.GlobalPixelPosition);
+        (ClientObjectReference Atom, Vector2i IconPosition, bool IsScreen)? underMouse =
+            _mouseInput.GetAtomUnderMouse(Viewport, e.RelativePixelPosition, e.GlobalPixelPosition);
         UpdateAtomUnderMouse(underMouse?.Atom, e.RelativePixelPosition, underMouse?.IconPosition ?? Vector2i.Zero);
     }
 
@@ -107,17 +105,15 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
     }
 
     public void OnShowEvent() {
-        ControlDescriptorMap controlDescriptor = (ControlDescriptorMap)ControlDescriptor;
-        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnShowCommand.Value)) {
+        var controlDescriptor = (ControlDescriptorMap)ControlDescriptor;
+        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnShowCommand.Value))
             InterfaceManager.RunCommand(controlDescriptor.OnShowCommand.AsRaw());
-        }
     }
 
     public void OnHideEvent() {
-        ControlDescriptorMap controlDescriptor = (ControlDescriptorMap)ControlDescriptor;
-        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnHideCommand.Value)) {
+        var controlDescriptor = (ControlDescriptorMap)ControlDescriptor;
+        if (!string.IsNullOrWhiteSpace(controlDescriptor.OnHideCommand.Value))
             InterfaceManager.RunCommand(controlDescriptor.OnHideCommand.AsRaw());
-        }
     }
 
     public override bool TryGetProperty(string property, [NotNullWhen(true)] out IDMFProperty? value) {
@@ -127,7 +123,7 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
                 return true;
             case "mouse-pos":
             case "inner-mouse-pos":
-                var mousePos = IoCManager.Resolve<IUserInterfaceManager>().MousePositionScaled.Position;
+                Vector2 mousePos = IoCManager.Resolve<IUserInterfaceManager>().MousePositionScaled.Position;
                 mousePos -= Viewport.GlobalPosition;
 
                 value = new DMFPropertyVec2(mousePos);
@@ -140,14 +136,12 @@ public sealed partial class ControlMap(ControlDescriptor controlDescriptor, Cont
     private void UpdateAtomUnderMouse(ClientObjectReference? atom, Vector2 relativePos, Vector2i iconPos) {
         if (!_atomUnderMouse.Equals(atom)) {
             _entitySystemManager.Resolve(ref _appearanceSystem);
-            var name = (atom != null) ? _appearanceSystem.GetNameUnformatted(atom.Value) : string.Empty;
+            string name = atom != null ? _appearanceSystem.GetNameUnformatted(atom.Value) : string.Empty;
             Window?.SetStatus(name);
 
             if (_atomUnderMouse != null)
                 _mouseInput?.HandleAtomMouseExited(Viewport, _atomUnderMouse.Value);
-            if (atom != null) {
-                _mouseInput?.HandleAtomMouseEntered(Viewport, relativePos, atom.Value, iconPos);
-            }
+            if (atom != null) _mouseInput?.HandleAtomMouseEntered(Viewport, relativePos, atom.Value, iconPos);
         } else if (atom.HasValue) {
             _mouseInput?.HandleAtomMouseMove(Viewport, relativePos, atom.Value, iconPos);
         }

@@ -1,11 +1,12 @@
-﻿using OpenDreamShared;
-using OpenDreamShared.Network.Messages;
+﻿using System.IO;
 using OpenDreamClient.Resources.ResourceTypes;
+using OpenDreamShared;
+using OpenDreamShared.Network.Messages;
 using Robust.Shared.Configuration;
 using Robust.Shared.ContentPack;
 using Robust.Shared.Network;
+using Robust.Shared.Timing;
 using Robust.Shared.Utility;
-using System.Linq;
 using SpaceWizards.Sodium;
 
 namespace OpenDreamClient.Resources;
@@ -17,9 +18,9 @@ public interface IDreamResourceManager {
 
     /// <param name="resourceId">Integer ID of the resource, as assigned by the server.</param>
     /// <param name="onLoadCallback">
-    /// Callback to run when this resource is done loading.
-    /// Note that if the resource is immediately available,
-    /// this callback is immediately invoked before this function returns.
+    ///     Callback to run when this resource is done loading.
+    ///     Note that if the resource is immediately available,
+    ///     this callback is immediately invoked before this function returns.
     /// </param>
     /// <typeparam name="T">The type of resource to load as.</typeparam>
     void LoadResourceAsync<T>(int resourceId, Action<T> onLoadCallback) where T : DreamResource;
@@ -27,25 +28,26 @@ public interface IDreamResourceManager {
     void LookupResourceAsync(string resourcePath, Action<int> onSuccess, Action onFailure);
 
     ResPath GetCacheFilePath(string filename);
-    public bool EnsureCacheFile(string filename, int timeoutSeconds = 5);
+    bool EnsureCacheFile(string filename, int timeoutSeconds = 5);
 }
 
 internal sealed partial class DreamResourceManager : IDreamResourceManager {
+    private readonly HashSet<string> _activeBrowseRscRequests = new();
     private readonly Dictionary<int, LoadingResourceEntry> _loadingResources = new();
-    private readonly Dictionary<int, DreamResource> _resourceCache = new();
     private readonly Dictionary<string, PendingResourceLookup> _pendingResourceLookups = new();
-    private readonly Dictionary<string, int> _resourcePathToIdCache = new(); //note this can contain both \ref[]s and paths
+    private readonly Dictionary<int, DreamResource> _resourceCache = new();
 
-    [Dependency] private IResourceManager _resourceManager = default!;
-    [Dependency] private IClientNetManager _netManager = default!;
-    [Dependency] private IDynamicTypeFactory _typeFactory = default!;
-    [Dependency] private IConfigurationManager _cfg = default!;
+    private readonly Dictionary<string, int>
+        _resourcePathToIdCache = new(); //note this can contain both \ref[]s and paths
 
     private ResPath _cacheDirectory;
+    [Dependency] private IConfigurationManager _cfg = default!;
+    [Dependency] private IClientNetManager _netManager = default!;
+
+    [Dependency] private IResourceManager _resourceManager = default!;
 
     private ISawmill _sawmill = default!;
-
-    private readonly HashSet<string> _activeBrowseRscRequests = new();
+    [Dependency] private IDynamicTypeFactory _typeFactory = default!;
 
     public void Initialize() {
         _sawmill = Logger.GetSawmill("opendream.res");
@@ -57,6 +59,137 @@ internal sealed partial class DreamResourceManager : IDreamResourceManager {
         _netManager.RegisterNetMessage<MsgLookupResourceResponse>(RxLookupResourceResponse);
         _netManager.RegisterNetMessage<MsgResource>(RxResource);
         _netManager.RegisterNetMessage<MsgNotifyResourceUpdate>(RxResourceUpdateNotification);
+    }
+
+    public void LoadResourceAsync<T>(int resourceId, Action<T> onLoadCallback) where T : DreamResource {
+        DreamResource? resource = GetCachedResource(resourceId);
+
+        if (resource != null) {
+            onLoadCallback.Invoke((T)resource);
+            return;
+        }
+
+        // Check if file exists in local Robust resources.
+        if (_resourceManager.TryContentFileRead($"/Rsc/{resourceId}", out Stream? stream)) {
+            byte[] data;
+            using (stream) {
+                data = stream.CopyToArray();
+            }
+
+            _sawmill.Verbose($"File existed locally, skipping server request: {resourceId}");
+
+            resource = LoadResourceFromData(typeof(T), resourceId, data);
+
+            onLoadCallback((T)resource);
+            return;
+        }
+
+        // File does not exist locally. Send a request to the server.
+        if (!_loadingResources.ContainsKey(resourceId)) {
+            _loadingResources[resourceId] = new LoadingResourceEntry(typeof(T));
+
+            var msg = new MsgRequestResource {ResourceId = resourceId};
+            _netManager.ClientSendMessage(msg);
+
+            int timeout = _cfg.GetCVar(OpenDreamCVars.DownloadTimeout);
+            Timer.Spawn(TimeSpan.FromSeconds(timeout), () => {
+                if (_loadingResources.ContainsKey(resourceId))
+                    _sawmill.Warning(
+                        $"Resource id {resourceId} was requested, but is still not received {timeout} seconds later.");
+            });
+        }
+
+        _loadingResources[resourceId].LoadCallbacks.Add(loadedResource => {
+            onLoadCallback.Invoke((T)loadedResource);
+        });
+    }
+
+    public ResPath GetCacheFilePath(string filename) {
+        EnsureCacheDirectory();
+
+        return _cacheDirectory / new ResPath(filename).ToRelativePath();
+    }
+
+    public ResPath CreateCacheFile(string filename, string data) {
+        EnsureCacheDirectory();
+
+        // in BYOND when filename is a path everything except the filename at the end gets ignored - meaning all resource files end up directly in the cache folder
+        ResPath path = _cacheDirectory / new ResPath(filename).Filename;
+        _resourceManager.UserData.WriteAllText(path, data);
+        return new ResPath(filename);
+    }
+
+    public ResPath CreateCacheFile(string filename, byte[] data) {
+        EnsureCacheDirectory();
+
+        // in BYOND when filename is a path everything except the filename at the end gets ignored - meaning all resource files end up directly in the cache folder
+        ResPath path = _cacheDirectory / new ResPath(filename).Filename;
+        _resourceManager.UserData.WriteAllBytes(path, data);
+        return new ResPath(filename);
+    }
+
+    /// <summary>
+    ///     Blocking check for the existence of a cached file from `browse_rsc()`. Returns true when the file is ready, or
+    ///     returns false if the file is not ready within timeoutSeconds.
+    /// </summary>
+    /// <param name="filename">filepath of the cached resource (eg `./foo.png`)</param>
+    /// <param name="timeoutSeconds">how long to block for while waiting for the resource. Default 5 seconds.</param>
+    /// <returns></returns>
+    public bool EnsureCacheFile(string filename, int timeoutSeconds = 5) {
+        ResPath actualPath = GetCacheFilePath(filename);
+        if (_resourceManager.UserData.Exists(actualPath)) return true;
+
+        if (_activeBrowseRscRequests.Contains(actualPath.Filename)) {
+            //block until the file arrives for like 5 seconds, then give up
+            DateTime thresholdTime = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (!_resourceManager.UserData.Exists(actualPath) && DateTime.Now < thresholdTime)
+                _netManager.ProcessPackets(); //todo this should be sleep
+
+            return _resourceManager.UserData.Exists(actualPath);
+        }
+
+        _sawmill.Error(
+            $"Cache was ensured for a file ({filename}) that does not exist in cache and is not requested. Probably somebody called browse() without browse_rsc() first.");
+        return false;
+    }
+
+    /// <summary>
+    ///     Used for lookup of resource IDs from paths and ref strings.
+    ///     Note that this will fail for any resource that has not already been loaded by the server.
+    /// </summary>
+    /// <param name="resourcePathOrRef"></param>
+    /// Either a path 'path/to/resource.dmi' or a ref '\ref[0xDEADBEEF]'
+    /// <param name="onSuccess"></param>
+    /// Action to invoke on successful lookup
+    /// <param name="onFailure"></param>
+    /// Action to invoke on failed lookup (ie, the server does not have a loaded resource that matches this string)
+    public void LookupResourceAsync(string resourcePathOrRef, Action<int> onSuccess, Action onFailure) {
+        if (_resourcePathToIdCache.TryGetValue(resourcePathOrRef, out int resourceId)) {
+            onSuccess.Invoke(resourceId);
+            return;
+        }
+
+        if (!_pendingResourceLookups.ContainsKey(resourcePathOrRef)) {
+            _pendingResourceLookups[resourcePathOrRef] = new PendingResourceLookup();
+            _pendingResourceLookups[resourcePathOrRef].SuccessCallbacks.Add(onSuccess);
+            _pendingResourceLookups[resourcePathOrRef].FailureCallbacks.Add(onFailure);
+
+            var msg = new MsgLookupResource {ResourcePathOrRef = resourcePathOrRef};
+            _netManager.ClientSendMessage(msg);
+
+            int timeout = _cfg.GetCVar(OpenDreamCVars.DownloadTimeout);
+            Timer.Spawn(TimeSpan.FromSeconds(timeout), () => {
+                if (_pendingResourceLookups.TryGetValue(resourcePathOrRef, out PendingResourceLookup pendingLookup)) {
+                    _sawmill.Warning(
+                        $"Resource id {resourcePathOrRef} lookup was requested, but is still not received {timeout} seconds later.");
+                    foreach (Action failureCallback in pendingLookup.FailureCallbacks)
+                        failureCallback.Invoke();
+                }
+            });
+        } else {
+            _pendingResourceLookups[resourcePathOrRef].SuccessCallbacks.Add(onSuccess);
+            _pendingResourceLookups[resourcePathOrRef].FailureCallbacks.Add(onFailure);
+        }
     }
 
     private void EnsureCacheDirectory() {
@@ -77,28 +210,32 @@ internal sealed partial class DreamResourceManager : IDreamResourceManager {
     }
 
     private void RxBrowseResource(MsgBrowseResource message) {
-        _sawmill.Verbose($"Received cache check for {message.Filename} hash: {BitConverter.ToString(message.DataHash)}");
+        _sawmill.Verbose(
+            $"Received cache check for {message.Filename} hash: {BitConverter.ToString(message.DataHash)}");
         EnsureCacheDirectory();
-        if(_resourceManager.UserData.Exists(GetCacheFilePath(message.Filename)) && GetFileHash(GetCacheFilePath(message.Filename)).SequenceEqual(message.DataHash)){
+        if (_resourceManager.UserData.Exists(GetCacheFilePath(message.Filename)) &&
+            GetFileHash(GetCacheFilePath(message.Filename)).SequenceEqual(message.DataHash)) {
             _sawmill.Verbose($"Cache hit for {message.Filename}");
         } else {
-            if (_activeBrowseRscRequests.Contains(message.Filename)) //we've already requested it, don't need to do it again
+            if (_activeBrowseRscRequests
+                .Contains(message.Filename)) //we've already requested it, don't need to do it again
                 return;
 
             if (_resourceManager.UserData.Exists(GetCacheFilePath(message.Filename))) {
-                _sawmill.Debug($"Cache hit for {message.Filename} but hashes did not match (hash: {BitConverter.ToString(GetFileHash(GetCacheFilePath(message.Filename)))}). Re-requesting!");
+                _sawmill.Debug(
+                    $"Cache hit for {message.Filename} but hashes did not match (hash: {BitConverter.ToString(GetFileHash(GetCacheFilePath(message.Filename)))}). Re-requesting!");
                 _resourceManager.UserData.Delete(GetCacheFilePath(message.Filename));
             } else {
                 _sawmill.Debug($"Cache miss for {message.Filename}, requesting from server.");
             }
 
             _activeBrowseRscRequests.Add(message.Filename);
-            _netManager.ServerChannel?.SendMessage(new MsgBrowseResourceRequest { Filename = message.Filename });
+            _netManager.ServerChannel?.SendMessage(new MsgBrowseResourceRequest {Filename = message.Filename});
         }
     }
 
     private byte[] GetFileHash(ResPath path) {
-        using var stream = _resourceManager.UserData.OpenRead(path);
+        using Stream stream = _resourceManager.UserData.OpenRead(path);
         Span<byte> filebytes = new(new byte[stream.Length]);
         stream.ReadToEnd(filebytes);
         return CryptoGenericHashBlake2B.Hash(32, filebytes, ReadOnlySpan<byte>.Empty);
@@ -119,7 +256,9 @@ internal sealed partial class DreamResourceManager : IDreamResourceManager {
             LoadingResourceEntry entry = _loadingResources[message.ResourceId];
             DreamResource resource;
             if (_resourceCache.ContainsKey(message.ResourceId)) {
-                _resourceCache[message.ResourceId].UpdateData(message.ResourceData); //we update instead of replacing so we don't have to replace the handle in everything that uses it
+                _resourceCache[message.ResourceId]
+                    .UpdateData(message
+                        .ResourceData); //we update instead of replacing so we don't have to replace the handle in everything that uses it
                 _resourceCache[message.ResourceId].OnUpdateCallbacks.ForEach(cb => cb.Invoke());
                 resource = _resourceCache[message.ResourceId];
             } else {
@@ -130,13 +269,12 @@ internal sealed partial class DreamResourceManager : IDreamResourceManager {
                 _resourceCache[message.ResourceId] = resource;
             }
 
-            foreach (Action<DreamResource> callback in entry.LoadCallbacks) {
+            foreach (Action<DreamResource> callback in entry.LoadCallbacks)
                 try {
                     callback.Invoke(resource);
                 } catch (Exception e) {
                     _sawmill.Fatal($"Exception while calling resource load callback: {e.Message}");
                 }
-            }
 
             _loadingResources.Remove(message.ResourceId);
         } else {
@@ -145,170 +283,45 @@ internal sealed partial class DreamResourceManager : IDreamResourceManager {
     }
 
     private void RxResourceUpdateNotification(MsgNotifyResourceUpdate message) {
-        if (!_loadingResources.ContainsKey(message.ResourceId) && _resourceCache.TryGetValue(message.ResourceId, out var cached)) { //either we're already requesting it, or we don't have it so don't need to update
+        if (!_loadingResources.ContainsKey(message.ResourceId) &&
+            _resourceCache.TryGetValue(message.ResourceId, out DreamResource? cached)) {
+            //either we're already requesting it, or we don't have it so don't need to update
             _sawmill.Debug($"Resource id {message.ResourceId} was updated, reloading");
             _loadingResources[message.ResourceId] = new LoadingResourceEntry(cached.GetType());
-            var msg = new MsgRequestResource { ResourceId = message.ResourceId };
+            var msg = new MsgRequestResource {ResourceId = message.ResourceId};
             _netManager.ClientSendMessage(msg);
         }
     }
 
     private void RxLookupResourceResponse(MsgLookupResourceResponse message) {
-        if (_pendingResourceLookups.Remove(message.ResourcePathOrRef, out var pendingResourceLookup)) {
+        if (_pendingResourceLookups.Remove(message.ResourcePathOrRef,
+                out PendingResourceLookup pendingResourceLookup)) {
             if (message.Success) {
                 _resourcePathToIdCache[message.ResourcePathOrRef] = message.ResourceId;
-                foreach (var successCallback in pendingResourceLookup.SuccessCallbacks)
+                foreach (Action<int> successCallback in pendingResourceLookup.SuccessCallbacks)
                     successCallback.Invoke(message.ResourceId);
-            } else
-                foreach (var failureCallback in pendingResourceLookup.FailureCallbacks)
+            } else {
+                foreach (Action failureCallback in pendingResourceLookup.FailureCallbacks)
                     failureCallback.Invoke();
-        } else {
-            throw new Exception($"Recieved unexpected resource lookup response for {message.ResourcePathOrRef} (id: {message.ResourceId})");
-        }
-    }
-
-    public void LoadResourceAsync<T>(int resourceId, Action<T> onLoadCallback) where T : DreamResource {
-        DreamResource? resource = GetCachedResource(resourceId);
-
-        if (resource != null) {
-            onLoadCallback.Invoke((T)resource);
-            return;
-        }
-
-        // Check if file exists in local Robust resources.
-        if (_resourceManager.TryContentFileRead($"/Rsc/{resourceId}", out var stream)) {
-            byte[] data;
-            using (stream) {
-                data = stream.CopyToArray();
             }
-
-            _sawmill.Verbose($"File existed locally, skipping server request: {resourceId}");
-
-            resource = LoadResourceFromData(typeof(T), resourceId, data);
-
-            onLoadCallback((T)resource);
-            return;
+        } else {
+            throw new Exception(
+                $"Recieved unexpected resource lookup response for {message.ResourcePathOrRef} (id: {message.ResourceId})");
         }
-
-        // File does not exist locally. Send a request to the server.
-        if (!_loadingResources.ContainsKey(resourceId)) {
-            _loadingResources[resourceId] = new LoadingResourceEntry(typeof(T));
-
-            var msg = new MsgRequestResource { ResourceId = resourceId };
-            _netManager.ClientSendMessage(msg);
-
-            var timeout = _cfg.GetCVar(OpenDreamCVars.DownloadTimeout);
-            Robust.Shared.Timing.Timer.Spawn(TimeSpan.FromSeconds(timeout), () => {
-                if (_loadingResources.ContainsKey(resourceId)) {
-                    _sawmill.Warning(
-                        $"Resource id {resourceId} was requested, but is still not received {timeout} seconds later.");
-                }
-            });
-        }
-
-        _loadingResources[resourceId].LoadCallbacks.Add(loadedResource => {
-            onLoadCallback.Invoke((T)loadedResource);
-        });
     }
 
     private DreamResource LoadResourceFromData(Type resourceType, int resourceId, byte[] data) {
         var resource = (DreamResource)_typeFactory.CreateInstance(resourceType,
-            new object[] { resourceId, data });
+            new object[] {resourceId, data});
 
         _resourceCache[resourceId] = resource;
         return resource;
     }
 
-    public ResPath GetCacheFilePath(string filename) {
-        EnsureCacheDirectory();
-
-        return _cacheDirectory / new ResPath(filename).ToRelativePath();
-    }
-
-    public ResPath CreateCacheFile(string filename, string data) {
-        EnsureCacheDirectory();
-
-        // in BYOND when filename is a path everything except the filename at the end gets ignored - meaning all resource files end up directly in the cache folder
-        var path = _cacheDirectory / new ResPath(filename).Filename;
-        _resourceManager.UserData.WriteAllText(path, data);
-        return new ResPath(filename);
-    }
-
-    public ResPath CreateCacheFile(string filename, byte[] data) {
-        EnsureCacheDirectory();
-
-        // in BYOND when filename is a path everything except the filename at the end gets ignored - meaning all resource files end up directly in the cache folder
-        var path = _cacheDirectory / new ResPath(filename).Filename;
-        _resourceManager.UserData.WriteAllBytes(path, data);
-        return new ResPath(filename);
-    }
-
-    /// <summary>
-    /// Blocking check for the existence of a cached file from `browse_rsc()`. Returns true when the file is ready, or returns false if the file is not ready within timeoutSeconds.
-    /// </summary>
-    /// <param name="filename">filepath of the cached resource (eg `./foo.png`)</param>
-    /// <param name="timeoutSeconds">how long to block for while waiting for the resource. Default 5 seconds.</param>
-    /// <returns></returns>
-    public bool EnsureCacheFile(string filename, int timeoutSeconds = 5) {
-        var actualPath = GetCacheFilePath(filename);
-        if (_resourceManager.UserData.Exists(actualPath)) {
-            return true;
-        } else {
-            if (_activeBrowseRscRequests.Contains(actualPath.Filename)) {
-                //block until the file arrives for like 5 seconds, then give up
-                DateTime thresholdTime = DateTime.Now.AddSeconds(timeoutSeconds);
-                while (!_resourceManager.UserData.Exists(actualPath) && DateTime.Now < thresholdTime) {
-                    _netManager.ProcessPackets(); //todo this should be sleep
-                }
-
-                return _resourceManager.UserData.Exists(actualPath);
-            } else {
-                _sawmill.Error($"Cache was ensured for a file ({filename}) that does not exist in cache and is not requested. Probably somebody called browse() without browse_rsc() first.");
-                return false;
-            }
-        }
-    }
-
     private DreamResource? GetCachedResource(int resourceId) {
-        _resourceCache.TryGetValue(resourceId, out var cached);
+        _resourceCache.TryGetValue(resourceId, out DreamResource? cached);
 
         return cached;
-    }
-
-    /// <summary>
-    /// Used for lookup of resource IDs from paths and ref strings.
-    /// Note that this will fail for any resource that has not already been loaded by the server.
-    /// </summary>
-    /// <param name="resourcePathOrRef"></param>Either a path 'path/to/resource.dmi' or a ref '\ref[0xDEADBEEF]'
-    /// <param name="onSuccess"></param>Action to invoke on successful lookup
-    /// <param name="onFailure"></param>Action to invoke on failed lookup (ie, the server does not have a loaded resource that matches this string)
-    public void LookupResourceAsync(string resourcePathOrRef, Action<int> onSuccess, Action onFailure) {
-        if (_resourcePathToIdCache.TryGetValue(resourcePathOrRef, out var resourceId)) {
-            onSuccess.Invoke(resourceId);
-            return;
-        }
-
-        if (!_pendingResourceLookups.ContainsKey(resourcePathOrRef)) {
-            _pendingResourceLookups[resourcePathOrRef] = new PendingResourceLookup();
-            _pendingResourceLookups[resourcePathOrRef].SuccessCallbacks.Add(onSuccess);
-            _pendingResourceLookups[resourcePathOrRef].FailureCallbacks.Add(onFailure);
-
-            var msg = new MsgLookupResource { ResourcePathOrRef = resourcePathOrRef };
-            _netManager.ClientSendMessage(msg);
-
-            var timeout = _cfg.GetCVar(OpenDreamCVars.DownloadTimeout);
-            Robust.Shared.Timing.Timer.Spawn(TimeSpan.FromSeconds(timeout), () => {
-                if (_pendingResourceLookups.TryGetValue(resourcePathOrRef, out var pendingLookup)) {
-                    _sawmill.Warning(
-                        $"Resource id {resourcePathOrRef} lookup was requested, but is still not received {timeout} seconds later.");
-                    foreach (var failureCallback in pendingLookup.FailureCallbacks)
-                        failureCallback.Invoke();
-                }
-            });
-        } else {
-            _pendingResourceLookups[resourcePathOrRef].SuccessCallbacks.Add(onSuccess);
-            _pendingResourceLookups[resourcePathOrRef].FailureCallbacks.Add(onFailure);
-        }
     }
 
     private struct LoadingResourceEntry(Type resourceType) {

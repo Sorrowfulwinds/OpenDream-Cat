@@ -14,7 +14,7 @@ public static class DreamStylesheet {
 
     public static Stylesheet Make() {
         var res = IoCManager.Resolve<IResourceCache>();
-        var textureCloseButton = res.GetResource<TextureResource>("/Textures/Interface/cross.svg.png").Texture;
+        Texture textureCloseButton = res.GetResource<TextureResource>("/Textures/Interface/cross.svg.png").Texture;
         var notoSansFont = res.GetResource<FontResource>("/Fonts/NotoSans-Regular.ttf");
         var notoSansBoldFont = res.GetResource<FontResource>("/Fonts/NotoSans-Bold.ttf");
         var notoSansFont8 = new VectorFont(notoSansFont, 8);
@@ -59,15 +59,15 @@ public static class DreamStylesheet {
             PaddingTop = 3 // Account for the active button's ContentMarginBottomOverride
         };
 
-        return new Stylesheet(new StyleRule[] {
+        return new Stylesheet(new[] {
             Element<WindowRoot>()
                 .Prop(UIRoot.StylePropBackground, DefaultBackgroundColor),
 
             Element<PanelContainer>().Class("MapBackground")
-                .Prop("panel", new StyleBoxFlat { BackgroundColor = Color. Black}),
+                .Prop("panel", new StyleBoxFlat {BackgroundColor = Color.Black}),
 
             Element<PanelContainer>().Class("ContextMenuBackground")
-                .Prop("panel", new StyleBoxFlat() {
+                .Prop("panel", new StyleBoxFlat {
                     BackgroundColor = Color.White,
                     BorderColor = Color.DarkGray,
                     BorderThickness = new Thickness(1)
@@ -107,7 +107,7 @@ public static class DreamStylesheet {
 
             // Window background default color.
             Element().Class(DefaultWindow.StyleClassWindowPanel)
-                .Prop("panel", new StyleBoxFlat { BackgroundColor = Color.FromHex("#4A4A4A") }),
+                .Prop("panel", new StyleBoxFlat {BackgroundColor = Color.FromHex("#4A4A4A")}),
 
             // Window title properties
             Element().Class(DefaultWindow.StyleClassWindowTitle)
@@ -138,20 +138,40 @@ public static class DreamStylesheet {
                 .Prop(Control.StylePropertyModulateSelf, Color.FromHex("#808080")),
 
             // Button style normal
-            Element<ContainerButton>().Class(ContainerButton.StyleClassButton).Pseudo(ContainerButton.StylePseudoClassNormal)
-                .Prop(ContainerButton.StylePropertyStyleBox, new StyleBoxFlat { BackgroundColor = Color.FromHex("#C0C0C0"), BorderThickness = new Thickness(1), BorderColor = Color.FromHex("#707070")}),
+            Element<ContainerButton>().Class(ContainerButton.StyleClassButton)
+                .Pseudo(ContainerButton.StylePseudoClassNormal)
+                .Prop(ContainerButton.StylePropertyStyleBox,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.FromHex("#C0C0C0"), BorderThickness = new Thickness(1),
+                        BorderColor = Color.FromHex("#707070")
+                    }),
 
             // Button style hovered
-            Element<ContainerButton>().Class(ContainerButton.StyleClassButton).Pseudo(ContainerButton.StylePseudoClassHover)
-                .Prop(ContainerButton.StylePropertyStyleBox, new StyleBoxFlat { BackgroundColor = Color.FromHex("#D0D0D0"), BorderThickness = new Thickness(1), BorderColor = Color.FromHex("#707070")}),
+            Element<ContainerButton>().Class(ContainerButton.StyleClassButton)
+                .Pseudo(ContainerButton.StylePseudoClassHover)
+                .Prop(ContainerButton.StylePropertyStyleBox,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.FromHex("#D0D0D0"), BorderThickness = new Thickness(1),
+                        BorderColor = Color.FromHex("#707070")
+                    }),
 
             // Button style pressed
-            Element<ContainerButton>().Class(ContainerButton.StyleClassButton).Pseudo(ContainerButton.StylePseudoClassPressed)
-                .Prop(ContainerButton.StylePropertyStyleBox, new StyleBoxFlat { BackgroundColor = Color.FromHex("#E0E0E0"), BorderThickness = new Thickness(1), BorderColor = Color.FromHex("#707070") }),
+            Element<ContainerButton>().Class(ContainerButton.StyleClassButton)
+                .Pseudo(ContainerButton.StylePseudoClassPressed)
+                .Prop(ContainerButton.StylePropertyStyleBox,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.FromHex("#E0E0E0"), BorderThickness = new Thickness(1),
+                        BorderColor = Color.FromHex("#707070")
+                    }),
 
             // Button style disabled
-            Element<ContainerButton>().Class(ContainerButton.StyleClassButton).Pseudo(ContainerButton.StylePseudoClassDisabled)
-                .Prop(ContainerButton.StylePropertyStyleBox, new StyleBoxFlat { BackgroundColor = Color.FromHex("#FAFAFA"), BorderThickness = new Thickness(1), BorderColor = Color.FromHex("#707070")}),
+            Element<ContainerButton>().Class(ContainerButton.StyleClassButton)
+                .Pseudo(ContainerButton.StylePseudoClassDisabled)
+                .Prop(ContainerButton.StylePropertyStyleBox,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.FromHex("#FAFAFA"), BorderThickness = new Thickness(1),
+                        BorderColor = Color.FromHex("#707070")
+                    }),
 
             // DMF ControlButton
             Element<Label>().Class(ControlButton.StyleClassDMFButton)
@@ -176,7 +196,7 @@ public static class DreamStylesheet {
                     ContentMarginLeftOverride = 2 + 2,
                     ContentMarginTopOverride = 2 + 2,
                     ContentMarginRightOverride = 2 + 1,
-                    ContentMarginBottomOverride = 2 + 1,
+                    ContentMarginBottomOverride = 2 + 1
                 })
                 // default font color
                 .Prop("font-color", Color.Black)
@@ -234,13 +254,35 @@ public static class DreamStylesheet {
 
             //BarControl - composed of ProgressBar and Slider
             Element<ProgressBar>()
-                .Prop(ProgressBar.StylePropertyBackground, new StyleBoxFlat { BackgroundColor = Color.LightGray, BorderThickness = new Thickness(1), BorderColor = Color.Black})
-                .Prop(ProgressBar.StylePropertyForeground, new StyleBoxFlat { BackgroundColor = Color.Transparent, BorderThickness = new Thickness(1), BorderColor = Color.Black}),
+                .Prop(ProgressBar.StylePropertyBackground,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.LightGray, BorderThickness = new Thickness(1), BorderColor = Color.Black
+                    })
+                .Prop(ProgressBar.StylePropertyForeground,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.Transparent, BorderThickness = new Thickness(1),
+                        BorderColor = Color.Black
+                    }),
             Element<Slider>()
-                .Prop(Slider.StylePropertyBackground, new StyleBoxFlat { BackgroundColor = Color.Transparent, BorderThickness = new Thickness(1), BorderColor = Color.Black})
-                .Prop(Slider.StylePropertyForeground, new StyleBoxFlat { BackgroundColor = Color.LightGray, BorderThickness = new Thickness(1), BorderColor = Color.Black})
-                .Prop(Slider.StylePropertyGrabber, new StyleBoxFlat { BackgroundColor = Color.Transparent, BorderThickness = new Thickness(1), BorderColor = Color.Black, ContentMarginLeftOverride=10, ContentMarginRightOverride=10})
-                .Prop(Slider.StylePropertyFill, new StyleBoxFlat { BackgroundColor = Color.Transparent, BorderThickness = new Thickness(0), BorderColor = Color.Black}),
+                .Prop(Slider.StylePropertyBackground,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.Transparent, BorderThickness = new Thickness(1),
+                        BorderColor = Color.Black
+                    })
+                .Prop(Slider.StylePropertyForeground,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.LightGray, BorderThickness = new Thickness(1), BorderColor = Color.Black
+                    })
+                .Prop(Slider.StylePropertyGrabber,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.Transparent, BorderThickness = new Thickness(1),
+                        BorderColor = Color.Black, ContentMarginLeftOverride = 10, ContentMarginRightOverride = 10
+                    })
+                .Prop(Slider.StylePropertyFill,
+                    new StyleBoxFlat {
+                        BackgroundColor = Color.Transparent, BorderThickness = new Thickness(0),
+                        BorderColor = Color.Black
+                    }),
 
             // that thing on the top, some might say "topbar"
             Element<MenuBar>()
@@ -260,7 +302,7 @@ public static class DreamStylesheet {
                     ContentMarginLeftOverride = 3,
                     ContentMarginRightOverride = 3,
                     ContentMarginTopOverride = 2,
-                    ContentMarginBottomOverride = 2,
+                    ContentMarginBottomOverride = 2
                 }),
 
             Element<MenuBar.MenuTopButton>()
@@ -270,8 +312,8 @@ public static class DreamStylesheet {
                     ContentMarginLeftOverride = 3,
                     ContentMarginRightOverride = 3,
                     ContentMarginTopOverride = 2,
-                    ContentMarginBottomOverride = 2,
-                }),
+                    ContentMarginBottomOverride = 2
+                })
         });
     }
 }
