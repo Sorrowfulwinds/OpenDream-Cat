@@ -567,7 +567,7 @@ internal static partial class DreamProcNativeHelpers {
         if (value == null || value.IsEmpty)
             return null;
 
-        if (radix < 2 || radix > 36)
+        if (radix is < 2 or > 36)
             throw new DMException($"Invalid radix: {radix}");
 
         bool negative = value[0] == '-';
@@ -575,7 +575,7 @@ internal static partial class DreamProcNativeHelpers {
             value = value.Slice(1);
 
         if (value.StartsWith("0x"))
-            if (radix == 10 || radix == 16) {
+            if (radix is 10 or 16) {
                 radix = 16;
                 value = value.Slice(2);
             }

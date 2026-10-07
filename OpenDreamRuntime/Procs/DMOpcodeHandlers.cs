@@ -1954,7 +1954,7 @@ internal static partial class DMOpcodeHandlers {
         float y = state.UnsafePopAsFloat();
         float result = SharedOperations.Log(y);
 
-        if (y <= 0 || float.IsNaN(y))
+        if (y is <= 0 or Single.NaN)
             throw new Exception($"log({y}) is not computable");
 
         state.Push(new DreamValue(result));

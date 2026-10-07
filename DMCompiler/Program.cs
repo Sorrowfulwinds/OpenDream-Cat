@@ -59,7 +59,7 @@ internal static class Program {
 
     private static bool HasValidDMExtension(string filename) {
         string extension = Path.GetExtension(filename);
-        return !string.IsNullOrEmpty(extension) && (extension == ".dme" || extension == ".dm");
+        return !string.IsNullOrEmpty(extension) && extension is ".dme" or ".dm";
     }
 
     private static void PrintHelp() {

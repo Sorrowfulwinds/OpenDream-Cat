@@ -256,7 +256,7 @@ public sealed class MutableAppearance : IEquatable<MutableAppearance>, IDisposab
         // anything higher implies trying to render "superblue" or something.
         var diagonalSum = 0f;
         foreach (float diagonalValue in matrix.GetDiagonal()) {
-            if (diagonalValue < 0 || diagonalValue > 1)
+            if (diagonalValue is < 0 or > 1)
                 return false;
             diagonalSum += diagonalValue;
         }

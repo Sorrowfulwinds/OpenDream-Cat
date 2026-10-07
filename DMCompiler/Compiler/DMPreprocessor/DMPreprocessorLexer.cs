@@ -523,7 +523,7 @@ internal sealed class DMPreprocessorLexer {
 
                     while (!AtEndOfSource()) {
                         char next = Advance();
-                        if ((c == 'e' || c == 'E') && (next == '-' || next == '+')) { //1e-10 or 1e+10
+                        if (c is 'e' or 'E' && next is '-' or '+') { //1e-10 or 1e+10
                             TokenTextBuilder.Append(next);
                             next = Advance();
                         } else if (c == '#' && next == 'I') { //1.#INF and 1.#IND

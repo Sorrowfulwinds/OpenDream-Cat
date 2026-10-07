@@ -2911,7 +2911,7 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Max", Type = DreamValueTypeFlag.Float)]
     [DreamProcParameter("inclusive", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_values_cut_over(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (bundle.Arguments.Length < 2 || bundle.Arguments.Length > 3)
+        if (bundle.Arguments.Length is < 2 or > 3)
             throw new DMException($"expected 2-3 arguments (found {bundle.Arguments.Length})");
 
         DreamValue argList = bundle.GetArgument(0, "Alist");
@@ -2926,7 +2926,7 @@ internal static class DreamProcNativeRoot {
     [DreamProcParameter("Min", Type = DreamValueTypeFlag.Float)]
     [DreamProcParameter("inclusive", Type = DreamValueTypeFlag.Float, DefaultValue = 0)]
     public static DreamValue NativeProc_values_cut_under(NativeProc.Bundle bundle, DreamObject? src, DreamObject? usr) {
-        if (bundle.Arguments.Length < 2 || bundle.Arguments.Length > 3)
+        if (bundle.Arguments.Length is < 2 or > 3)
             throw new DMException($"expected 2-3 arguments (found {bundle.Arguments.Length})");
 
         DreamValue argList = bundle.GetArgument(0, "Alist");

@@ -224,7 +224,7 @@ internal sealed class Rgb(Location location, ArgumentList arguments) : DMExpress
 
         var validArgs = true;
 
-        if (arguments.Length < 3 || arguments.Length > 5) {
+        if (arguments.Length is < 3 or > 5) {
             compiler.Emit(WarningCode.BadExpression, Location,
                 $"rgb: expected 3 to 5 arguments (found {arguments.Length})");
             constant = null;
