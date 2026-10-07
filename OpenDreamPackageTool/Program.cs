@@ -3,25 +3,6 @@
 namespace OpenDreamPackageTool;
 
 public static class Program {
-    public class Options {
-        public string OutputDir = "release/";
-        public bool SkipBuild;
-        public string BuildConfiguration = "Release";
-    }
-
-    public class ServerOptions : Options {
-        public string? Platform;
-        public bool HybridAcz;
-        public bool InPlatformSubDir = true;
-        public bool TgsEngineBuild;
-    }
-
-    public class ClientOptions : Options;
-
-    public class TgsOptions : Options {
-        // Avoid adding arguments for TGS, to give us more flexibility while keeping compatibility
-    }
-
     public static readonly string[] SharedIgnoredResources = [
         ".gitignore",
         ".directory",
@@ -35,7 +16,7 @@ public static class Program {
     };
 
     public static int Main(string[] args) {
-        if (!TryParseArgs(args, out var options))
+        if (!TryParseArgs(args, out Options? options))
             return 1;
 
         if (!File.Exists("OpenDream.slnx")) {
@@ -68,14 +49,14 @@ public static class Program {
 
         Directory.CreateDirectory(dest);
 
-        foreach (var file in srcDir.EnumerateFiles()) {
+        foreach (FileInfo file in srcDir.EnumerateFiles()) {
             if (skip.Contains(file.Name))
                 continue;
 
             file.CopyTo(Path.Combine(dest, file.Name));
         }
 
-        foreach (var subDir in srcDir.EnumerateDirectories()) {
+        foreach (DirectoryInfo subDir in srcDir.EnumerateDirectories()) {
             if (skip.Contains(subDir.Name))
                 continue;
 
@@ -88,8 +69,8 @@ public static class Program {
             var serverOptions = new ServerOptions();
 
             options = serverOptions;
-            for (int i = 0; i < args.Length; i++) {
-                var arg = args[i];
+            for (var i = 0; i < args.Length; i++) {
+                string arg = args[i];
 
                 switch (arg) {
                     case "--server":
@@ -133,12 +114,14 @@ public static class Program {
             }
 
             return true;
-        } else if (args.Contains("--client")) {
+        }
+
+        if (args.Contains("--client")) {
             var clientOptions = new ClientOptions();
 
             options = clientOptions;
-            for (int i = 0; i < args.Length; i++) {
-                var arg = args[i];
+            for (var i = 0; i < args.Length; i++) {
+                string arg = args[i];
 
                 switch (arg) {
                     case "--client":
@@ -170,12 +153,14 @@ public static class Program {
             }
 
             return true;
-        } else if (args.Contains("--tgs")) {
+        }
+
+        if (args.Contains("--tgs")) {
             var tgsOptions = new TgsOptions();
 
             options = tgsOptions;
-            for (int i = 0; i < args.Length; i++) {
-                var arg = args[i];
+            for (var i = 0; i < args.Length; i++) {
+                string arg = args[i];
 
                 switch (arg) {
                     case "--tgs":
@@ -212,5 +197,24 @@ public static class Program {
         options = null;
         Console.Error.WriteLine("One of '--server' or '--client' must be given");
         return false;
+    }
+
+    public class Options {
+        public string BuildConfiguration = "Release";
+        public string OutputDir = "release/";
+        public bool SkipBuild;
+    }
+
+    public class ServerOptions : Options {
+        public bool HybridAcz;
+        public bool InPlatformSubDir = true;
+        public string? Platform;
+        public bool TgsEngineBuild;
+    }
+
+    public class ClientOptions : Options;
+
+    public class TgsOptions : Options {
+        // Avoid adding arguments for TGS, to give us more flexibility while keeping compatibility
     }
 }

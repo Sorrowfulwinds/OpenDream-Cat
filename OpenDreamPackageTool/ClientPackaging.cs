@@ -4,7 +4,7 @@ using Robust.Packaging.Utility;
 namespace OpenDreamPackageTool;
 
 /// <summary>
-/// Packages the client's resources & assemblies in a format ready to be downloaded by connecting clients
+///     Packages the client's resources & assemblies in a format ready to be downloaded by connecting clients
 /// </summary>
 public static class ClientPackaging {
     private static readonly string[] ClientIgnoredResources = {
@@ -39,7 +39,7 @@ public static class ClientPackaging {
     private static void Build(Program.ClientOptions options) {
         Console.WriteLine("Building project...");
 
-        if (!options.SkipBuild) {
+        if (!options.SkipBuild)
             ProcessHelpers.RunCheck(new ProcessStartInfo {
                 FileName = "dotnet",
                 ArgumentList = {
@@ -53,9 +53,8 @@ public static class ClientPackaging {
                     "/m"
                 }
             }).Wait();
-        }
 
-        DirectoryInfo releaseDir = new DirectoryInfo(Path.Combine(options.OutputDir, "OpenDreamClient"));
+        var releaseDir = new DirectoryInfo(Path.Combine(options.OutputDir, "OpenDreamClient"));
 
         Console.WriteLine("Packaging client...");
         releaseDir.Create();
@@ -64,7 +63,7 @@ public static class ClientPackaging {
     }
 
     private static void CopyResources(string dest) {
-        var ignoreSet = Program.SharedIgnoredResources.Union(ClientIgnoredResources).ToArray();
+        string[] ignoreSet = Program.SharedIgnoredResources.Union(ClientIgnoredResources).ToArray();
 
         Program.CopyDirectory("Resources", dest, ignoreSet);
     }
@@ -75,11 +74,11 @@ public static class ClientPackaging {
         string[] baseAssemblies = ClientContentAssemblies;
 
         // Include content assemblies.
-        foreach (var assembly in baseAssemblies) {
+        foreach (string assembly in baseAssemblies) {
             files.Add(assembly + ".dll");
 
             // If PDB available, include it as well.
-            var pdbPath = assembly + ".pdb";
+            string pdbPath = assembly + ".pdb";
             if (File.Exists(Path.Combine(sourceDir, pdbPath)))
                 files.Add(pdbPath);
         }
@@ -87,8 +86,6 @@ public static class ClientPackaging {
         // Create assemblies dir if necessary.
         Directory.CreateDirectory(dest);
 
-        foreach (var file in files) {
-            File.Copy(Path.Combine(sourceDir, file), Path.Combine(dest, file));
-        }
+        foreach (string file in files) File.Copy(Path.Combine(sourceDir, file), Path.Combine(dest, file));
     }
 }

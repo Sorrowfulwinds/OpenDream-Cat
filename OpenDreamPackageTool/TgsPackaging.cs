@@ -5,8 +5,8 @@ using Robust.Packaging.Utility;
 namespace OpenDreamPackageTool;
 
 /// <summary>
-/// Packages the OpenDream server, client (hybrid ACZ), and compiler in a format friendly for TGS
-/// See https://github.com/OpenDreamProject/OpenDream/issues/1495
+///     Packages the OpenDream server, client (hybrid ACZ), and compiler in a format friendly for TGS
+///     See https://github.com/OpenDreamProject/OpenDream/issues/1495
 /// </summary>
 public static class TgsPackaging {
     public static void Package(Program.TgsOptions options) {
@@ -15,7 +15,7 @@ public static class TgsPackaging {
             Directory.Delete(options.OutputDir, true);
         }
 
-        var platform = DeterminePlatform();
+        PlatformReg platform = DeterminePlatform();
 
         // Package the server to <output dir>/bin/server
         ServerPackaging.Package(new Program.ServerOptions {
@@ -47,7 +47,8 @@ public static class TgsPackaging {
         }
 
         // Package the compiler to <output dir>/bin/compiler
-        Program.CopyDirectory($"bin/DMCompiler/{platform.RId}/publish", Path.Combine(options.OutputDir, "bin", "compiler"));
+        Program.CopyDirectory($"bin/DMCompiler/{platform.RId}/publish",
+            Path.Combine(options.OutputDir, "bin", "compiler"));
     }
 
     private static void PublishCompiler(string platformRId, string targetOs, string buildConfig) {
@@ -67,20 +68,19 @@ public static class TgsPackaging {
     }
 
     /// <summary>
-    /// Determine what platform to package for, based on what OS we're currently running on
+    ///     Determine what platform to package for, based on what OS we're currently running on
     /// </summary>
     /// <returns>The platform</returns>
     private static PlatformReg DeterminePlatform() {
         string rId;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             rId = "win";
-        } else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             rId = "linux";
-        } else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             rId = "osx";
-        } else {
+        else
             throw new NotSupportedException("Your OS is not supported");
-        }
 
         rId += RuntimeInformation.OSArchitecture switch {
             Architecture.X64 => "-x64",

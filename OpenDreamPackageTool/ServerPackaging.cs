@@ -5,7 +5,7 @@ using Robust.Packaging.Utility;
 namespace OpenDreamPackageTool;
 
 /// <summary>
-/// Packages the server, and optionally the client alongside for hybrid ACZ
+///     Packages the server, and optionally the client alongside for hybrid ACZ
 /// </summary>
 public static class ServerPackaging {
     private static readonly PlatformReg[] Platforms = {
@@ -17,7 +17,7 @@ public static class ServerPackaging {
         new("osx-x64", "MacOS", false), // macOS is not supported currently
         new("win-x86", "Windows", false),
         new("linux-x86", "Linux", false),
-        new("linux-arm", "Linux", false),
+        new("linux-arm", "Linux", false)
     };
 
     private static readonly string[] ServerIgnoredResources = {
@@ -58,7 +58,7 @@ public static class ServerPackaging {
 
     private static readonly string[] ServerNatives = {
         "byondcore", // Windows name for the BYONDAPI trampoline
-        "libbyond", // Linux name for the BYONDAPI trampoline
+        "libbyond" // Linux name for the BYONDAPI trampoline
     };
 
     private static readonly string[] BinSkipFolders = {
@@ -82,14 +82,11 @@ public static class ServerPackaging {
 
     public static void Package(Program.ServerOptions options) {
         IEnumerable<PlatformReg> platforms = PlatformsDefault;
-        if (options.Platform != null) {
-            platforms = new[] { GetPlatform(options.Platform) };
-        }
+        if (options.Platform != null) platforms = new[] {GetPlatform(options.Platform)};
 
-        if (!options.InPlatformSubDir && options.Platform == null) {
+        if (!options.InPlatformSubDir && options.Platform == null)
             Console.Error.WriteLine(
                 "Packaging the server without a platform subdirectory requires a '--platform' argument");
-        }
 
         if (Directory.Exists(options.OutputDir)) {
             Console.WriteLine($"Cleaning old release packages ({options.OutputDir})...");
@@ -98,7 +95,7 @@ public static class ServerPackaging {
 
         Directory.CreateDirectory(options.OutputDir);
 
-        if (options.HybridAcz) {
+        if (options.HybridAcz)
             // Hybrid ACZ involves a file "Content.Client.zip" in the server executable directory.
             // Rather than hosting the client ZIP on the watchdog or on a separate server,
             // Hybrid ACZ uses the ACZ hosting functionality to host it as part of the status host,
@@ -107,15 +104,12 @@ public static class ServerPackaging {
                 OutputDir = options.OutputDir,
                 SkipBuild = options.SkipBuild
             });
-        }
 
-        foreach (var platform in platforms) {
-            BuildPlatform(platform, options);
-        }
+        foreach (PlatformReg platform in platforms) BuildPlatform(platform, options);
     }
 
     public static PlatformReg GetPlatform(string rId) {
-        var platform = Platforms.FirstOrDefault(p => p.RId == rId);
+        PlatformReg? platform = Platforms.FirstOrDefault(p => p.RId == rId);
         if (platform == null)
             throw new NotSupportedException($"Platform \"{rId}\" is not supported");
 
@@ -155,10 +149,10 @@ public static class ServerPackaging {
         CopyResources(Path.Combine(releaseDir, "Resources"));
         CopyContentAssemblies(Path.Combine(releaseDir, "Resources", "Assemblies"));
         CopyNatives(platform, releaseDir);
-        if (options.HybridAcz) {
+        if (options.HybridAcz)
             // Hybrid ACZ expects "Content.Client.zip" (as it's not OpenDream-specific)
-            ZipFile.CreateFromDirectory(Path.Combine(options.OutputDir, "OpenDreamClient"), Path.Combine(releaseDir, "Content.Client.zip"));
-        }
+            ZipFile.CreateFromDirectory(Path.Combine(options.OutputDir, "OpenDreamClient"),
+                Path.Combine(releaseDir, "Content.Client.zip"));
     }
 
     private static void PublishClientServer(string platformRId, string targetOs, string buildConfig) {
@@ -179,7 +173,7 @@ public static class ServerPackaging {
 
     private static void CopyResources(string dest) {
         // Content repo goes FIRST so that it won't override engine files as that's forbidden.
-        var ignoreSet = Program.SharedIgnoredResources.Union(ServerIgnoredResources).ToArray();
+        string[] ignoreSet = Program.SharedIgnoredResources.Union(ServerIgnoredResources).ToArray();
 
         Program.CopyDirectory("Resources", dest, ignoreSet);
         Program.CopyDirectory("RobustToolbox/Resources", dest, ignoreSet);
@@ -191,18 +185,17 @@ public static class ServerPackaging {
         string[] baseAssemblies = ServerContentAssemblies;
 
         // Additional assemblies that need to be copied such as EFCore.
-        foreach (var filename in Directory.EnumerateFiles(sourceDir)) {
+        foreach (string filename in Directory.EnumerateFiles(sourceDir))
             if (ServerExtraAssemblies.Any(assembly => filename.StartsWith(assembly)) &&
                 !ServerNotExtraAssemblies.Any(assembly => filename.StartsWith(assembly)))
                 files.Add(filename);
-        }
 
         // Include content assemblies.
-        foreach (var assembly in baseAssemblies) {
+        foreach (string assembly in baseAssemblies) {
             files.Add(assembly + ".dll");
 
             // If PDB available, include it as well.
-            var pdbPath = assembly + ".pdb";
+            string pdbPath = assembly + ".pdb";
             if (File.Exists(Path.Combine(sourceDir, pdbPath)))
                 files.Add(pdbPath);
         }
@@ -210,19 +203,17 @@ public static class ServerPackaging {
         // Create assemblies dir if necessary.
         Directory.CreateDirectory(dest);
 
-        foreach (var file in files) {
-            File.Copy(Path.Combine(sourceDir, file), Path.Combine(dest, file));
-        }
+        foreach (string file in files) File.Copy(Path.Combine(sourceDir, file), Path.Combine(dest, file));
     }
 
     private static void CopyNatives(PlatformReg platform, string releaseDir) {
         string sourceDir = Path.Combine("bin", "Content.Server");
-        string runtimesDir = $"runtimes/{platform.RId}/";
+        var runtimesDir = $"runtimes/{platform.RId}/";
 
-        foreach (var native in ServerNatives) {
-            var name = (platform.TargetOs == "Windows") ? $"{native}.dll" : $"{native}.so";
-            var src = Path.Combine(sourceDir, runtimesDir, $"native/{name}");
-            var dst = Path.Combine(releaseDir, name);
+        foreach (string native in ServerNatives) {
+            string name = platform.TargetOs == "Windows" ? $"{native}.dll" : $"{native}.so";
+            string src = Path.Combine(sourceDir, runtimesDir, $"native/{name}");
+            string dst = Path.Combine(releaseDir, name);
             if (!File.Exists(src))
                 continue;
 
