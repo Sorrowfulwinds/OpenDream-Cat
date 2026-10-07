@@ -2704,7 +2704,7 @@ internal static class DreamProcNativeRoot {
         var ticks = (long)(timestamp * TimeSpan.TicksPerSecond / 10);
 
         // The DM reference says this is 0-864000. That's wrong, it's actually a 7-day range instead of 1
-        if (timestamp >= 0 && timestamp < 864000 * 7)
+        if (timestamp is >= 0 and < 864000 * 7)
             ticks += new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, DateTime.UtcNow.Day).Ticks;
         else
             // Offset from January 1st, 2020

@@ -199,7 +199,7 @@ public sealed partial class ControlWindow : InterfaceControl {
                 ? WindowDescriptor.BackgroundColor.Value
                 : DreamStylesheet.DefaultBackgroundColor;
 
-        if (osWindow != null && osWindow.ClydeWindow != null)
+        if (osWindow is { ClydeWindow: not null })
             osWindow.ClydeWindow.IsVisible = WindowDescriptor.IsVisible.Value;
         else if (clydeWindow != null) clydeWindow.IsVisible = WindowDescriptor.IsVisible.Value;
     }

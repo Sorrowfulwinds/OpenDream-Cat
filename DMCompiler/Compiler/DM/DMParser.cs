@@ -337,8 +337,7 @@ public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token
                 DMComplexValueType valType = AsComplexTypes() ?? DMValueType.Anything;
                 var varDef = new DMASTObjectVarDefinition(loc, varPath, value, valType);
 
-                if (varDef.IsStatic &&
-                    varDef.Name is "usr" or "src" or "args" or "world" or "global" or "callee" or "caller")
+                if (varDef is { IsStatic: true, Name: "usr" or "src" or "args" or "world" or "global" or "callee" or "caller" })
                     Compiler.Emit(WarningCode.SoftReservedKeyword, loc,
                         $"Global variable named {varDef.Name} DOES NOT override the built-in {varDef.Name}. This is a terrible idea, don't do that.");
 

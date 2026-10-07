@@ -470,12 +470,12 @@ public struct DreamValue : IDisposable, IEquatable<DreamValue> {
                 Debug.Assert(other._refValue is DreamObject or null, "Failed to cast other._refValue to DreamObject");
                 var thisObj = Unsafe.As<DreamObject>(_refValue);
                 var otherObj = Unsafe.As<DreamObject>(other._refValue);
-                if (thisObj != null && thisObj.Deleted) {
+                if (thisObj is { Deleted: true }) {
                     _refValue = null;
                     thisObj = null;
                 }
 
-                if (otherObj != null && otherObj.Deleted) {
+                if (otherObj is { Deleted: true }) {
                     other._refValue = null;
                     otherObj = null;
                 }

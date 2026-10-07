@@ -84,7 +84,7 @@ public static class ServerPackaging {
         IEnumerable<PlatformReg> platforms = PlatformsDefault;
         if (options.Platform != null) platforms = new[] {GetPlatform(options.Platform)};
 
-        if (!options.InPlatformSubDir && options.Platform == null)
+        if (options is { InPlatformSubDir: false, Platform: null })
             Console.Error.WriteLine(
                 "Packaging the server without a platform subdirectory requires a '--platform' argument");
 

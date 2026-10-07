@@ -161,7 +161,7 @@ internal sealed class DreamIcon(
         DateTime start = DateTime.Now;
         if (!chainAnim)
             EndAppearanceAnimation(null);
-        else if (_appearanceAnimations != null && _appearanceAnimations.Count > 0)
+        else if (_appearanceAnimations is { Count: > 0 })
             if ((flags & AnimationFlags.AnimationParallel) != 0)
                 start = _appearanceAnimations[^1]
                     .Start; //either that's also a parallel, or its one that this should be parallel with
